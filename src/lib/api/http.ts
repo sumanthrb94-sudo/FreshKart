@@ -1,0 +1,122 @@
+import type {
+  AdminStats,
+  CreateOrderInput,
+  Credentials,
+  Customer,
+  Order,
+  OrderStatus,
+  Product,
+  RegisterInput,
+  User,
+} from "@/lib/types";
+import { DataSource, ApiError } from "./datasource";
+
+/**
+ * Talks to a real backend over REST. Activated automatically when
+ * NEXT_PUBLIC_API_BASE_URL is set (see ./index.ts). The endpoint shapes match
+ * docs/BACKEND.md exactly, so a GCP Cloud Run service implementing that
+ * contract is a drop-in replacement for the mock — no UI changes required.
+ */
+export class HttpDataSource implements DataSource {
+  constructor(private baseUrl: string) {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
+
+  private async request<T>(
+    path: string,
+    init?: RequestInit & { auth?: boolean }
+  ): Promise<T> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+      // The backend is expected to use httpOnly cookies for the session.
+      credentials: "include",
+    });
+    if (!res.ok) {
+      let message = `Request failed (${res.status})`;
+      try {
+        const body = await res.json();
+        if (body?.message) message = body.message;
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new ApiError(message, res.status);
+    }
+    if (res.status === 204) return undefined as T;
+    return (await res.json()) as T;
+  }
+
+  login(creds: Credentials) {
+    return this.request<User>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(creds),
+    });
+  }
+
+  register(input: RegisterInput) {
+    return this.request<User>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  updateProfile(userId: string, patch: Partial<User>) {
+    return this.request<User>(`/users/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  }
+
+  listProducts() {
+    return this.request<Product[]>("/products");
+  }
+
+  getProduct(id: string) {
+    return this.request<Product | null>(`/products/${id}`);
+  }
+
+  updateProduct(id: string, patch: Partial<Product>) {
+    return this.request<Product>(`/products/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  }
+
+  createOrder(buyerId: string, input: CreateOrderInput) {
+    return this.request<Order>("/orders", {
+      method: "POST",
+      body: JSON.stringify({ buyerId, ...input }),
+    });
+  }
+
+  listOrders(buyerId?: string) {
+    const qs = buyerId ? `?buyerId=${encodeURIComponent(buyerId)}` : "";
+    return this.request<Order[]>(`/orders${qs}`);
+  }
+
+  getOrder(id: string) {
+    return this.request<Order | null>(`/orders/${id}`);
+  }
+
+  updateOrderStatus(id: string, status: OrderStatus) {
+    return this.request<Order>(`/orders/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  cancelOrder(id: string) {
+    return this.request<Order>(`/orders/${id}/cancel`, { method: "POST" });
+  }
+
+  listCustomers() {
+    return this.request<Customer[]>("/customers");
+  }
+
+  getAdminStats() {
+    return this.request<AdminStats>("/admin/stats");
+  }
+}
