@@ -42,8 +42,8 @@ export function BuyerHeader() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const router = useRouter();
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     // Full navigation so the back button can't return to a protected page.
     window.location.assign("/login");
   }

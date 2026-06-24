@@ -20,8 +20,8 @@ function AdminHeader() {
   const pathname = usePathname();
   const { logout } = useAuth();
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     window.location.assign("/login");
   }
 

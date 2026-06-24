@@ -32,6 +32,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# firebase service-account keys / local emulator data — NEVER commit
+serviceAccount*.json
+*-service-account*.json
+.firebase/
+firebase-debug.log*
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

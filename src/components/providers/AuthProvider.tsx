@@ -20,7 +20,7 @@ interface AuthContextValue {
   isAdmin: boolean;
   login: (creds: Credentials) => Promise<User>;
   register: (input: RegisterInput) => Promise<User>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateProfile: (patch: Partial<User>) => Promise<User>;
 }
 
@@ -29,17 +29,6 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Hydrate session from localStorage on first mount.
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(SESSION_KEY);
-      if (raw) setUser(JSON.parse(raw) as User);
-    } catch {
-      /* ignore */
-    }
-    setLoading(false);
-  }, []);
 
   const persist = useCallback((next: User | null) => {
     setUser(next);
@@ -50,6 +39,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       /* ignore */
     }
   }, []);
+
+  // Restore session. With a backend that manages auth state (Firebase), that
+  // subscription is the source of truth; localStorage gives an instant
+  // optimistic paint while it settles. Otherwise localStorage is authoritative.
+  useEffect(() => {
+    let hydrated: User | null = null;
+    try {
+      const raw = window.localStorage.getItem(SESSION_KEY);
+      if (raw) hydrated = JSON.parse(raw) as User;
+    } catch {
+      /* ignore */
+    }
+    if (hydrated) setUser(hydrated);
+
+    if (api.subscribeAuth) {
+      const unsub = api.subscribeAuth((next) => {
+        persist(next);
+        setLoading(false);
+      });
+      return unsub;
+    }
+
+    setLoading(false);
+  }, [persist]);
 
   const login = useCallback(
     async (creds: Credentials) => {
@@ -69,7 +82,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [persist]
   );
 
-  const logout = useCallback(() => persist(null), [persist]);
+  const logout = useCallback(async () => {
+    try {
+      await api.logout?.();
+    } finally {
+      persist(null);
+    }
+  }, [persist]);
 
   const updateProfile = useCallback(
     async (patch: Partial<User>) => {

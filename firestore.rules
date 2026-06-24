@@ -1,0 +1,64 @@
+rules_version = '2';
+
+// FreshKart Firestore Security Rules.
+// The browser talks to Firestore directly, so these rules ARE the backend's
+// authorization layer. See docs/FIREBASE.md.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userRole() == 'ADMIN';
+    }
+
+    // Only the `stock` field is being changed (used by buyer order / cancel
+    // transactions to reserve/release stock without editing price or status).
+    function onlyStockChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock']);
+    }
+
+    // --- Products: public catalog. Admins manage; signed-in users may only
+    //     adjust stock (order/cancel transactions). ---
+    match /products/{productId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isSignedIn() && onlyStockChanged());
+    }
+
+    // --- Users: a user reads/edits their own profile; admins read all.
+    //     Self-signup may only create a BUYER and cannot self-promote. ---
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn()
+                    && request.auth.uid == userId
+                    && request.resource.data.role == 'BUYER';
+      allow update: if isAdmin()
+                    || (request.auth.uid == userId
+                        && request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+    }
+
+    // --- Orders: a buyer creates/reads/cancels their own; admins manage all. ---
+    match /orders/{orderId} {
+      allow read: if isSignedIn()
+                  && (resource.data.buyerId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.status == 'PENDING';
+      // Admin can advance to any status; a buyer may only cancel while the
+      // order is still PENDING or CONFIRMED.
+      allow update: if isAdmin()
+                    || (resource.data.buyerId == request.auth.uid
+                        && resource.data.status in ['PENDING', 'CONFIRMED']
+                        && request.resource.data.status == 'CANCELLED');
+      allow delete: if isAdmin();
+    }
+  }
+}

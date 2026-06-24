@@ -23,6 +23,17 @@ export interface DataSource {
   login(creds: Credentials): Promise<User>;
   register(input: RegisterInput): Promise<User>;
   updateProfile(userId: string, patch: Partial<User>): Promise<User>;
+  /**
+   * Optional: end the backend session (e.g. Firebase signOut). Adapters that
+   * keep no server session (mock / simple HTTP) may omit this.
+   */
+  logout?(): Promise<void>;
+  /**
+   * Optional: subscribe to backend-managed auth state (e.g. Firebase
+   * onAuthStateChanged). When provided, it is treated as the source of truth
+   * for the current user. Returns an unsubscribe function.
+   */
+  subscribeAuth?(cb: (user: User | null) => void): () => void;
 
   // --- Catalog ------------------------------------------------------------
   listProducts(): Promise<Product[]>;

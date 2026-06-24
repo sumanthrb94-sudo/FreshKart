@@ -1,13 +1,20 @@
-# Deployment — Vercel (frontend) + GCP (backend)
+# Deployment — Vercel (frontend) + Firebase (backend)
 
-The recommended topology: host the **Next.js front end on Vercel** and the
-**API + database on Google Cloud**. The front end reaches the backend purely
-through `NEXT_PUBLIC_API_BASE_URL`, so the two deploy independently.
+The production topology: host the **Next.js front end on Vercel**, and use
+**Firebase** (Firestore + Auth + Storage) as the backend, reached **directly
+from the browser** — there is no separate API server to deploy.
 
 ```
-Vercel  ── NEXT_PUBLIC_API_BASE_URL ──▶  Cloud Run API  ──▶  Cloud SQL (Postgres)
-(Next.js)                                (your service)       Secret Manager / GCS
+Vercel (Next.js)  ──(Firebase Web SDK)──▶  Firebase: Auth · Firestore · Storage
+  NEXT_PUBLIC_FIREBASE_*                    (Security Rules enforce access)
 ```
+
+**Backend setup (project, rules, indexes, seeding) lives in
+[FIREBASE.md](./FIREBASE.md).** This page covers the Vercel side + going live.
+
+> An alternative non-Firebase backend (custom REST on Cloud Run + Cloud SQL) is
+> still supported via `NEXT_PUBLIC_API_BASE_URL`; see §3 below and
+> [BACKEND.md](./BACKEND.md).
 
 ---
 
@@ -19,14 +26,18 @@ The app is a standard Next.js 14 project; Vercel auto-detects everything.
 2. In Vercel: **New Project → Import** this repository.
 3. Framework preset: **Next.js** (auto). Build command `next build`, output auto.
 4. **Environment variables** (Project → Settings → Environment Variables):
-   - `NEXT_PUBLIC_API_BASE_URL` — leave **empty** to ship the in-browser mock
-     demo, or set it to your Cloud Run URL once the backend is live.
+   - `NEXT_PUBLIC_FIREBASE_*` (six values) — your Firebase web config. With these
+     set, the app uses the live Firebase backend. See [FIREBASE.md](./FIREBASE.md).
    - `NEXT_PUBLIC_APP_NAME` — optional, defaults to `FreshKart`.
+   - Leave all of the above empty to ship the **in-browser mock demo** (no
+     backend) and wire Firebase later.
 5. **Deploy.**
+6. In **Firebase → Authentication → Settings → Authorized domains**, add your
+   Vercel domain(s) so sign-in works in production.
 
 > Tip: you can ship a fully working demo to Vercel **today** with no backend by
-> leaving `NEXT_PUBLIC_API_BASE_URL` empty — the mock data layer runs in the
-> browser. Wire the backend later by setting the variable and redeploying.
+> leaving the env vars empty — the mock data layer runs in the browser. Add the
+> Firebase config and redeploy to go live.
 
 ### CLI alternative
 ```bash
@@ -37,11 +48,23 @@ vercel --prod     # production
 
 ---
 
-## 2. Backend → Google Cloud (Cloud Run + Cloud SQL)
+## 2. Backend → Firebase
 
-The repo does not ship the backend service itself — it ships the **contract**
-(see [BACKEND.md](./BACKEND.md)) and a reference implementation under
-`src/app/api/`. Build your service to that contract, then:
+See **[FIREBASE.md](./FIREBASE.md)** for the full walkthrough: create the
+project, enable Email/Password auth + Firestore + Storage, set the
+`NEXT_PUBLIC_FIREBASE_*` vars, deploy rules/indexes
+(`firebase deploy --only firestore:rules,firestore:indexes,storage`), and seed
+the catalog + demo accounts (`npm run seed:firestore`). No server to deploy —
+the browser talks to Firebase directly, secured by Security Rules.
+
+---
+
+## 3. Alternative backend → Google Cloud (Cloud Run + Cloud SQL)
+
+Prefer a custom REST API instead of Firebase? The repo also ships a
+backend-agnostic **contract** ([BACKEND.md](./BACKEND.md)) and a reference
+implementation under `src/app/api/`. Build your service to that contract, set
+`NEXT_PUBLIC_API_BASE_URL` to its URL, then:
 
 ### a. Database — Cloud SQL (PostgreSQL)
 ```bash
@@ -80,17 +103,17 @@ Note the resulting URL, e.g. `https://freshkart-api-xxxx.a.run.app`.
 
 ---
 
-## 3. Alternative: everything on Vercel
+## 4. Alternative: everything on Vercel
 
 You can also run the bundled reference API (`src/app/api/`) on Vercel and skip
-GCP entirely — set `NEXT_PUBLIC_API_BASE_URL=/api`. Note the reference store is
-**in-memory** (resets on cold start, not shared across instances), so for real
-persistence replace `src/lib/server/repository.ts` with a database client
-(e.g. Vercel Postgres / Neon) — or use GCP as above.
+an external backend — set `NEXT_PUBLIC_API_BASE_URL=/api`. Note the reference
+store is **in-memory** (resets on cold start, not shared across instances), so
+for real persistence replace `src/lib/server/repository.ts` with a database
+client (e.g. Vercel Postgres / Neon) — or use Firebase/GCP as above.
 
 ---
 
-## 4. Pre-deploy checklist
+## 5. Pre-deploy checklist
 ```bash
 npm run lint
 npm run typecheck

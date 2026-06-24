@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// FreshKart Cloud Storage rules — product imagery.
+// Public read (catalog images); only admins may upload/replace/delete.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'ADMIN';
+    }
+
+    match /products/{imageId=**} {
+      allow read: if true;
+      allow write: if isAdmin()
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

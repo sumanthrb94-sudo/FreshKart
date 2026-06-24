@@ -63,6 +63,7 @@ Both are available as **one-tap buttons** on the login screen. Or click
 - **Next.js 14** (App Router) + **React 18** + **TypeScript**
 - **Tailwind CSS** with design tokens from the brief (brand green `#16bd5f`)
 - **lucide-react** icons · **Inter** font
+- **Firebase** (Firestore + Auth + Storage) backend, client-SDK direct
 - Zero runtime backend dependency in the default (mock) mode
 
 ---
@@ -93,36 +94,47 @@ src/
     ├── mock-data.ts          # Real catalog, demo accounts, seed orders
     ├── produce.ts            # Emoji thumbnail mapping
     ├── hooks.ts              # useAsync, useRequireAuth
-    └── api/                  # ⭐ Swappable data layer (the backend seam)
-        ├── datasource.ts     #    DataSource interface (the contract)
-        ├── mock.ts           #    MockDataSource (in-browser, default)
-        ├── http.ts           #    HttpDataSource (talks to your GCP API)
-        └── index.ts          #    Selects adapter from env
+    ├── firebase/             # Firebase client init (lazy, authReady)
+    ├── api/                  # ⭐ Swappable data layer (the backend seam)
+    │   ├── datasource.ts     #    DataSource interface (the contract)
+    │   ├── firebase.ts       #    FirebaseDataSource (Firestore + Auth) ⭐
+    │   ├── mock.ts           #    MockDataSource (in-browser, default)
+    │   ├── http.ts           #    HttpDataSource (optional custom REST API)
+    │   └── index.ts          #    Selects adapter from env
     └── server/               # In-memory reference backend for /api routes
+
+firestore.rules, storage.rules, firestore.indexes.json, firebase.json  # Firebase config
+scripts/seed-firestore.ts     # Seed catalog + demo accounts (Admin SDK)
 ```
 
 ---
 
-## 🔌 Backend-ready by design
+## 🔌 Backend: Firebase (Firestore + Auth + Storage)
 
-The UI depends **only** on the [`DataSource`](./src/lib/api/datasource.ts)
-interface — never on a concrete implementation. The adapter is chosen at runtime
-from a single environment variable:
+The production backend is **Firebase**, reached **directly from the browser**
+via the client SDK — no separate API server. The UI depends **only** on the
+[`DataSource`](./src/lib/api/datasource.ts) interface, and the adapter is chosen
+at runtime from environment variables:
 
-| `NEXT_PUBLIC_API_BASE_URL` | Data source used |
-|----------------------------|------------------|
-| _empty / unset_ (default)  | `MockDataSource` — in-browser, `localStorage`-backed |
-| `/api`                     | The bundled Next.js **reference API** (same origin) |
-| `https://…run.app`         | Your **GCP backend** (Cloud Run, etc.) |
+| Env present | Data source used |
+|-------------|------------------|
+| `NEXT_PUBLIC_FIREBASE_*` | **`FirebaseDataSource`** — Firestore + Firebase Auth (production) |
+| `NEXT_PUBLIC_API_BASE_URL` | `HttpDataSource` — a custom REST backend (optional alternative) |
+| _neither_ (default) | `MockDataSource` — in-browser, `localStorage` (zero-config local dev) |
 
-So wiring a real backend is a **one-line env change** — no UI rewrites. The
-exact REST contract your backend must implement (endpoints, request/response
-shapes) is documented in **[docs/BACKEND.md](./docs/BACKEND.md)**, and is also
-implemented end-to-end by the route handlers under `src/app/api/` as an
-executable spec.
+So switching from the local mock to live Firebase is **just adding env vars** —
+no UI changes. Authorization is enforced by
+[`firestore.rules`](./firestore.rules) / [`storage.rules`](./storage.rules), and
+stock updates use Firestore transactions so concurrent orders can't oversell.
 
-See **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)** for the recommended
-**Vercel (frontend) + GCP (backend)** topology and step-by-step deploy.
+**👉 Full setup (project, rules, indexes, seeding, deploy): [docs/FIREBASE.md](./docs/FIREBASE.md).**
+
+> The repo also ships a backend-agnostic REST contract
+> ([docs/BACKEND.md](./docs/BACKEND.md)) + Next.js route handlers under
+> `src/app/api/` — handy if you ever want a non-Firebase backend.
+
+See **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)** for the **Vercel (frontend) +
+Firebase (backend)** deploy.
 
 ---
 
