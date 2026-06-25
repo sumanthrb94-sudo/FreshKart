@@ -34,3 +34,23 @@ input[type="number"]::-webkit-inner-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
+
+/* Decorative "bounce around the box" drift for the sign-in produce
+   (Onida / DVD-logo style). X and Y animate on different periods with
+   `alternate`, so each item ricochets off all four edges and loops forever. */
+@keyframes driftX {
+  from {
+    left: 3%;
+  }
+  to {
+    left: 84%;
+  }
+}
+@keyframes driftY {
+  from {
+    top: 4%;
+  }
+  to {
+    top: 82%;
+  }
+}

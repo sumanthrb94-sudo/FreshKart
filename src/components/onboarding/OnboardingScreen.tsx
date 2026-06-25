@@ -28,6 +28,21 @@ function GoogleIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+// Produce that drifts around the hero, ricocheting off the edges (Onida/DVD
+// style). X and Y run on different periods so each item reverses at a different
+// wall and the paths look organic; looping + `alternate` = permanent motion.
+const FLOATERS = [
+  { e: "🍅", s: "text-3xl", dx: "8s", dy: "6s", ox: "0s", oy: "-2s" },
+  { e: "🥦", s: "text-2xl", dx: "7s", dy: "9s", ox: "-3s", oy: "-1s" },
+  { e: "🍇", s: "text-xl", dx: "9s", dy: "7s", ox: "-5s", oy: "-4s" },
+  { e: "🍋", s: "text-2xl", dx: "6.5s", dy: "8.5s", ox: "-2.5s", oy: "-6s" },
+  { e: "🍆", s: "text-2xl", dx: "8.5s", dy: "6.5s", ox: "-7s", oy: "-3s" },
+  { e: "🫑", s: "text-2xl", dx: "7.5s", dy: "9.5s", ox: "-1s", oy: "-5s" },
+  { e: "🧅", s: "text-2xl", dx: "9.5s", dy: "7.5s", ox: "-4s", oy: "-8s" },
+  { e: "🥔", s: "text-xl", dx: "6s", dy: "8s", ox: "-6s", oy: "-2.5s" },
+  { e: "🥕", s: "text-2xl", dx: "8s", dy: "7.5s", ox: "-3.5s", oy: "-7s" },
+];
+
 export function OnboardingScreen() {
   const router = useRouter();
   const { refreshUser } = useAuth();
@@ -217,30 +232,41 @@ export function OnboardingScreen() {
 
           {/* Brand hero: a cart of produce, with fruit & veg floating around it */}
           <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-7 text-center text-white">
-            {/* Floating produce — scattered around the hero, gently bobbing in
-                place (a different mix from what sits in the cart) */}
-            <span className="pointer-events-none absolute left-6 top-6 animate-float text-3xl opacity-90 drop-shadow motion-reduce:animate-none">🍅</span>
-            <span className="pointer-events-none absolute right-7 top-5 animate-float-slow text-2xl opacity-90 drop-shadow motion-reduce:animate-none">🥦</span>
-            <span className="pointer-events-none absolute left-1/2 -ml-16 top-2 animate-float-slow text-xl opacity-80 drop-shadow motion-reduce:animate-none">🍇</span>
-            <span className="pointer-events-none absolute left-1/2 ml-12 top-2 animate-float text-xl opacity-80 drop-shadow motion-reduce:animate-none">🍋</span>
-            <span className="pointer-events-none absolute left-5 top-1/2 -mt-3 animate-float-slow text-2xl opacity-80 drop-shadow motion-reduce:animate-none">🍆</span>
-            <span className="pointer-events-none absolute right-5 top-1/2 -mt-3 animate-float text-2xl opacity-80 drop-shadow motion-reduce:animate-none">🫑</span>
-            <span className="pointer-events-none absolute left-9 bottom-9 animate-float text-2xl opacity-80 drop-shadow motion-reduce:animate-none">🧅</span>
-            <span className="pointer-events-none absolute right-9 bottom-10 animate-float-slow text-2xl opacity-80 drop-shadow motion-reduce:animate-none">🥔</span>
+            {/* Produce ricocheting around the hero, off every edge, forever —
+                a continuous loop, drifting behind the wordmark */}
+            {FLOATERS.map((f, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "pointer-events-none absolute opacity-80 drop-shadow motion-reduce:hidden",
+                  f.s
+                )}
+                style={{
+                  animationName: "driftX, driftY",
+                  animationDuration: `${f.dx}, ${f.dy}`,
+                  animationTimingFunction: "linear",
+                  animationIterationCount: "infinite",
+                  animationDirection: "alternate",
+                  animationDelay: `${f.ox}, ${f.oy}`,
+                  zIndex: 0,
+                }}
+              >
+                {f.e}
+              </span>
+            ))}
 
-            {/* The cart, with produce sitting in it (bobs gently as one unit) */}
-            <div className="relative mb-2 h-28 w-44 animate-float-slow motion-reduce:animate-none">
-              <span className="absolute bottom-[44px] left-1/2 -ml-9 z-10 text-2xl drop-shadow">🥬</span>
-              <span className="absolute bottom-[52px] left-1/2 -ml-1 z-10 text-2xl drop-shadow">🍎</span>
-              <span className="absolute bottom-[44px] left-1/2 ml-5 z-10 -rotate-12 text-xl drop-shadow">🥕</span>
-              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-7xl drop-shadow-lg">🛒</span>
-            </div>
+            {/* Empty cart, bobbing gently */}
+            <span className="relative z-10 mb-2 animate-float-slow text-7xl drop-shadow-lg motion-reduce:animate-none">
+              🛒
+            </span>
 
-            <h1 className="text-5xl font-extrabold tracking-tight drop-shadow-sm">FreshKart</h1>
-            <p className="mt-2 text-sm font-semibold text-white/90">
+            <h1 className="relative z-10 text-5xl font-extrabold tracking-tight drop-shadow-sm">
+              FreshKart
+            </h1>
+            <p className="relative z-10 mt-2 text-sm font-semibold text-white/90">
               Wholesale B2B · fresh produce, per kg
             </p>
-            <p className="mt-1 text-xs text-white/70">
+            <p className="relative z-10 mt-1 text-xs text-white/70">
               Order in bulk · live rates · 1–2 day delivery
             </p>
           </div>
