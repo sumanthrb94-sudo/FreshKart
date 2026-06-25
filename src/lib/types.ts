@@ -73,6 +73,7 @@ export interface ProfileSetupInput {
   name?: string;
   businessName?: string;
   businessType?: string;
+  phone?: string;
   address?: string;
   city?: string;
   pincode?: string;
@@ -87,6 +88,10 @@ export interface DeliveryDetails {
   city: string;
   address: string;
   pincode: string;
+  /** Geocoded delivery pin (from the map picker), carried onto the order. */
+  lat?: number;
+  lng?: number;
+  label?: string;
 }
 
 export interface OrderItem {

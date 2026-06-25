@@ -1,15 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { Banknote, CreditCard, MapPin, ShieldCheck, Wallet } from "lucide-react";
+import { Banknote, CreditCard, MapPin, Pencil, ShieldCheck, Wallet } from "lucide-react";
 import type { DeliveryDetails, PaymentMethod } from "@/lib/types";
 import { formatCurrency, pricePerUnit } from "@/lib/format";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { ProductThumb } from "@/components/ui/ProductThumb";
 import { QuantityStepper } from "@/components/ui/QuantityStepper";
 import { Sheet } from "@/components/ui/Sheet";
+import {
+  AddressPicker,
+  AddressMapPreview,
+  type PickedAddress,
+} from "@/components/address/AddressPicker";
 import { cn } from "@/lib/utils";
 
 const PAYMENT_OPTIONS: { method: PaymentMethod; label: string; sub: string; icon: typeof Wallet }[] = [
@@ -34,18 +40,45 @@ export function CheckoutSheet({
   onContinue: (delivery: DeliveryDetails, method: PaymentMethod) => void;
 }) {
   const { lines, subtotal, increment, decrement } = useCart();
+  const { updateProfile } = useAuth();
   const [delivery, setDelivery] = useState<DeliveryDetails>(defaultDelivery);
   const [method, setMethod] = useState<PaymentMethod>("COD");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [changeOpen, setChangeOpen] = useState(false);
 
   function set<K extends keyof DeliveryDetails>(key: K, value: string) {
     setDelivery((d) => ({ ...d, [key]: value }));
   }
 
+  function handlePickAddress(addr: PickedAddress) {
+    setDelivery((d) => ({
+      ...d,
+      address: addr.address,
+      city: addr.city,
+      pincode: addr.pincode,
+      lat: addr.lat,
+      lng: addr.lng,
+      label: addr.label,
+    }));
+    setChangeOpen(false);
+    // Persist as the new default for next time (best-effort).
+    updateProfile({
+      address: addr.address,
+      city: addr.city,
+      pincode: addr.pincode,
+      lat: addr.lat,
+      lng: addr.lng,
+      addressLabel: addr.label,
+    }).catch(() => {});
+  }
+
   function handleSubmit() {
-    const missing = !delivery.name || !delivery.phone || !delivery.city || !delivery.address || !delivery.pincode;
-    if (missing) {
-      setLocalError("Please fill in all delivery details.");
+    if (!delivery.address || !delivery.city || !delivery.pincode) {
+      setLocalError("Please add a delivery address.");
+      return;
+    }
+    if (!delivery.phone) {
+      setLocalError("Please add a phone number for delivery updates.");
       return;
     }
     setLocalError(null);
@@ -91,30 +124,60 @@ export function CheckoutSheet({
           </ul>
         </section>
 
-        {/* 2 · Delivery details */}
+        {/* 2 · Delivery — saved address (auto-selected) */}
         <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <h3 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-gray-900">
-            <MapPin className="h-4 w-4 text-brand-500" /> Delivery details
-          </h3>
-          <div className="flex flex-col gap-3">
-            <Field label="Business / shop name">
-              <Input flavor="field" value={delivery.name} onChange={(e) => set("name", e.target.value)} placeholder="Suresh Kirana Store" />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Phone">
-                <Input flavor="field" inputMode="tel" value={delivery.phone} onChange={(e) => set("phone", e.target.value)} placeholder="9812345678" />
-              </Field>
-              <Field label="City">
-                <Input flavor="field" value={delivery.city} onChange={(e) => set("city", e.target.value)} placeholder="Bengaluru" />
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
+              <MapPin className="h-4 w-4 text-brand-500" /> Deliver to
+            </h3>
+            {delivery.address && (
+              <button
+                type="button"
+                onClick={() => setChangeOpen(true)}
+                className="flex items-center gap-1 text-xs font-semibold text-brand-600"
+              >
+                <Pencil className="h-3.5 w-3.5" /> Change
+              </button>
+            )}
+          </div>
+
+          {delivery.address ? (
+            <div className="flex flex-col gap-3">
+              {delivery.lat != null && delivery.lng != null && (
+                <AddressMapPreview lat={delivery.lat} lng={delivery.lng} className="h-28" />
+              )}
+              <div>
+                {delivery.label && (
+                  <span className="mb-1 inline-block rounded-full bg-brand-100 px-2 py-0.5 text-2xs font-bold uppercase tracking-wide text-brand-800">
+                    {delivery.label}
+                  </span>
+                )}
+                <p className="text-sm font-medium text-gray-800">{delivery.address}</p>
+                {(delivery.city || delivery.pincode) && (
+                  <p className="text-xs text-gray-400">
+                    {[delivery.city, delivery.pincode].filter(Boolean).join(" — ")}
+                  </p>
+                )}
+              </div>
+              <Field label="Phone for delivery updates">
+                <Input
+                  flavor="field"
+                  inputMode="tel"
+                  value={delivery.phone}
+                  onChange={(e) => set("phone", e.target.value)}
+                  placeholder="98765 43210"
+                />
               </Field>
             </div>
-            <Field label="Full address">
-              <Input flavor="field" value={delivery.address} onChange={(e) => set("address", e.target.value)} placeholder="12, Gandhi Bazaar, Basavanagudi" />
-            </Field>
-            <Field label="Pincode" className="max-w-[50%]">
-              <Input flavor="field" inputMode="numeric" value={delivery.pincode} onChange={(e) => set("pincode", e.target.value)} placeholder="560004" />
-            </Field>
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setChangeOpen(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand-300 bg-brand-50 py-3 text-sm font-bold text-brand-700"
+            >
+              <MapPin className="h-4 w-4" /> Add delivery address
+            </button>
+          )}
         </section>
 
         {/* 3 · Payment */}
@@ -188,6 +251,33 @@ export function CheckoutSheet({
             : `Place B2B order · ${formatCurrency(subtotal)}`}
         </Button>
       </div>
+
+      {/* Change / add address — map picker on top of the order sheet */}
+      <Sheet
+        open={changeOpen}
+        onClose={() => setChangeOpen(false)}
+        title={
+          <span className="flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-brand-500" /> Choose delivery address
+          </span>
+        }
+      >
+        <div className="p-4">
+          <AddressPicker
+            initial={{
+              address: delivery.address,
+              city: delivery.city,
+              pincode: delivery.pincode,
+              lat: delivery.lat,
+              lng: delivery.lng,
+              label: delivery.label,
+            }}
+            confirmLabel="Use this address"
+            mapClassName="h-64"
+            onConfirm={handlePickAddress}
+          />
+        </div>
+      </Sheet>
     </Sheet>
   );
 }

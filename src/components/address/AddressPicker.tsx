@@ -262,3 +262,65 @@ export function AddressPicker({
     </div>
   );
 }
+
+/** Small non-interactive map showing a saved pin — used for the checkout /
+ *  account "this is where we'll deliver" confirmation. */
+export function AddressMapPreview({
+  lat,
+  lng,
+  className = "h-28",
+}: {
+  lat: number;
+  lng: number;
+  className?: string;
+}) {
+  const el = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const L = await import("leaflet");
+      if (cancelled || !el.current) return;
+      if (!mapRef.current) {
+        const map = L.map(el.current, {
+          zoomControl: false,
+          attributionControl: false,
+          dragging: false,
+          scrollWheelZoom: false,
+          doubleClickZoom: false,
+          touchZoom: false,
+          keyboard: false,
+          boxZoom: false,
+        }).setView([lat, lng], 16);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+        }).addTo(map);
+        mapRef.current = map;
+        setTimeout(() => map.invalidateSize(), 150);
+      } else {
+        mapRef.current.setView([lat, lng], 16);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lat, lng]);
+
+  useEffect(
+    () => () => {
+      mapRef.current?.remove();
+      mapRef.current = null;
+    },
+    []
+  );
+
+  return (
+    <div className={cn("relative overflow-hidden rounded-xl border border-gray-200", className)}>
+      <div ref={el} className="h-full w-full" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full">
+        <MapPin className="h-7 w-7 fill-brand-500 text-brand-700 drop-shadow" strokeWidth={1.5} />
+      </div>
+    </div>
+  );
+}

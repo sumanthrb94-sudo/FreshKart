@@ -50,6 +50,7 @@ export function OnboardingScreen() {
   const [step, setStep] = useState<Step>("mobile");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [addrPhone, setAddrPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +139,8 @@ export function OnboardingScreen() {
       if (existing) {
         router.replace(existing.role === "ADMIN" ? "/admin" : "/");
       } else {
-        setStep("shop"); // new user → set up shop
+        setAddrPhone(phone); // prefill the address step with the verified number
+        setStep("shop"); // new user → set up address
       }
     } catch {
       setError("Invalid or expired code. Please try again.");
@@ -156,6 +158,7 @@ export function OnboardingScreen() {
     setError(null);
     try {
       await api.completeProfile({
+        phone: addrPhone.trim() || undefined,
         address: addr.address,
         city: addr.city,
         pincode: addr.pincode,
@@ -440,9 +443,28 @@ export function OnboardingScreen() {
           <div className="flex flex-1 flex-col overflow-y-auto pb-8">
             <h1 className="text-2xl font-extrabold text-gray-900">Set up your address</h1>
             <p className="mt-2 text-sm text-gray-500">
-              Pin your delivery location — we&apos;ll use it automatically at checkout.
+              Add your phone &amp; pin your delivery location — we&apos;ll use them
+              automatically at checkout.
             </p>
-            <div className="mt-4">
+
+            <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Phone number
+            </label>
+            <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-gray-300 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
+              <span className="border-r border-gray-200 py-3 pr-3 text-sm font-semibold text-gray-500">
+                +91
+              </span>
+              <input
+                inputMode="numeric"
+                value={addrPhone}
+                onChange={(e) => setAddrPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="98765 43210"
+                aria-label="Phone number"
+                className="h-12 flex-1 bg-transparent text-base font-semibold tracking-wide text-gray-900 outline-none placeholder:font-normal placeholder:text-gray-300"
+              />
+            </div>
+
+            <div className="mt-5">
               <AddressPicker
                 busy={busy}
                 confirmLabel="Save address & continue"

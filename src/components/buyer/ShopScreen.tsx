@@ -55,6 +55,10 @@ export function ShopScreen() {
     city: user?.city ?? "",
     address: user?.address ?? "",
     pincode: user?.pincode ?? "",
+    // Conditional so we never write `undefined` (Firestore rejects it).
+    ...(user?.lat != null ? { lat: user.lat } : {}),
+    ...(user?.lng != null ? { lng: user.lng } : {}),
+    ...(user?.addressLabel ? { label: user.addressLabel } : {}),
   };
 
   function handleReview() {

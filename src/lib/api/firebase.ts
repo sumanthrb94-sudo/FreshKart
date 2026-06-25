@@ -204,7 +204,7 @@ export class FirebaseDataSource implements DataSource {
     const profile: Omit<User, "id"> = {
       name,
       email: fb.email ?? "",
-      phone: fb.phoneNumber ?? "",
+      phone: fb.phoneNumber || input.phone?.trim() || "",
       role: "BUYER",
       businessName: input.businessName?.trim() || name,
       businessType: input.businessType,
