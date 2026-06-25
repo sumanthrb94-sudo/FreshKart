@@ -200,21 +200,31 @@ export class FirebaseDataSource implements DataSource {
     const auth = getFirebaseAuth();
     const fb = auth.currentUser;
     if (!fb) throw new ApiError("Not signed in.", 401);
+    const name = input.name?.trim() || fb.displayName || fb.phoneNumber || "Customer";
     const profile: Omit<User, "id"> = {
-      name: input.name,
+      name,
       email: fb.email ?? "",
       phone: fb.phoneNumber ?? "",
       role: "BUYER",
-      businessName: input.businessName,
+      businessName: input.businessName?.trim() || name,
       businessType: input.businessType,
+      address: input.address,
       city: input.city,
+      pincode: input.pincode,
+      lat: input.lat,
+      lng: input.lng,
+      addressLabel: input.addressLabel,
       createdAt: new Date().toISOString(),
     };
+    // Firestore rejects `undefined` field values — drop any unset optionals.
+    const data = Object.fromEntries(
+      Object.entries(profile).filter(([, v]) => v !== undefined)
+    ) as DocumentData;
     // Bound the write so a stalled connection surfaces a retryable error
     // instead of hanging forever on "Saving…".
     try {
       await withTimeout(
-        setDoc(doc(getDb(), COL.users, fb.uid), profile, { merge: true }),
+        setDoc(doc(getDb(), COL.users, fb.uid), data, { merge: true }),
         12000
       );
     } catch (e) {

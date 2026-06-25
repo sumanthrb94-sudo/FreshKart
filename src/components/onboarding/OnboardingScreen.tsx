@@ -3,17 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult } from "firebase/auth";
-import { ArrowRight, Check, Loader2, MapPin } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { sendOtp, toE164, resetRecaptcha } from "@/lib/firebase/phone-auth";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { cn } from "@/lib/utils";
+import { AddressPicker, type PickedAddress } from "@/components/address/AddressPicker";
 
 type Step = "mobile" | "verify" | "shop" | "done";
 
 const STEP_ORDER: Step[] = ["mobile", "verify", "shop"];
-const BUSINESS_TYPES = ["Kirana store", "Restaurant", "Hotel", "Cloud kitchen", "Reseller"];
 const RECAPTCHA_ID = "recaptcha-container";
 
 /** Google "G" mark — brand-accurate (lucide ships no brand icons). */
@@ -50,9 +50,6 @@ export function OnboardingScreen() {
   const [step, setStep] = useState<Step>("mobile");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [shopName, setShopName] = useState("");
-  const [bizType, setBizType] = useState("Kirana store");
-  const [area, setArea] = useState("");
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -150,11 +147,7 @@ export function OnboardingScreen() {
     }
   }
 
-  async function handleComplete() {
-    if (!shopName.trim()) {
-      setError("Enter your shop name.");
-      return;
-    }
+  async function handleSaveAddress(addr: PickedAddress) {
     if (!api.completeProfile) {
       setError("Auth backend not available.");
       return;
@@ -163,14 +156,16 @@ export function OnboardingScreen() {
     setError(null);
     try {
       await api.completeProfile({
-        name: shopName.trim(),
-        businessName: shopName.trim(),
-        businessType: bizType,
-        city: area.trim() || undefined,
+        address: addr.address,
+        city: addr.city,
+        pincode: addr.pincode,
+        lat: addr.lat,
+        lng: addr.lng,
+        addressLabel: addr.label,
       });
       setStep("done");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't save your shop. Try again.");
+      setError(e instanceof Error ? e.message : "Couldn't save your address. Try again.");
     } finally {
       setBusy(false);
     }
@@ -207,8 +202,8 @@ export function OnboardingScreen() {
             </div>
             <h1 className="mt-6 text-2xl font-extrabold">You&apos;re all set!</h1>
             <p className="mt-2 max-w-xs text-sm text-white/80">
-              {shopName ? `${shopName} is verified. ` : "Your shop is verified. "}
-              Browse today&apos;s fresh arrivals and place your first order.
+              Your delivery address is saved. Browse today&apos;s fresh arrivals and
+              place your first order.
             </p>
             <span className="mt-5 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold">
               🎉 Free delivery on your first 3 orders
@@ -442,75 +437,19 @@ export function OnboardingScreen() {
         )}
 
         {step === "shop" && (
-          <div className="flex flex-1 flex-col overflow-y-auto">
-            <h1 className="text-2xl font-extrabold text-gray-900">Set up your shop</h1>
+          <div className="flex flex-1 flex-col overflow-y-auto pb-8">
+            <h1 className="text-2xl font-extrabold text-gray-900">Set up your address</h1>
             <p className="mt-2 text-sm text-gray-500">
-              This helps us tailor produce and pricing for your business.
+              Pin your delivery location — we&apos;ll use it automatically at checkout.
             </p>
-
-            <label className="mt-6 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Shop name
-            </label>
-            <input
-              value={shopName}
-              onChange={(e) => setShopName(e.target.value)}
-              placeholder="Sri Balaji Stores"
-              className="mt-1.5 h-12 w-full rounded-xl border border-gray-300 px-3.5 text-sm font-medium text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-            />
-
-            <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Business type
-            </label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {BUSINESS_TYPES.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setBizType(t)}
-                  className={cn(
-                    "flex items-center gap-1 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors",
-                    bizType === t
-                      ? "bg-brand-500 text-white"
-                      : "border border-gray-200 bg-white text-gray-600"
-                  )}
-                >
-                  {bizType === t && <Check className="h-3.5 w-3.5" />}
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Delivery area
-            </label>
-            <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-gray-300 px-3.5 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
-              <MapPin className="h-4 w-4 text-brand-500" />
-              <input
-                value={area}
-                onChange={(e) => setArea(e.target.value)}
-                placeholder="Bengaluru – KR Market"
-                className="h-12 flex-1 bg-transparent text-sm font-medium text-gray-900 outline-none"
+            <div className="mt-4">
+              <AddressPicker
+                busy={busy}
+                confirmLabel="Save address & continue"
+                onConfirm={handleSaveAddress}
               />
             </div>
-
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-
-            <div className="mt-auto py-9">
-              <button
-                disabled={!shopName.trim() || busy}
-                onClick={handleComplete}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
-              >
-                {busy ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Saving…
-                  </>
-                ) : (
-                  <>
-                    Continue <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
-              </button>
-            </div>
           </div>
         )}
 

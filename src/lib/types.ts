@@ -59,16 +59,26 @@ export interface User {
   city?: string;
   address?: string;
   pincode?: string;
+  /** Geocoded pin for the saved delivery address (map picker). */
+  lat?: number;
+  lng?: number;
+  /** Address label, e.g. Home / Work / Other. */
+  addressLabel?: string;
   gstin?: string;
   createdAt: string;
 }
 
-/** Shop-setup payload captured during phone onboarding (new buyers). */
+/** Address payload captured during onboarding / address edit (map picker). */
 export interface ProfileSetupInput {
-  name: string;
-  businessName: string;
+  name?: string;
+  businessName?: string;
   businessType?: string;
+  address?: string;
   city?: string;
+  pincode?: string;
+  lat?: number;
+  lng?: number;
+  addressLabel?: string;
 }
 
 export interface DeliveryDetails {
