@@ -42,6 +42,13 @@ import { DataSource, ApiError } from "./datasource";
 
 const COL = { users: "users", products: "products", orders: "orders" } as const;
 
+// Emails auto-granted ADMIN on Google sign-in. Keep this in sync with the
+// `isAdminEmail()` allowlist in firestore.rules (rules can't import from here).
+const ADMIN_EMAILS = ["sumanthbolla97@gmail.com"];
+function isAdminEmail(email?: string | null): boolean {
+  return !!email && ADMIN_EMAILS.includes(email.trim().toLowerCase());
+}
+
 function snapToUser(snap: DocumentSnapshot<DocumentData>): User {
   return { ...(snap.data() as Omit<User, "id">), id: snap.id };
 }
@@ -211,7 +218,7 @@ export class FirebaseDataSource implements DataSource {
       name,
       email: fb.email || input.email?.trim() || "",
       phone: fb.phoneNumber || input.phone?.trim() || "",
-      role: "BUYER",
+      role: isAdminEmail(fb.email) ? "ADMIN" : "BUYER",
       businessName: input.businessName?.trim() || name,
       businessType: input.businessType,
       address: input.address,
@@ -271,9 +278,33 @@ export class FirebaseDataSource implements DataSource {
     // shop; completeProfile uses { merge: true }, so it's safe even if a
     // profile already exists. This is the fix for "Google created the user but
     // the app showed 'Connection timed out' and never let me in".
+    // Load (or bootstrap) the profile. Configured admin email(s) are promoted to
+    // ADMIN here so they land straight in the console — no buyer onboarding.
+    const ref = doc(getDb(), COL.users, cred.user.uid);
+    const wantsAdmin = isAdminEmail(cred.user.email);
     try {
-      const snap = await readDoc(doc(getDb(), COL.users, cred.user.uid));
-      return snap.exists() ? snapToUser(snap) : null;
+      const snap = await readDoc(ref);
+      if (snap.exists()) {
+        const profile = snapToUser(snap);
+        if (wantsAdmin && profile.role !== "ADMIN") {
+          await setDoc(ref, { role: "ADMIN" }, { merge: true });
+          return { ...profile, role: "ADMIN" };
+        }
+        return profile;
+      }
+      if (wantsAdmin) {
+        const adminProfile: Omit<User, "id"> = {
+          name: cred.user.displayName || "Admin",
+          email: cred.user.email || "",
+          phone: cred.user.phoneNumber || "",
+          role: "ADMIN",
+          businessName: "FreshKart Admin",
+          createdAt: new Date().toISOString(),
+        };
+        await setDoc(ref, adminProfile as DocumentData);
+        return { ...adminProfile, id: cred.user.uid };
+      }
+      return null;
     } catch {
       return null;
     }

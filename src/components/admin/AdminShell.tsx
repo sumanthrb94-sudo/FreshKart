@@ -54,10 +54,7 @@ function AdminHeader() {
 /** Admin wrapper: gated header + bottom tab nav. Each admin screen renders its
  *  body inside this. */
 export function AdminShell({ children }: { children: React.ReactNode }) {
-  // TEMP (testing): any signed-in user can open the admin console so it can be
-  // viewed/tested before admin login is wired. Restore `role: "ADMIN"` once the
-  // Gmail admin login is in place.
-  const { ready } = useRequireAuth({ callbackUrl: "/admin" });
+  const { ready } = useRequireAuth({ role: "ADMIN", callbackUrl: "/admin" });
 
   if (!ready) {
     return (

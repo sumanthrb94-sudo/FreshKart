@@ -10,12 +10,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Emails granted ADMIN regardless of their stored role. Keep in sync with
+    // ADMIN_EMAILS in src/lib/api/firebase.ts.
+    function isAdminEmail() {
+      return isSignedIn()
+             && request.auth.token.email in ['sumanthbolla97@gmail.com'];
+    }
+
     function userRole() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
     function isAdmin() {
-      return isSignedIn() && userRole() == 'ADMIN';
+      return isAdminEmail() || (isSignedIn() && userRole() == 'ADMIN');
     }
 
     // Only the `stock` field is being changed (used by buyer order / cancel
@@ -38,7 +45,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn()
                     && request.auth.uid == userId
-                    && request.resource.data.role == 'BUYER';
+                    && (request.resource.data.role == 'BUYER' || isAdminEmail());
       allow update: if isAdmin()
                     || (request.auth.uid == userId
                         && request.resource.data.role == resource.data.role);

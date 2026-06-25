@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Store, Package, User as UserIcon, ShieldCheck, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 type Tab = {
   href: string;
@@ -16,9 +17,7 @@ const TABS: Tab[] = [
   { href: "/", label: "Shop", icon: Store, isActive: (p) => p === "/" },
   { href: "/orders", label: "Orders", icon: Package, isActive: (p) => p.startsWith("/orders") },
   { href: "/account", label: "Account", icon: UserIcon, isActive: (p) => p.startsWith("/account") },
-  // TEMP (testing): Admin entry shown to everyone so the console can be opened
-  // before admin login is wired. Gate this with `isAdmin` once Gmail admin login
-  // is in place.
+  // Shown only to admins (filtered out for buyers in the component below).
   { href: "/admin", label: "Admin", icon: ShieldCheck, isActive: (p) => p.startsWith("/admin") },
 ];
 
@@ -29,11 +28,14 @@ const TABS: Tab[] = [
  */
 export function BuyerBottomNav() {
   const pathname = usePathname() || "/";
+  const { isAdmin } = useAuth();
+  // The Admin tab is only visible to admins (e.g. the configured Gmail admin).
+  const tabs = isAdmin ? TABS : TABS.filter((t) => t.href !== "/admin");
 
   return (
     <nav className="shrink-0 border-t border-line bg-surface pb-[max(0.25rem,env(safe-area-inset-bottom))]">
       <div className="flex items-stretch justify-around">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const active = tab.isActive(pathname);
           const Icon = tab.icon;
           return (
