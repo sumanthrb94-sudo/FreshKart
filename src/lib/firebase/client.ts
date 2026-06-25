@@ -22,6 +22,7 @@ const config = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 /** True when the minimum Firebase config is present. */
@@ -68,4 +69,21 @@ export function getDb(): Firestore {
 export function getFirebaseStorage(): FirebaseStorage {
   if (!_storage) _storage = getStorage(getFirebaseApp());
   return _storage;
+}
+
+/**
+ * Initialize Firebase Analytics (browser-only, when a measurementId is set and
+ * the environment supports it). Loaded dynamically so the analytics SDK isn't in
+ * the main bundle. Safe to call once on the client; no-ops otherwise.
+ */
+export async function initAnalytics(): Promise<void> {
+  if (typeof window === "undefined" || !firebaseConfigured || !config.measurementId) {
+    return;
+  }
+  try {
+    const { getAnalytics, isSupported } = await import("firebase/analytics");
+    if (await isSupported()) getAnalytics(getFirebaseApp());
+  } catch {
+    /* analytics is optional — ignore failures */
+  }
 }
