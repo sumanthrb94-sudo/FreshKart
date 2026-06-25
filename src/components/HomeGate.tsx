@@ -3,8 +3,7 @@
 import { useAuth } from "@/components/providers/AuthProvider";
 import { OnboardingScreen } from "@/components/onboarding/OnboardingScreen";
 import { ShopScreen } from "@/components/buyer/ShopScreen";
-import { AppShell } from "@/components/layout/AppShell";
-import { FullScreenLoader } from "@/components/ui/Spinner";
+import { BrandSplash } from "@/components/ui/BrandSplash";
 
 /**
  * The "/" experience. Auth is resolved IN PLACE so the URL stays "/" — no
@@ -15,13 +14,7 @@ import { FullScreenLoader } from "@/components/ui/Spinner";
 export function HomeGate() {
   const { user, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <AppShell>
-        <FullScreenLoader />
-      </AppShell>
-    );
-  }
+  if (loading) return <BrandSplash />;
 
   return user ? <ShopScreen /> : <OnboardingScreen />;
 }

@@ -37,6 +37,13 @@ const config: Config = {
           800: "#9e3d10",
           900: "#7f3411",
         },
+        // Zomato-style near-black "ink" surfaces (dark splash / loaders).
+        ink: {
+          950: "#0d0d0f",
+          900: "#161618",
+          800: "#1f2024",
+          700: "#2b2c31",
+        },
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
