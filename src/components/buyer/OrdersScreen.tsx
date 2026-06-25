@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Package } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Package } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 
 export function OrdersScreen() {
   const { ready, user } = useRequireAuth({ callbackUrl: "/orders" });
-  const { data: orders, loading } = useAsync(
+  const { data: orders, loading, error, refetch } = useAsync(
     () => (user ? api.listOrders(user.id) : Promise.resolve([])),
     [user?.id]
   );
@@ -41,6 +41,17 @@ export function OrdersScreen() {
 
         {loading ? (
           <FullScreenLoader />
+        ) : error ? (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Couldn't load your orders"
+            subtitle={error}
+            action={
+              <Button size="lg" onClick={refetch}>
+                Try again
+              </Button>
+            }
+          />
         ) : !orders || orders.length === 0 ? (
           <EmptyState
             icon={Package}

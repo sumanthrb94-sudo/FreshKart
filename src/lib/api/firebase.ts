@@ -366,11 +366,15 @@ export class FirebaseDataSource implements DataSource {
   async listOrders(buyerId?: string): Promise<Order[]> {
     await this.ready();
     const base = collection(getDb(), COL.orders);
-    const q = buyerId
-      ? query(base, where("buyerId", "==", buyerId), orderBy("createdAt", "desc"))
-      : query(base, orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ ...(d.data() as Omit<Order, "id">), id: d.id }));
+    // Buyer view filters by buyerId only (equality → no composite index needed)
+    // and sorts newest-first in JS. Combining where(buyerId) + orderBy(createdAt)
+    // would require a manually-created composite index, whose absence made the
+    // query throw and the orders list silently show "No orders yet".
+    const snap = buyerId
+      ? await getDocs(query(base, where("buyerId", "==", buyerId)))
+      : await getDocs(query(base, orderBy("createdAt", "desc")));
+    const orders = snap.docs.map((d) => ({ ...(d.data() as Omit<Order, "id">), id: d.id }));
+    return orders.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
   }
 
   async getOrder(id: string): Promise<Order | null> {
