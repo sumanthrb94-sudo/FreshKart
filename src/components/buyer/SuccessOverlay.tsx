@@ -28,7 +28,7 @@ export function SuccessOverlay({
         <h1 className="text-xl font-bold text-fg">Order placed!</h1>
         <p className="mt-1 text-sm text-fg-subtle">Your B2B order is confirmed.</p>
       </div>
-      <span className="rounded-full bg-raised px-3 py-1 font-mono text-xs font-semibold text-fg-muted">
+      <span className="rounded-full bg-raised px-3 py-1 text-xs font-semibold text-fg-muted">
         {order.orderNumber}
       </span>
       <div className="flex flex-col items-center gap-1">

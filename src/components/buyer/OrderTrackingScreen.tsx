@@ -82,7 +82,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
 
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="font-mono text-sm font-bold text-fg">
+            <p className="text-sm font-bold text-fg">
               {order.orderNumber}
             </p>
             <p className="text-xs text-fg-subtle">

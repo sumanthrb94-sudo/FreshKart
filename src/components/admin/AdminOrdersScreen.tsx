@@ -37,7 +37,7 @@ function AdminOrderCard({ order, onChange }: { order: Order; onChange: (o: Order
     <Card className="p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate font-mono text-xs font-semibold text-fg-muted">
+          <p className="truncate text-xs font-semibold text-fg-muted">
             {order.orderNumber}
           </p>
           <p className="truncate text-sm font-bold text-fg">{order.businessName}</p>

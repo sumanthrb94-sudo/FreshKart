@@ -91,7 +91,7 @@ export function AdminOverviewScreen() {
                   {orders.slice(0, 5).map((o) => (
                     <li key={o.id} className="flex items-center justify-between gap-2 px-5 py-3">
                       <div className="min-w-0">
-                        <p className="truncate font-mono text-xs font-semibold text-fg-muted">
+                        <p className="truncate text-xs font-semibold text-fg-muted">
                           {o.orderNumber}
                         </p>
                         <p className="truncate text-xs text-fg-subtle">

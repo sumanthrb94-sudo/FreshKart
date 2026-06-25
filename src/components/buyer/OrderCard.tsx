@@ -18,7 +18,7 @@ export function OrderCard({ order }: { order: Order }) {
       className="block rounded-xl border border-line bg-surface p-4 shadow-card transition-shadow hover:shadow-card-hover"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-xs font-semibold text-fg-muted">
+        <span className="text-xs font-semibold text-fg-muted">
           {order.orderNumber}
         </span>
         <OrderStatusBadge status={order.status} />

@@ -86,6 +86,8 @@ export function AddressPicker({
   // Initialize the Leaflet map once (client-only; dynamic import avoids SSR).
   useEffect(() => {
     let cancelled = false;
+    let ro: ResizeObserver | null = null;
+    const timers: ReturnType<typeof setTimeout>[] = [];
     (async () => {
       const L = await import("leaflet");
       if (cancelled || !mapEl.current || mapRef.current) return;
@@ -108,14 +110,25 @@ export function AddressPicker({
         geoTimer.current = setTimeout(() => reverseGeocode(c.lat, c.lng), 500);
       });
       mapRef.current = map;
-      // The container may have animated in (e.g. a sheet) — re-measure.
-      setTimeout(() => map.invalidateSize(), 200);
+      // Sheets animate in, so the container can be mid-resize when the map
+      // mounts — re-measure on a few ticks AND whenever it actually resizes,
+      // else Leaflet paints into a stale/zero-size box and the tiles come up
+      // gray (the "map not loading when changing address" bug).
+      [60, 250, 500, 900].forEach((t) =>
+        timers.push(setTimeout(() => map.invalidateSize(), t))
+      );
+      if (typeof ResizeObserver !== "undefined" && mapEl.current) {
+        ro = new ResizeObserver(() => map.invalidateSize());
+        ro.observe(mapEl.current);
+      }
       if (!initial?.address) reverseGeocode(center.lat, center.lng);
       // Fresh capture (no saved pin) → grab the device's GPS location now.
       if (initial?.lat == null) captureLocation();
     })();
     return () => {
       cancelled = true;
+      ro?.disconnect();
+      timers.forEach(clearTimeout);
       if (geoTimer.current) clearTimeout(geoTimer.current);
       mapRef.current?.remove();
       mapRef.current = null;
@@ -275,7 +288,7 @@ export function AddressPicker({
                 {addr.address || "Move the map to set your location"}
               </p>
             )}
-            <p className="mt-1 font-mono text-2xs text-fg-subtle">
+            <p className="mt-1 text-2xs text-fg-subtle">
               📍 {center.lat.toFixed(6)}, {center.lng.toFixed(6)}
             </p>
           </div>
@@ -358,7 +371,12 @@ export function AddressMapPreview({
           maxZoom: 19,
         }).addTo(map);
         mapRef.current = map;
-        setTimeout(() => map.invalidateSize(), 150);
+        // Re-measure across the sheet's open animation so tiles aren't gray.
+        [80, 300, 600].forEach((t) =>
+          setTimeout(() => {
+            if (mapRef.current === map) map.invalidateSize();
+          }, t)
+        );
       } else {
         mapRef.current.setView([lat, lng], 16);
       }

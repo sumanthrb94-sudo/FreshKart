@@ -58,7 +58,7 @@ export function OrderSuccessScreen({ id }: { id: string }) {
           <p className="max-w-xs text-sm text-fg-muted">
             Thanks — your order is confirmed and being prepared.
           </p>
-          <span className="rounded-full bg-raised px-3 py-1 font-mono text-xs font-semibold text-fg-muted">
+          <span className="rounded-full bg-raised px-3 py-1 text-xs font-semibold text-fg-muted">
             {order.orderNumber}
           </span>
         </div>
