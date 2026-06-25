@@ -76,7 +76,7 @@ async function readDoc(
   let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      return await withTimeout(getDoc(ref), 8000);
+      return await withTimeout(getDoc(ref), 6000);
     } catch (e) {
       lastErr = e;
       const code = (e as { code?: string })?.code ?? "";
@@ -216,10 +216,9 @@ export class FirebaseDataSource implements DataSource {
 
   async signInWithGoogle(): Promise<User | null> {
     const auth = getFirebaseAuth();
+    let cred;
     try {
-      const cred = await signInWithPopup(auth, new GoogleAuthProvider());
-      const snap = await readDoc(doc(getDb(), COL.users, cred.user.uid));
-      return snap.exists() ? snapToUser(snap) : null;
+      cred = await signInWithPopup(auth, new GoogleAuthProvider());
     } catch (e) {
       const code = (e as { code?: string })?.code ?? "";
       // User dismissed the popup — surface a sentinel the UI can ignore quietly.
@@ -236,6 +235,19 @@ export class FirebaseDataSource implements DataSource {
         throw new ApiError("This domain isn't authorized for sign-in. Add it in Firebase Auth settings.");
       }
       throw new ApiError(e instanceof Error ? e.message : "Google sign-in failed.");
+    }
+
+    // Auth succeeded (the Firebase user now exists). Try to load the profile —
+    // but if Firestore is momentarily unreachable, DON'T dead-end the sign-in
+    // with an error. Treat it as a fresh account and let the user set up their
+    // shop; completeProfile uses { merge: true }, so it's safe even if a
+    // profile already exists. This is the fix for "Google created the user but
+    // the app showed 'Connection timed out' and never let me in".
+    try {
+      const snap = await readDoc(doc(getDb(), COL.users, cred.user.uid));
+      return snap.exists() ? snapToUser(snap) : null;
+    } catch {
+      return null;
     }
   }
 
