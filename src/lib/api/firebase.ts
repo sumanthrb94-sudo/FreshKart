@@ -76,7 +76,7 @@ async function readDoc(
   let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      return await withTimeout(getDoc(ref), 4000);
+      return await withTimeout(getDoc(ref), 8000);
     } catch (e) {
       lastErr = e;
       const code = (e as { code?: string })?.code ?? "";
