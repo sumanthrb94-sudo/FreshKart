@@ -196,7 +196,7 @@ export function ShopScreen() {
           href={`tel:${SUPPORT_PHONE}`}
           aria-label={t("callSupport")}
           className={cn(
-            "animate-float pointer-events-auto absolute right-4 flex items-center gap-2 rounded-full bg-gradient-to-b from-accent-400 to-accent-600 px-4 py-3 text-sm font-extrabold text-white shadow-[0_8px_0_-2px_#c74c0b,0_16px_26px_-8px_rgba(0,0,0,.5)] transition-all active:translate-y-1 active:shadow-[0_4px_0_-2px_#c74c0b,0_8px_16px_-8px_rgba(0,0,0,.4)] motion-reduce:animate-none",
+            "animate-float pointer-events-auto absolute right-4 flex items-center gap-2 rounded-full bg-gradient-to-b from-brand-400 to-brand-600 px-4 py-3 text-sm font-extrabold text-white shadow-[0_8px_0_-2px_#a81824,0_16px_26px_-8px_rgba(0,0,0,.5)] transition-all active:translate-y-1 active:shadow-[0_4px_0_-2px_#a81824,0_8px_16px_-8px_rgba(0,0,0,.4)] motion-reduce:animate-none",
             lines.length > 0 ? "bottom-40" : "bottom-24"
           )}
         >

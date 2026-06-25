@@ -236,7 +236,7 @@ export function OnboardingScreen() {
                 await refreshUser();
                 router.replace("/");
               }}
-              className="rounded-xl bg-accent-500 px-5 py-3.5 text-base font-bold text-white shadow-lg transition-colors hover:bg-accent-600"
+              className="rounded-xl bg-brand-500 px-5 py-3.5 text-base font-bold text-white shadow-lg transition-colors hover:bg-brand-600"
             >
               Start ordering
             </button>
