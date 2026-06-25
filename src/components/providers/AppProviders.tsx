@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { initAnalytics } from "@/lib/firebase/client";
+import { LanguageProvider } from "@/lib/i18n";
 import { AuthProvider } from "./AuthProvider";
 import { CartProvider } from "./CartProvider";
 
@@ -12,8 +13,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthProvider>
-      <CartProvider>{children}</CartProvider>
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <CartProvider>{children}</CartProvider>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }

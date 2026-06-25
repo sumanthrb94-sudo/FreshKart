@@ -2,13 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, SearchX } from "lucide-react";
+import { Globe, Phone, Search, SearchX } from "lucide-react";
 import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
+import { useLang, LANGS } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/layout/AppShell";
 import { Chip } from "@/components/ui/Chip";
 import { Input } from "@/components/ui/Field";
@@ -22,10 +24,15 @@ import { CheckoutSheet } from "./CheckoutSheet";
 import { PaymentSheet } from "./PaymentSheet";
 import { SuccessOverlay } from "./SuccessOverlay";
 
+// TODO: replace with your real support number (E.164). "Call support" opens the
+// phone's dialer with this number prefilled.
+const SUPPORT_PHONE = "+918000000000";
+
 export function ShopScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { lines, subtotal, clear } = useCart();
+  const { t, tCategory, lang, setLang } = useLang();
   const { data: products, loading, error } = useAsync(() => api.listProducts(), []);
 
   const [search, setSearch] = useState("");
@@ -108,26 +115,45 @@ export function ShopScreen() {
       header={<BuyerHeader />}
       footer={<StickyCartBar onReview={handleReview} />}
     >
-      {/* Sticky search + category rail */}
+      {/* Sticky language + search + category rail */}
       <div className="sticky top-0 z-20 border-b border-gray-100 bg-white/95 px-4 py-3 backdrop-blur">
+        {/* Language scroller — scroll & tap to switch */}
+        <div className="fc-scroll -mx-4 mb-3 flex items-center gap-2 overflow-x-auto px-4">
+          <Globe className="h-4 w-4 shrink-0 text-brand-500" />
+          {LANGS.map((l) => (
+            <button
+              key={l.code}
+              type="button"
+              onClick={() => setLang(l.code)}
+              className={cn(
+                "shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold transition-colors",
+                lang === l.code
+                  ? "bg-brand-500 text-white shadow-sm"
+                  : "border border-gray-200 bg-white text-gray-600 hover:border-brand-300"
+              )}
+            >
+              {l.native}
+            </button>
+          ))}
+        </div>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
             flavor="field"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search produce…"
+            placeholder={t("searchProduce")}
             className="pl-9"
-            aria-label="Search produce"
+            aria-label={t("searchProduce")}
           />
         </div>
         <div className="fc-scroll -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
           <Chip active={category === "all"} onClick={() => setCategory("all")}>
-            All
+            {t("all")}
           </Chip>
           {CATEGORIES.map((c) => (
             <Chip key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
-              {c.name}
+              {tCategory(c.name)}
             </Chip>
           ))}
         </div>
@@ -141,12 +167,24 @@ export function ShopScreen() {
             <Spinner className="h-7 w-7" />
           </div>
         ) : error ? (
-          <EmptyState icon={SearchX} title="Couldn't load the shop" subtitle={error} />
+          <EmptyState icon={SearchX} title={t("couldntLoad")} subtitle={error} />
         ) : visible.length === 0 ? (
-          <EmptyState icon={SearchX} title="No items found." subtitle="Try a different search or category." />
+          <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
         ) : (
           visible.map((p) => <ProductListItem key={p.id} product={p} />)
         )}
+      </div>
+
+      {/* Call support — floating 3D dialer button (opens the phone dialer) */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-app">
+        <a
+          href={`tel:${SUPPORT_PHONE}`}
+          aria-label={t("callSupport")}
+          className="animate-float pointer-events-auto absolute bottom-24 right-4 flex items-center gap-2 rounded-full bg-gradient-to-b from-accent-400 to-accent-600 px-4 py-3 text-sm font-extrabold text-white shadow-[0_8px_0_-2px_#c74c0b,0_16px_26px_-8px_rgba(0,0,0,.5)] transition-all active:translate-y-1 active:shadow-[0_4px_0_-2px_#c74c0b,0_8px_16px_-8px_rgba(0,0,0,.4)] motion-reduce:animate-none"
+        >
+          <Phone className="h-5 w-5" />
+          {t("callSupport")}
+        </a>
       </div>
 
       {/* Overlays */}

@@ -1,10 +1,16 @@
+"use client";
+
+import { useLang } from "@/lib/i18n";
+
 export function PromoBanner() {
+  const { t } = useLang();
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 px-5 py-4 text-white shadow-card">
-      <p className="text-base font-extrabold">Wholesale fruits &amp; veggies 🥦</p>
-      <p className="mt-0.5 text-xs font-medium text-white/85">
-        Live B2B rates · order in bulk · pay COD, credit or online.
-      </p>
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-400 via-brand-500 to-brand-700 px-5 py-4 text-white shadow-[0_10px_24px_-10px_rgba(10,154,75,.6)]">
+      {/* soft glow accents for depth */}
+      <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/15 blur-xl" />
+      <div className="pointer-events-none absolute -bottom-10 left-10 h-24 w-24 rounded-full bg-accent-400/30 blur-xl" />
+      <p className="relative text-base font-extrabold drop-shadow-sm">{t("promoTitle")} 🥦</p>
+      <p className="relative mt-0.5 text-xs font-medium text-white/90">{t("promoSub")}</p>
     </div>
   );
 }
