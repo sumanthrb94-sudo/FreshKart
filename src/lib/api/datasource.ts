@@ -45,6 +45,11 @@ export interface DataSource {
    * "set up your shop" step). The new user is a BUYER.
    */
   completeProfile?(input: ProfileSetupInput): Promise<User>;
+  /**
+   * Optional: sign in with Google (popup). Returns the existing profile, or
+   * null when the Google account is new and still needs the "set up shop" step.
+   */
+  signInWithGoogle?(): Promise<User | null>;
 
   // --- Catalog ------------------------------------------------------------
   listProducts(): Promise<Product[]>;

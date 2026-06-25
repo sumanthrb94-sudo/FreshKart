@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult } from "firebase/auth";
 import { ArrowRight, Check, Loader2, MapPin, Sprout } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { sendOtp, toE164, resetRecaptcha } from "@/lib/firebase/phone-auth";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -15,6 +15,18 @@ type Step = "mobile" | "verify" | "shop" | "done";
 const STEP_ORDER: Step[] = ["mobile", "verify", "shop"];
 const BUSINESS_TYPES = ["Kirana store", "Restaurant", "Hotel", "Cloud kitchen", "Reseller"];
 const RECAPTCHA_ID = "recaptcha-container";
+
+/** Google "G" mark — brand-accurate (lucide ships no brand icons). */
+function GoogleIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.99.66-2.26 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
+      <path fill="#FBBC05" d="M5.84 14.11A6.6 6.6 0 0 1 5.49 12c0-.73.13-1.45.35-2.11V7.05H2.18A11 11 0 0 0 1 12c0 1.77.42 3.45 1.18 4.95l3.66-2.84z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.46 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
+    </svg>
+  );
+}
 
 export function OnboardingScreen() {
   const router = useRouter();
@@ -27,6 +39,7 @@ export function OnboardingScreen() {
   const [bizType, setBizType] = useState("Kirana store");
   const [area, setArea] = useState("");
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
@@ -43,6 +56,32 @@ export function OnboardingScreen() {
   }, [user, step, router]);
 
   const stepIndex = STEP_ORDER.indexOf(step as Step);
+  const googleEnabled = typeof api.signInWithGoogle === "function";
+
+  async function handleGoogle() {
+    if (!api.signInWithGoogle) {
+      setError("Google sign-in isn't available.");
+      return;
+    }
+    setGoogleBusy(true);
+    setError(null);
+    try {
+      const existing = await api.signInWithGoogle();
+      await refreshUser();
+      if (existing) {
+        router.replace(existing.role === "ADMIN" ? "/admin" : "/");
+      } else {
+        setStep("shop"); // new Google account → set up shop next
+      }
+    } catch (e) {
+      // status 499 = user dismissed the popup; ignore quietly.
+      if (!(e instanceof ApiError && e.status === 499)) {
+        setError(e instanceof Error ? e.message : "Google sign-in failed.");
+      }
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
 
   async function handleSendOtp() {
     if (phone.length < 10) {
@@ -194,19 +233,45 @@ export function OnboardingScreen() {
 
         {step === "mobile" && (
           <div className="flex flex-1 flex-col">
-            <h1 className="text-2xl font-extrabold text-gray-900">
-              What&apos;s your mobile number?
-            </h1>
+            <h1 className="text-2xl font-extrabold text-gray-900">Sign in to FreshKart</h1>
             <p className="mt-2 text-sm text-gray-500">
-              We&apos;ll text a 6-digit code to verify your shop. New here? You&apos;ll set
-              up your shop next.
+              Sign in to order fresh wholesale produce for your shop.
             </p>
-            <div className="mt-7 flex items-center gap-2 rounded-xl border border-gray-300 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
+
+            {/* Primary: Google */}
+            {googleEnabled && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleGoogle}
+                  disabled={busy || googleBusy}
+                  className="mt-7 flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white py-3.5 text-base font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {googleBusy ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                  ) : (
+                    <GoogleIcon />
+                  )}
+                  {googleBusy ? "Signing in…" : "Continue with Google"}
+                </button>
+
+                <div className="my-6 flex items-center gap-3">
+                  <span className="h-px flex-1 bg-gray-200" />
+                  <span className="text-xs font-medium text-gray-400">or use your mobile</span>
+                  <span className="h-px flex-1 bg-gray-200" />
+                </div>
+              </>
+            )}
+
+            {/* Secondary: phone OTP */}
+            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Mobile number
+            </label>
+            <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-gray-300 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
               <span className="border-r border-gray-200 py-3 pr-3 text-sm font-semibold text-gray-500">
                 +91
               </span>
               <input
-                autoFocus
                 inputMode="numeric"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
@@ -215,21 +280,24 @@ export function OnboardingScreen() {
                 className="h-12 flex-1 bg-transparent text-lg font-semibold tracking-wide text-gray-900 outline-none placeholder:font-normal placeholder:text-gray-300"
               />
             </div>
-            <p className="mt-2 text-xs text-gray-400">Standard SMS rates may apply.</p>
+            <p className="mt-2 text-xs text-gray-400">
+              We&apos;ll text a 6-digit code. Standard SMS rates may apply.
+            </p>
+            <button
+              type="button"
+              disabled={phone.length < 10 || busy || googleBusy}
+              onClick={handleSendOtp}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
+            >
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+              {busy ? "Sending code…" : "Continue with mobile"}
+            </button>
+
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-            <div className="mt-auto pb-9">
-              <button
-                disabled={phone.length < 10 || busy}
-                onClick={handleSendOtp}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
-              >
-                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                {busy ? "Sending code…" : "Continue"}
-              </button>
-              <p className="mt-3 text-center text-xs text-gray-400">
-                By continuing you agree to FreshKart&apos;s Terms &amp; Privacy Policy.
-              </p>
-            </div>
+
+            <p className="mt-auto pb-9 pt-6 text-center text-xs text-gray-400">
+              By continuing you agree to FreshKart&apos;s Terms &amp; Privacy Policy.
+            </p>
           </div>
         )}
 

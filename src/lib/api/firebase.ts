@@ -4,6 +4,8 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile as updateAuthProfile,
+  GoogleAuthProvider,
+  signInWithPopup,
 } from "firebase/auth";
 import {
   collection,
@@ -162,6 +164,31 @@ export class FirebaseDataSource implements DataSource {
     };
     await setDoc(doc(getDb(), COL.users, fb.uid), profile, { merge: true });
     return { ...profile, id: fb.uid };
+  }
+
+  async signInWithGoogle(): Promise<User | null> {
+    const auth = getFirebaseAuth();
+    try {
+      const cred = await signInWithPopup(auth, new GoogleAuthProvider());
+      const snap = await getDoc(doc(getDb(), COL.users, cred.user.uid));
+      return snap.exists() ? snapToUser(snap) : null;
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      // User dismissed the popup — surface a sentinel the UI can ignore quietly.
+      if (code.includes("popup-closed-by-user") || code.includes("cancelled-popup-request")) {
+        throw new ApiError("Sign-in cancelled.", 499);
+      }
+      if (code.includes("popup-blocked")) {
+        throw new ApiError("Your browser blocked the sign-in popup — allow popups and try again.");
+      }
+      if (code.includes("operation-not-allowed")) {
+        throw new ApiError("Google sign-in isn't enabled for this project yet.");
+      }
+      if (code.includes("unauthorized-domain")) {
+        throw new ApiError("This domain isn't authorized for sign-in. Add it in Firebase Auth settings.");
+      }
+      throw new ApiError(e instanceof Error ? e.message : "Google sign-in failed.");
+    }
   }
 
   // --- Catalog ------------------------------------------------------------
