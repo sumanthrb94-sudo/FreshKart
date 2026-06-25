@@ -20,18 +20,48 @@ import { AdminShell } from "./AdminShell";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { OrderStatusBadge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 
 const ALL_STATUSES: OrderStatus[] = [...STATUS_FLOW, "CANCELLED"];
 
 export function AdminOverviewScreen() {
-  const { data: stats, loading: statsLoading } = useAsync(() => api.getAdminStats(), []);
-  const { data: orders, loading: ordersLoading } = useAsync(() => api.listOrders(), []);
+  const { data: stats, loading: statsLoading, error: statsError, refetch: refetchStats } =
+    useAsync(() => api.getAdminStats(), []);
+  const { data: orders, loading: ordersLoading, error: ordersError, refetch: refetchOrders } =
+    useAsync(() => api.listOrders(), []);
 
-  if (statsLoading || ordersLoading || !stats) {
+  if (statsLoading || ordersLoading) {
     return (
       <AdminShell>
         <FullScreenLoader label="Loading dashboard…" />
+      </AdminShell>
+    );
+  }
+
+  // Surface the error (e.g. Firestore "insufficient permissions" when the
+  // account isn't an admin) instead of hanging on the loader forever.
+  const loadError = statsError || ordersError;
+  if (loadError || !stats) {
+    return (
+      <AdminShell>
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load the dashboard"
+          subtitle={loadError ?? "Your account may not have admin access yet."}
+          action={
+            <Button
+              size="lg"
+              onClick={() => {
+                refetchStats();
+                refetchOrders();
+              }}
+            >
+              Try again
+            </Button>
+          }
+        />
       </AdminShell>
     );
   }

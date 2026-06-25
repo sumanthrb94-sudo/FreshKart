@@ -1,21 +1,33 @@
 "use client";
 
-import { Users } from "lucide-react";
+import { AlertTriangle, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
 import { AdminShell } from "./AdminShell";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 
 export function AdminCustomersScreen() {
-  const { data: customers, loading } = useAsync(() => api.listCustomers(), []);
+  const { data: customers, loading, error, refetch } = useAsync(() => api.listCustomers(), []);
 
   return (
     <AdminShell>
       {loading ? (
         <FullScreenLoader />
+      ) : error ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load customers"
+          subtitle={error}
+          action={
+            <Button size="lg" onClick={refetch}>
+              Try again
+            </Button>
+          }
+        />
       ) : !customers || customers.length === 0 ? (
         <EmptyState icon={Users} title="No customers yet" />
       ) : (
