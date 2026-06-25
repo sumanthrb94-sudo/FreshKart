@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Store, Package, User as UserIcon, type LucideIcon } from "lucide-react";
+import { Store, Package, User as UserIcon, ShieldCheck, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Tab = {
@@ -16,6 +16,10 @@ const TABS: Tab[] = [
   { href: "/", label: "Shop", icon: Store, isActive: (p) => p === "/" },
   { href: "/orders", label: "Orders", icon: Package, isActive: (p) => p.startsWith("/orders") },
   { href: "/account", label: "Account", icon: UserIcon, isActive: (p) => p.startsWith("/account") },
+  // TEMP (testing): Admin entry shown to everyone so the console can be opened
+  // before admin login is wired. Gate this with `isAdmin` once Gmail admin login
+  // is in place.
+  { href: "/admin", label: "Admin", icon: ShieldCheck, isActive: (p) => p.startsWith("/admin") },
 ];
 
 /**
