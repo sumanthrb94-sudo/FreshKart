@@ -75,6 +75,15 @@ const config: Config = {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-16px)" },
         },
+        // Produce falls from above, converging toward the cart (--dx → 0) and
+        // shrinking as it drops "into" the basket, then loops.
+        drop: {
+          "0%": { transform: "translate(var(--dx, 0px), -10px) rotate(-12deg) scale(.85)", opacity: "0" },
+          "12%": { opacity: "1" },
+          "65%": { transform: "translate(calc(var(--dx, 0px) * .25), 70px) rotate(6deg) scale(1)", opacity: "1" },
+          "88%": { transform: "translate(0px, 96px) scale(.5)", opacity: ".3" },
+          "100%": { transform: "translate(0px, 104px) scale(.3)", opacity: "0" },
+        },
       },
       animation: {
         rise: "rise .28s cubic-bezier(.22,1,.36,1)",
@@ -82,6 +91,7 @@ const config: Config = {
         pop: "pop .4s cubic-bezier(.22,1,.36,1)",
         float: "float 3s ease-in-out infinite",
         "float-slow": "floatSlow 5.5s ease-in-out infinite",
+        drop: "drop 4s ease-in infinite",
       },
     },
   },

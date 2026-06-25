@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult } from "firebase/auth";
-import { ArrowRight, Check, Loader2, MapPin, Sprout } from "lucide-react";
+import { ArrowRight, Check, Loader2, MapPin } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { sendOtp, toE164, resetRecaptcha } from "@/lib/firebase/phone-auth";
@@ -215,26 +215,50 @@ export function OnboardingScreen() {
           <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-white/10" />
           <div className="pointer-events-none absolute -left-12 top-28 h-44 w-44 rounded-full bg-brand-300/20 blur-2xl" />
 
-          {/* Floating produce */}
-          <span className="pointer-events-none absolute left-7 top-20 animate-float-slow text-3xl opacity-80 drop-shadow">
-            🍅
-          </span>
-          <span className="pointer-events-none absolute right-9 top-14 animate-float text-4xl opacity-80 drop-shadow">
-            🥦
-          </span>
-          <span className="pointer-events-none absolute right-12 top-44 animate-float-slow text-2xl opacity-70 drop-shadow">
-            🥕
-          </span>
-          <span className="pointer-events-none absolute left-10 top-48 animate-float text-2xl opacity-70 drop-shadow">
-            🧅
-          </span>
-
-          {/* Brand hero */}
+          {/* Brand hero: a cart filling with fresh produce */}
           <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-7 text-center text-white">
-            <div className="flex h-24 w-24 animate-float items-center justify-center rounded-[28px] bg-white/15 shadow-lg backdrop-blur">
-              <Sprout className="h-12 w-12" />
+            <div className="relative mb-1 h-44 w-full max-w-[280px]">
+              {/* Produce raining into the cart (converges to centre, sinks in) */}
+              {[
+                { e: "🍅", dx: -116, d: "0s", s: "text-3xl" },
+                { e: "🥦", dx: -86, d: "0.45s", s: "text-2xl" },
+                { e: "🥕", dx: -56, d: "0.9s", s: "text-3xl" },
+                { e: "🌽", dx: -20, d: "1.35s", s: "text-2xl" },
+                { e: "🧅", dx: 20, d: "1.8s", s: "text-3xl" },
+                { e: "🥔", dx: 56, d: "2.25s", s: "text-2xl" },
+                { e: "🥬", dx: 86, d: "2.7s", s: "text-3xl" },
+                { e: "🫑", dx: 116, d: "3.15s", s: "text-2xl" },
+                { e: "🍆", dx: 0, d: "3.6s", s: "text-3xl" },
+              ].map((v, i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "pointer-events-none absolute left-1/2 top-0 -ml-3 animate-drop drop-shadow motion-reduce:hidden",
+                    v.s
+                  )}
+                  style={
+                    { "--dx": `${v.dx}px`, animationDelay: v.d } as React.CSSProperties
+                  }
+                >
+                  {v.e}
+                </span>
+              ))}
+
+              {/* Produce already resting in the cart (peeking over the rim) */}
+              <span className="pointer-events-none absolute bottom-12 left-1/2 -ml-8 text-2xl drop-shadow">
+                🥬
+              </span>
+              <span className="pointer-events-none absolute bottom-12 left-1/2 ml-2 text-2xl drop-shadow">
+                🍅
+              </span>
+
+              {/* The cart */}
+              <span className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 animate-float text-7xl drop-shadow-lg motion-reduce:animate-none">
+                🛒
+              </span>
             </div>
-            <h1 className="mt-6 text-5xl font-extrabold tracking-tight drop-shadow-sm">FreshKart</h1>
+
+            <h1 className="text-5xl font-extrabold tracking-tight drop-shadow-sm">FreshKart</h1>
             <p className="mt-2 text-sm font-semibold text-white/90">
               Wholesale B2B · fresh produce, per kg
             </p>
