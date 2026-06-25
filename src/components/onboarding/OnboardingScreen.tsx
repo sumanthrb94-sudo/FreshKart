@@ -30,7 +30,7 @@ function GoogleIcon({ className = "h-5 w-5" }: { className?: string }) {
 
 export function OnboardingScreen() {
   const router = useRouter();
-  const { user, refreshUser } = useAuth();
+  const { refreshUser } = useAuth();
 
   const [step, setStep] = useState<Step>("mobile");
   const [phone, setPhone] = useState("");
@@ -46,14 +46,6 @@ export function OnboardingScreen() {
   const confirmation = useRef<ConfirmationResult | null>(null);
 
   useEffect(() => () => resetRecaptcha(), []);
-
-  // Already signed in (fully onboarded)? Skip the login flow and go to the app.
-  // Guarded to the landing step so a just-finished signup still sees "done".
-  useEffect(() => {
-    if (user && step === "mobile") {
-      router.replace(user.role === "ADMIN" ? "/admin" : "/");
-    }
-  }, [user, step, router]);
 
   const stepIndex = STEP_ORDER.indexOf(step as Step);
   const googleEnabled = typeof api.signInWithGoogle === "function";
@@ -149,7 +141,6 @@ export function OnboardingScreen() {
         businessType: bizType,
         city: area.trim() || undefined,
       });
-      await refreshUser();
       setStep("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save your shop. Try again.");
@@ -199,7 +190,12 @@ export function OnboardingScreen() {
 
           <div className="relative z-10 flex flex-col gap-3 pb-9 pt-6">
             <button
-              onClick={() => router.push("/")}
+              onClick={async () => {
+                // Profile now exists — pull it into auth state so HomeGate
+                // swaps "/" over to the shop.
+                await refreshUser();
+                router.replace("/");
+              }}
               className="rounded-xl bg-accent-500 px-5 py-3.5 text-base font-bold text-white shadow-lg transition-colors hover:bg-accent-600"
             >
               Start ordering

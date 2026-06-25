@@ -42,7 +42,7 @@ export function BuyerHeader() {
   async function handleLogout() {
     await logout();
     // Full navigation so the back button can't return to a protected page.
-    window.location.assign("/onboarding");
+    window.location.assign("/");
   }
 
   return (

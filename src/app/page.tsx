@@ -1,5 +1,5 @@
-import { ShopScreen } from "@/components/buyer/ShopScreen";
+import { HomeGate } from "@/components/HomeGate";
 
 export default function HomePage() {
-  return <ShopScreen />;
+  return <HomeGate />;
 }

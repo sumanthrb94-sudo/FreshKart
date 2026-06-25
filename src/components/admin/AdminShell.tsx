@@ -22,7 +22,7 @@ function AdminHeader() {
 
   async function handleLogout() {
     await logout();
-    window.location.assign("/onboarding");
+    window.location.assign("/");
   }
 
   return (

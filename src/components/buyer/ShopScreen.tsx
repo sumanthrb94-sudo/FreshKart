@@ -6,7 +6,8 @@ import { Search, SearchX } from "lucide-react";
 import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
-import { useAsync, useRequireAuth } from "@/lib/hooks";
+import { useAsync } from "@/lib/hooks";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { Chip } from "@/components/ui/Chip";
@@ -23,7 +24,7 @@ import { SuccessOverlay } from "./SuccessOverlay";
 
 export function ShopScreen() {
   const router = useRouter();
-  const { ready, user } = useRequireAuth({ callbackUrl: "/" });
+  const { user } = useAuth();
   const { lines, subtotal, clear } = useCart();
   const { data: products, loading, error } = useAsync(() => api.listProducts(), []);
 
@@ -58,7 +59,7 @@ export function ShopScreen() {
 
   function handleReview() {
     if (!user) {
-      router.push("/onboarding");
+      router.push("/");
       return;
     }
     setOrderError(null);
@@ -96,16 +97,6 @@ export function ShopScreen() {
     } else {
       placeOrder(delivery, method, false);
     }
-  }
-
-  // Auth gate: unauthenticated visitors are sent to phone sign-in by
-  // useRequireAuth; hold the shop behind a loader until that check settles.
-  if (!ready) {
-    return (
-      <AppShell header={<BuyerHeader />}>
-        <FullScreenLoader />
-      </AppShell>
-    );
   }
 
   return (

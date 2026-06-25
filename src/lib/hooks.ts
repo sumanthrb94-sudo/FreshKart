@@ -54,7 +54,7 @@ export function useRequireAuth(options?: { role?: "ADMIN" | "BUYER"; callbackUrl
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      router.replace("/onboarding");
+      router.replace("/");
       return;
     }
     if (options?.role && user.role !== options.role) {
