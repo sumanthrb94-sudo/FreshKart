@@ -103,28 +103,28 @@ export function AccountScreen() {
     <AppShell header={<BuyerHeader />}>
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gray-900">Your account</h1>
-          <Badge className="bg-brand-100 text-brand-800">{user.role}</Badge>
+          <h1 className="text-xl font-bold text-fg">Your account</h1>
+          <Badge className="bg-brand-500/20 text-brand-300">{user.role}</Badge>
         </div>
 
         {/* Delivery address — map-based */}
         <Card>
           <CardBody className="flex items-start gap-3">
-            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-brand-400">
               <MapPin className="h-5 w-5" />
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-gray-900">Delivery address</p>
+                <p className="text-sm font-bold text-fg">Delivery address</p>
                 {user.addressLabel && (
-                  <Badge className="bg-brand-100 text-brand-800">{user.addressLabel}</Badge>
+                  <Badge className="bg-brand-500/20 text-brand-300">{user.addressLabel}</Badge>
                 )}
               </div>
-              <p className="mt-0.5 text-sm text-gray-600">
+              <p className="mt-0.5 text-sm text-fg-muted">
                 {user.address || "No address saved yet."}
               </p>
               {(user.city || user.pincode) && (
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-fg-subtle">
                   {[user.city, user.pincode].filter(Boolean).join(" — ")}
                 </p>
               )}
@@ -132,7 +132,7 @@ export function AccountScreen() {
             <button
               type="button"
               onClick={() => setAddrOpen(true)}
-              className="flex shrink-0 items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              className="flex shrink-0 items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-fg-muted hover:bg-raised"
             >
               <Pencil className="h-3.5 w-3.5" />
               {user.address ? "Edit" : "Add"}
@@ -142,7 +142,7 @@ export function AccountScreen() {
 
         <Card>
           <CardHeader>
-            <h2 className="text-sm font-bold text-gray-900">Profile details</h2>
+            <h2 className="text-sm font-bold text-fg">Profile details</h2>
           </CardHeader>
           <CardBody>
             <form className="flex flex-col gap-3" onSubmit={handleSave}>

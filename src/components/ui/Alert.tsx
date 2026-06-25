@@ -18,8 +18,8 @@ export function Alert({
       className={cn(
         "flex items-start gap-2 rounded-lg border px-3.5 py-2.5 text-sm",
         success
-          ? "border-brand-200 bg-brand-50 text-brand-800"
-          : "border-red-200 bg-red-50 text-red-700",
+          ? "border-brand-500/30 bg-brand-500/15 text-brand-300"
+          : "border-red-500/30 bg-red-500/15 text-red-300",
         className
       )}
     >

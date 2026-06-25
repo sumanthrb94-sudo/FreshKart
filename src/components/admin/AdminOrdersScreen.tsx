@@ -37,21 +37,21 @@ function AdminOrderCard({ order, onChange }: { order: Order; onChange: (o: Order
     <Card className="p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate font-mono text-xs font-semibold text-gray-700">
+          <p className="truncate font-mono text-xs font-semibold text-fg-muted">
             {order.orderNumber}
           </p>
-          <p className="truncate text-sm font-bold text-gray-900">{order.businessName}</p>
+          <p className="truncate text-sm font-bold text-fg">{order.businessName}</p>
         </div>
         <OrderStatusBadge status={order.status} />
       </div>
 
-      <p className="mt-1 text-xs text-gray-400">
+      <p className="mt-1 text-xs text-fg-subtle">
         {order.delivery.city || "—"} · {formatDate(order.createdAt)} · {order.items.length} items ·{" "}
         {totalQty} units
       </p>
 
       <div className="mt-3 flex items-center justify-between gap-2">
-        <span className="text-base font-extrabold text-gray-900">
+        <span className="text-base font-extrabold text-fg">
           {formatCurrency(order.total)}
         </span>
         <div className="flex items-center gap-1.5">
@@ -60,7 +60,7 @@ function AdminOrderCard({ order, onChange }: { order: Order; onChange: (o: Order
               type="button"
               disabled={busy}
               onClick={() => advance("CANCELLED")}
-              className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
             >
               Cancel
             </button>

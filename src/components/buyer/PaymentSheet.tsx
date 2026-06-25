@@ -72,7 +72,7 @@ export function PaymentSheet({
       scrimClassName="bg-black/50"
       title={
         <>
-          <Lock className="h-5 w-5 text-brand-600" />
+          <Lock className="h-5 w-5 text-brand-400" />
           Pay securely
         </>
       }
@@ -84,16 +84,16 @@ export function PaymentSheet({
     >
       {processing ? (
         <div className="flex flex-col items-center justify-center gap-3 px-6 py-20 text-center">
-          <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-brand-100 border-t-brand-500" />
-          <p className="text-base font-bold text-gray-900">
+          <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-brand-500/20 border-t-brand-500" />
+          <p className="text-base font-bold text-fg">
             Processing {formatCurrency(amount)}…
           </p>
-          <p className="text-sm text-gray-500">Do not close this screen.</p>
+          <p className="text-sm text-fg-subtle">Do not close this screen.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4 p-5">
           {/* Tabs */}
-          <div className="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1">
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-raised p-1">
             {(["card", "upi"] as Tab[]).map((t) => (
               <button
                 key={t}
@@ -104,7 +104,7 @@ export function PaymentSheet({
                 }}
                 className={cn(
                   "flex items-center justify-center gap-1.5 rounded-md py-2 text-sm font-semibold transition-colors",
-                  tab === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                  tab === t ? "bg-surface text-fg shadow-sm" : "text-fg-subtle"
                 )}
               >
                 {t === "card" ? (
@@ -158,7 +158,7 @@ export function PaymentSheet({
                   />
                 </Field>
               </div>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-fg-subtle">
                 Test card pre-filled — no real charge is made.
               </p>
             </div>
@@ -176,7 +176,7 @@ export function PaymentSheet({
                 {["GPay", "PhonePe", "Paytm"].map((p) => (
                   <span
                     key={p}
-                    className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-600"
+                    className="rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-fg-muted"
                   >
                     {p}
                   </span>
@@ -190,7 +190,7 @@ export function PaymentSheet({
           <Button size="lg" fullWidth onClick={handlePay} leadingIcon={<Lock className="h-4 w-4" />}>
             Pay {formatCurrency(amount)}
           </Button>
-          <p className="text-center text-xs text-gray-400">
+          <p className="text-center text-xs text-fg-subtle">
             ✓ Simulated gateway · PCI-safe demo
           </p>
         </div>

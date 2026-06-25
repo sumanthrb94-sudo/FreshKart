@@ -61,7 +61,7 @@ export function AdminOverviewScreen() {
           {/* Orders by status */}
           <Card>
             <CardHeader>
-              <h2 className="text-sm font-bold text-gray-900">Orders by status</h2>
+              <h2 className="text-sm font-bold text-fg">Orders by status</h2>
             </CardHeader>
             <CardBody className="flex flex-wrap gap-2">
               {ALL_STATUSES.map((s) => (
@@ -78,28 +78,28 @@ export function AdminOverviewScreen() {
           {/* Recent orders */}
           <Card>
             <CardHeader className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-gray-900">Recent orders</h2>
-              <Link href="/admin/orders" className="text-xs font-semibold text-brand-600 hover:underline">
+              <h2 className="text-sm font-bold text-fg">Recent orders</h2>
+              <Link href="/admin/orders" className="text-xs font-semibold text-brand-400 hover:underline">
                 View all
               </Link>
             </CardHeader>
             <CardBody className="p-0">
               {!orders || orders.length === 0 ? (
-                <p className="px-5 py-8 text-center text-sm text-gray-400">No orders yet.</p>
+                <p className="px-5 py-8 text-center text-sm text-fg-subtle">No orders yet.</p>
               ) : (
-                <ul className="divide-y divide-gray-100">
+                <ul className="divide-y divide-line">
                   {orders.slice(0, 5).map((o) => (
                     <li key={o.id} className="flex items-center justify-between gap-2 px-5 py-3">
                       <div className="min-w-0">
-                        <p className="truncate font-mono text-xs font-semibold text-gray-700">
+                        <p className="truncate font-mono text-xs font-semibold text-fg-muted">
                           {o.orderNumber}
                         </p>
-                        <p className="truncate text-xs text-gray-400">
+                        <p className="truncate text-xs text-fg-subtle">
                           {o.businessName} · {formatDate(o.createdAt)}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        <span className="text-sm font-bold text-gray-900">
+                        <span className="text-sm font-bold text-fg">
                           {formatCurrency(o.total)}
                         </span>
                         <OrderStatusBadge status={o.status} />

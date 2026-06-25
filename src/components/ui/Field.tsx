@@ -12,11 +12,11 @@ type Flavor = "input" | "field";
 
 function baseInput(flavor: Flavor) {
   return cn(
-    "w-full rounded-lg px-3.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors",
-    "focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500",
+    "w-full rounded-lg px-3.5 text-sm text-fg placeholder:text-fg-subtle transition-colors",
+    "focus:outline-none disabled:cursor-not-allowed disabled:bg-raised disabled:text-fg-subtle",
     flavor === "input"
-      ? "h-11 bg-white border border-gray-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
-      : "h-11 bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-brand-100"
+      ? "h-11 bg-surface border border-line focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+      : "h-11 bg-raised border border-line focus:bg-surface focus:ring-2 focus:ring-brand-500/30"
   );
 }
 
@@ -40,7 +40,7 @@ export function Field({
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       {label && (
-        <label htmlFor={htmlFor} className="text-sm font-medium text-gray-700">
+        <label htmlFor={htmlFor} className="text-sm font-medium text-fg-muted">
           {label}
         </label>
       )}
@@ -48,7 +48,7 @@ export function Field({
       {error ? (
         <p className="text-xs text-red-600">{error}</p>
       ) : hint ? (
-        <p className="text-xs text-gray-400">{hint}</p>
+        <p className="text-xs text-fg-subtle">{hint}</p>
       ) : null}
     </div>
   );

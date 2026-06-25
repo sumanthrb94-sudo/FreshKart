@@ -73,7 +73,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
       <div className="flex flex-col gap-3 p-4">
         <Link
           href="/orders"
-          className="flex w-fit items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700"
+          className="flex w-fit items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg-muted"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> All orders
         </Link>
@@ -82,10 +82,10 @@ export function OrderTrackingScreen({ id }: { id: string }) {
 
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="font-mono text-sm font-bold text-gray-900">
+            <p className="font-mono text-sm font-bold text-fg">
               {order.orderNumber}
             </p>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-fg-subtle">
               Placed {formatDate(order.createdAt)}
             </p>
           </div>
@@ -95,7 +95,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
         {/* Tracking */}
         <Card>
           <CardHeader>
-            <h2 className="text-sm font-bold text-gray-900">Tracking</h2>
+            <h2 className="text-sm font-bold text-fg">Tracking</h2>
           </CardHeader>
           <CardBody>
             <OrderTimeline status={order.status} />
@@ -105,30 +105,30 @@ export function OrderTrackingScreen({ id }: { id: string }) {
         {/* Items */}
         <Card>
           <CardHeader>
-            <h2 className="text-sm font-bold text-gray-900">
+            <h2 className="text-sm font-bold text-fg">
               Items ({order.items.length})
             </h2>
           </CardHeader>
           <CardBody className="p-0">
-            <ul className="divide-y divide-gray-100">
+            <ul className="divide-y divide-line">
               {order.items.map((item) => (
                 <li key={item.productId} className="flex items-center gap-3 px-5 py-3">
                   <ProductThumb name={item.name} imageUrl={item.imageUrl} size={44} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-                    <p className="text-xs text-gray-400">
+                    <p className="truncate text-sm font-semibold text-fg">{item.name}</p>
+                    <p className="text-xs text-fg-subtle">
                       {formatCurrency(item.price)}/{item.unit} × {item.qty}
                     </p>
                   </div>
-                  <span className="text-sm font-bold text-gray-900">
+                  <span className="text-sm font-bold text-fg">
                     {formatCurrency(item.lineTotal)}
                   </span>
                 </li>
               ))}
             </ul>
-            <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3">
-              <span className="text-sm font-bold text-gray-900">Total</span>
-              <span className="text-base font-extrabold text-gray-900">
+            <div className="flex items-center justify-between border-t border-line px-5 py-3">
+              <span className="text-sm font-bold text-fg">Total</span>
+              <span className="text-base font-extrabold text-fg">
                 {formatCurrency(order.total)}
               </span>
             </div>
@@ -140,11 +140,11 @@ export function OrderTrackingScreen({ id }: { id: string }) {
           <CardBody className="flex gap-3">
             <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
             <div className="text-sm">
-              <p className="font-semibold text-gray-900">{order.delivery.name}</p>
-              <p className="text-gray-500">
+              <p className="font-semibold text-fg">{order.delivery.name}</p>
+              <p className="text-fg-muted">
                 {order.delivery.address}, {order.delivery.city} — {order.delivery.pincode}
               </p>
-              <p className="text-gray-500">{order.delivery.phone}</p>
+              <p className="text-fg-muted">{order.delivery.phone}</p>
             </div>
           </CardBody>
         </Card>
@@ -154,10 +154,10 @@ export function OrderTrackingScreen({ id }: { id: string }) {
           <CardBody className="flex items-center gap-3">
             <Wallet className="h-4 w-4 shrink-0 text-brand-500" />
             <div className="text-sm">
-              <p className="font-semibold text-gray-900">
+              <p className="font-semibold text-fg">
                 {PAYMENT_LONG[order.paymentMethod]}
               </p>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-fg-subtle">
                 {order.paymentStatus === "PAID" ? "Paid" : "Payment due"}
               </p>
             </div>
@@ -167,8 +167,8 @@ export function OrderTrackingScreen({ id }: { id: string }) {
         {order.notes && (
           <Card>
             <CardBody>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Notes</p>
-              <p className="mt-1 text-sm text-gray-600">{order.notes}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">Notes</p>
+              <p className="mt-1 text-sm text-fg-muted">{order.notes}</p>
             </CardBody>
           </Card>
         )}

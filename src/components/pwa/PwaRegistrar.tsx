@@ -72,13 +72,13 @@ export function PwaRegistrar() {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] mx-auto w-full max-w-app p-3">
-      <div className="animate-rise pointer-events-auto flex items-center gap-3 rounded-2xl border border-brand-100 bg-white p-3 shadow-cart-bar">
+      <div className="animate-rise pointer-events-auto flex items-center gap-3 rounded-2xl border border-brand-500/30 bg-surface p-3 shadow-cart-bar">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white">
           <Download className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-gray-900">Install FreshKart</p>
-          <p className="truncate text-xs text-gray-500">
+          <p className="text-sm font-bold text-fg">Install FreshKart</p>
+          <p className="truncate text-xs text-fg-subtle">
             Add to your home screen — opens like an app.
           </p>
         </div>
@@ -93,7 +93,7 @@ export function PwaRegistrar() {
           type="button"
           onClick={dismiss}
           aria-label="Dismiss"
-          className="shrink-0 rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100"
+          className="shrink-0 rounded-full p-1 text-fg-subtle transition-colors hover:bg-raised"
         >
           <X className="h-4 w-4" />
         </button>

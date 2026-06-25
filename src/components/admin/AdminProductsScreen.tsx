@@ -61,15 +61,15 @@ function ProductAdminRow({ product, onChange }: { product: Product; onChange: (p
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-gray-900">{product.name}</p>
-              <p className="text-xs text-gray-400">
+              <p className="truncate text-sm font-bold text-fg">{product.name}</p>
+              <p className="text-xs text-fg-subtle">
                 {categoryName(product.category)} · ₹{product.price}/{u} · MOQ {product.minOrderQty} {u}
               </p>
             </div>
             <span
               className={cn(
                 "shrink-0 rounded-full px-2 py-0.5 text-2xs font-bold",
-                product.active ? "bg-brand-100 text-brand-800" : "bg-gray-100 text-gray-500"
+                product.active ? "bg-brand-500/20 text-brand-300" : "bg-raised text-fg-subtle"
               )}
             >
               {product.active ? "Active" : "Inactive"}
@@ -78,7 +78,7 @@ function ProductAdminRow({ product, onChange }: { product: Product; onChange: (p
 
           <div className="mt-2 grid grid-cols-2 gap-2">
             <label className="flex flex-col gap-1">
-              <span className="text-2xs font-semibold uppercase tracking-wide text-gray-400">
+              <span className="text-2xs font-semibold uppercase tracking-wide text-fg-subtle">
                 Price / {u}
               </span>
               <input
@@ -86,11 +86,11 @@ function ProductAdminRow({ product, onChange }: { product: Product; onChange: (p
                 inputMode="numeric"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="h-9 rounded-lg border border-gray-200 bg-gray-50 px-2.5 text-sm font-semibold text-gray-900 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100"
+                className="h-9 rounded-lg border border-line bg-raised px-2.5 text-sm font-semibold text-fg focus:border-brand-500 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand-500/30"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-2xs font-semibold uppercase tracking-wide text-gray-400">
+              <span className="text-2xs font-semibold uppercase tracking-wide text-fg-subtle">
                 Stock {lowStock && <span className="text-red-600">· low</span>}
               </span>
               <input
@@ -99,20 +99,20 @@ function ProductAdminRow({ product, onChange }: { product: Product; onChange: (p
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
                 className={cn(
-                  "h-9 rounded-lg border bg-gray-50 px-2.5 text-sm font-semibold text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100",
-                  lowStock ? "border-red-300" : "border-gray-200 focus:border-brand-500"
+                  "h-9 rounded-lg border bg-raised px-2.5 text-sm font-semibold text-fg focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand-500/30",
+                  lowStock ? "border-red-300" : "border-line focus:border-brand-500"
                 )}
               />
             </label>
           </div>
 
           <div className="mt-2.5 flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
+            <label className="flex items-center gap-2 text-sm text-fg-muted">
               <input
                 type="checkbox"
                 checked={active}
                 onChange={(e) => setActive(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-200"
+                className="h-4 w-4 rounded border-line text-brand-500 focus:ring-brand-500/30"
               />
               Active
             </label>

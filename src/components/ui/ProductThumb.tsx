@@ -34,7 +34,7 @@ export function ProductThumb({
     <div
       aria-hidden
       className={cn(
-        "flex shrink-0 items-center justify-center bg-brand-50",
+        "flex shrink-0 items-center justify-center bg-raised",
         radius,
         className
       )}

@@ -23,20 +23,20 @@ export function AdminCustomersScreen() {
           {customers.map((c) => (
             <Card key={c.id} className="flex items-center justify-between gap-3 p-4">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-600">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-sm font-bold text-brand-400">
                   {c.name.charAt(0).toUpperCase()}
                 </span>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-gray-900">{c.name}</p>
-                  <p className="truncate text-xs text-gray-500">{c.businessName}</p>
-                  <p className="truncate text-2xs text-gray-400">
+                  <p className="truncate text-sm font-bold text-fg">{c.name}</p>
+                  <p className="truncate text-xs text-fg-subtle">{c.businessName}</p>
+                  <p className="truncate text-2xs text-fg-subtle">
                     {c.phone} · {c.city ?? "—"}
                   </p>
                 </div>
               </div>
               <div className="shrink-0 text-right">
-                <p className="text-sm font-bold text-gray-900">{c.orderCount} orders</p>
-                <p className="text-xs text-gray-400">{formatCurrency(c.totalSpent)} spent</p>
+                <p className="text-sm font-bold text-fg">{c.orderCount} orders</p>
+                <p className="text-xs text-fg-subtle">{formatCurrency(c.totalSpent)} spent</p>
               </div>
             </Card>
           ))}

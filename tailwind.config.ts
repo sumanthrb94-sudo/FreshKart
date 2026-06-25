@@ -44,6 +44,17 @@ const config: Config = {
           800: "#1f2024",
           700: "#2b2c31",
         },
+        // Semantic dark-theme tokens — the single source of truth applied on
+        // every screen so the whole app shares one cohesive palette.
+        canvas: "#0d0d0f", // page / app background
+        surface: "#18181b", // cards, headers, sheets
+        raised: "#222227", // inputs, raised chips
+        line: "#2c2d33", // borders & dividers
+        fg: {
+          DEFAULT: "#f5f6f8", // primary text
+          muted: "#a6abb5", // secondary text
+          subtle: "#74787f", // tertiary / placeholder
+        },
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],

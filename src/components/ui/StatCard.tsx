@@ -5,10 +5,10 @@ import { Card } from "./Card";
 type Tone = "brand" | "accent" | "red" | "gray";
 
 const TONES: Record<Tone, string> = {
-  brand: "bg-brand-50 text-brand-600",
-  accent: "bg-accent-50 text-accent-500",
-  red: "bg-red-50 text-red-600",
-  gray: "bg-gray-100 text-gray-500",
+  brand: "bg-brand-500/15 text-brand-400",
+  accent: "bg-accent-500/15 text-accent-400",
+  red: "bg-red-500/15 text-red-400",
+  gray: "bg-raised text-fg-muted",
 };
 
 export function StatCard({
@@ -28,9 +28,9 @@ export function StatCard({
     <Card className="p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-gray-500">{label}</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
-          {hint && <p className="mt-0.5 text-xs text-gray-400">{hint}</p>}
+          <p className="text-xs font-medium text-fg-muted">{label}</p>
+          <p className="mt-1 text-2xl font-bold text-fg">{value}</p>
+          {hint && <p className="mt-0.5 text-xs text-fg-subtle">{hint}</p>}
         </div>
         <div
           className={cn(

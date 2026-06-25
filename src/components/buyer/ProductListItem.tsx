@@ -15,38 +15,38 @@ export function ProductListItem({ product }: { product: Product }) {
   const outOfStock = product.stock < product.minOrderQty;
 
   return (
-    <div className="flex gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-card">
+    <div className="flex gap-3 rounded-xl border border-line bg-surface p-3 shadow-card">
       <ProductThumb name={product.name} imageUrl={product.imageUrl} size={96} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <p className="text-sm font-bold leading-snug text-gray-900">{tProduct(product.name)}</p>
-        <p className="mt-0.5 flex items-center gap-1 text-[11px] text-gray-400">
+        <p className="text-sm font-bold leading-snug text-fg">{tProduct(product.name)}</p>
+        <p className="mt-0.5 flex items-center gap-1 text-[11px] text-fg-subtle">
           <MapPin className="h-3 w-3" />
           <span className="truncate">{product.origin}</span>
         </p>
 
         <div className="mt-1.5 flex items-baseline gap-1">
-          <span className="text-lg font-extrabold text-gray-900">
+          <span className="text-lg font-extrabold text-fg">
             {formatCurrency(product.price)}
           </span>
-          <span className="text-xs text-gray-400">/ {unitLabel(product.unit)}</span>
+          <span className="text-xs text-fg-subtle">/ {unitLabel(product.unit)}</span>
         </div>
 
-        <span className="mt-1.5 w-fit rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
+        <span className="mt-1.5 w-fit rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-semibold text-brand-300">
           {t("minOrder")} {product.minOrderQty} {unitLabel(product.unit)}
         </span>
       </div>
 
       <div className="flex shrink-0 flex-col items-end justify-center gap-1">
         {outOfStock ? (
-          <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-400">
+          <span className="rounded-full bg-raised px-3 py-1.5 text-xs font-semibold text-fg-subtle">
             {t("outOfStock")}
           </span>
         ) : qty === 0 ? (
           <button
             type="button"
             onClick={() => add(product)}
-            className="flex items-center gap-1 rounded-full border border-brand-500 px-4 py-1.5 text-sm font-bold text-brand-600 transition-colors hover:bg-brand-50"
+            className="flex items-center gap-1 rounded-full border border-brand-500 px-4 py-1.5 text-sm font-bold text-brand-400 transition-colors hover:bg-brand-500/15"
           >
             <Plus className="h-4 w-4" />
             {t("add")}
@@ -59,10 +59,10 @@ export function ProductListItem({ product }: { product: Product }) {
               onIncrement={() => increment(product)}
               onDecrement={() => decrement(product)}
             />
-            <span className="text-xs font-bold text-gray-900">
+            <span className="text-xs font-bold text-fg">
               {formatCurrency(product.price * qty)}
             </span>
-            <span className="text-2xs text-gray-400">
+            <span className="text-2xs text-fg-subtle">
               +{product.minOrderQty} {unitLabel(product.unit)} / tap
             </span>
           </>

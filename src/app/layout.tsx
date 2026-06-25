@@ -36,7 +36,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="font-sans text-gray-900 antialiased">
+      <body className="font-sans text-fg antialiased">
         <AppProviders>{children}</AppProviders>
         <PwaRegistrar />
       </body>

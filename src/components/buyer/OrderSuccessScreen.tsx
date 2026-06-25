@@ -51,14 +51,14 @@ export function OrderSuccessScreen({ id }: { id: string }) {
       <div className="flex flex-col gap-3 p-4">
         {/* Hero */}
         <div className="flex flex-col items-center gap-2 py-4 text-center">
-          <div className="flex h-16 w-16 animate-pop items-center justify-center rounded-full bg-brand-50">
+          <div className="flex h-16 w-16 animate-pop items-center justify-center rounded-full bg-brand-500/15">
             <CheckCircle2 className="h-9 w-9 text-brand-500" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Order placed!</h1>
-          <p className="max-w-xs text-sm text-gray-500">
+          <h1 className="text-xl font-bold text-fg">Order placed!</h1>
+          <p className="max-w-xs text-sm text-fg-muted">
             Thanks — your order is confirmed and being prepared.
           </p>
-          <span className="rounded-full bg-gray-100 px-3 py-1 font-mono text-xs font-semibold text-gray-600">
+          <span className="rounded-full bg-raised px-3 py-1 font-mono text-xs font-semibold text-fg-muted">
             {order.orderNumber}
           </span>
         </div>
@@ -77,7 +77,7 @@ export function OrderSuccessScreen({ id }: { id: string }) {
         {/* Summary */}
         <Card>
           <CardHeader>
-            <h2 className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
+            <h2 className="flex items-center gap-1.5 text-sm font-bold text-fg">
               <Package className="h-4 w-4 text-brand-500" /> Order summary
             </h2>
           </CardHeader>
@@ -85,23 +85,23 @@ export function OrderSuccessScreen({ id }: { id: string }) {
             <ul className="flex flex-col gap-2">
               {order.items.map((item) => (
                 <li key={item.productId} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-700">
-                    {item.name} <span className="text-gray-400">× {item.qty} {item.unit}</span>
+                  <span className="text-fg-muted">
+                    {item.name} <span className="text-fg-subtle">× {item.qty} {item.unit}</span>
                   </span>
-                  <span className="font-semibold text-gray-900">
+                  <span className="font-semibold text-fg">
                     {formatCurrency(item.lineTotal)}
                   </span>
                 </li>
               ))}
             </ul>
-            <div className="my-3 border-t border-dashed border-gray-200" />
+            <div className="my-3 border-t border-dashed border-line" />
             <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-gray-900">Total paid</span>
-              <span className="text-base font-extrabold text-gray-900">
+              <span className="text-sm font-bold text-fg">Total paid</span>
+              <span className="text-base font-extrabold text-fg">
                 {formatCurrency(order.total)}
               </span>
             </div>
-            <p className="mt-1 text-xs text-gray-400">{paymentLine}</p>
+            <p className="mt-1 text-xs text-fg-subtle">{paymentLine}</p>
           </CardBody>
         </Card>
 
@@ -110,12 +110,12 @@ export function OrderSuccessScreen({ id }: { id: string }) {
           <CardBody className="flex gap-3">
             <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
             <div className="text-sm">
-              <p className="font-semibold text-gray-900">Delivering to</p>
-              <p className="text-gray-500">{order.delivery.name}</p>
-              <p className="text-gray-500">
+              <p className="font-semibold text-fg">Delivering to</p>
+              <p className="text-fg-muted">{order.delivery.name}</p>
+              <p className="text-fg-muted">
                 {order.delivery.address}, {order.delivery.city} — {order.delivery.pincode}
               </p>
-              <p className="text-gray-500">{order.delivery.phone}</p>
+              <p className="text-fg-muted">{order.delivery.phone}</p>
             </div>
           </CardBody>
         </Card>

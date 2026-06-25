@@ -13,7 +13,8 @@ html {
 }
 
 body {
-  background: theme("colors.gray.100");
+  background: theme("colors.canvas");
+  color: theme("colors.fg.DEFAULT");
 }
 
 /* Hide scrollbars inside the app column / sheets for an app-like feel */

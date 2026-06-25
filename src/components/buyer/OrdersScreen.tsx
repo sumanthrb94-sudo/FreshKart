@@ -30,10 +30,10 @@ export function OrdersScreen() {
     <AppShell header={<BuyerHeader />}>
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-bold text-gray-900">Your orders</h1>
+          <h1 className="text-lg font-bold text-fg">Your orders</h1>
           <Link
             href="/"
-            className="flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+            className="flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-fg-muted hover:bg-raised"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back to shop
           </Link>

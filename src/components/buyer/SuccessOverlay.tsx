@@ -20,22 +20,22 @@ export function SuccessOverlay({
       : PAYMENT_LABELS[order.paymentMethod];
 
   return (
-    <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app flex-col items-center justify-center gap-5 bg-white px-6 text-center shadow-xl">
-      <div className="flex h-20 w-20 animate-pop items-center justify-center rounded-full bg-brand-50">
+    <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app flex-col items-center justify-center gap-5 bg-surface px-6 text-center shadow-xl">
+      <div className="flex h-20 w-20 animate-pop items-center justify-center rounded-full bg-brand-500/15">
         <CheckCircle2 className="h-11 w-11 text-brand-500" />
       </div>
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Order placed!</h1>
-        <p className="mt-1 text-sm text-gray-500">Your B2B order is confirmed.</p>
+        <h1 className="text-xl font-bold text-fg">Order placed!</h1>
+        <p className="mt-1 text-sm text-fg-subtle">Your B2B order is confirmed.</p>
       </div>
-      <span className="rounded-full bg-gray-100 px-3 py-1 font-mono text-xs font-semibold text-gray-600">
+      <span className="rounded-full bg-raised px-3 py-1 font-mono text-xs font-semibold text-fg-muted">
         {order.orderNumber}
       </span>
       <div className="flex flex-col items-center gap-1">
-        <p className="text-2xl font-extrabold text-gray-900">
+        <p className="text-2xl font-extrabold text-fg">
           {formatCurrency(order.total)}
         </p>
-        <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+        <span className="rounded-full bg-brand-500/15 px-3 py-1 text-xs font-semibold text-brand-300">
           {paymentChip}
         </span>
       </div>

@@ -46,7 +46,7 @@ export function BrandSplash() {
           <p className="text-sm font-extrabold tracking-tight text-gray-200">
             Fresh<span className="text-brand-500">Kart</span>
           </p>
-          <p className="text-2xs font-medium text-gray-600">Wholesale B2B · per kg</p>
+          <p className="text-2xs font-medium text-fg-subtle">Wholesale B2B · per kg</p>
         </div>
       </div>
     </div>

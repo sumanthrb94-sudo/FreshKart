@@ -31,8 +31,8 @@ export function OrderTimeline({ status }: { status: OrderStatus }) {
                 className={cn(
                   "flex h-6 w-6 items-center justify-center rounded-full transition-colors",
                   done && "bg-brand-500 text-white",
-                  current && "bg-brand-500 text-white ring-4 ring-brand-100",
-                  !done && !current && "border-2 border-gray-200 bg-white"
+                  current && "bg-brand-500 text-white ring-4 ring-brand-500/20",
+                  !done && !current && "border-2 border-line bg-surface"
                 )}
               >
                 {done ? (
@@ -41,7 +41,7 @@ export function OrderTimeline({ status }: { status: OrderStatus }) {
                   <span
                     className={cn(
                       "h-2 w-2 rounded-full",
-                      current ? "bg-white" : "bg-gray-300"
+                      current ? "bg-white" : "bg-raised"
                     )}
                   />
                 )}
@@ -50,7 +50,7 @@ export function OrderTimeline({ status }: { status: OrderStatus }) {
                 <span
                   className={cn(
                     "w-0.5 flex-1",
-                    i < currentIndex ? "bg-brand-500" : "bg-gray-200"
+                    i < currentIndex ? "bg-brand-500" : "bg-line"
                   )}
                   style={{ minHeight: 28 }}
                 />
@@ -60,7 +60,7 @@ export function OrderTimeline({ status }: { status: OrderStatus }) {
               <p
                 className={cn(
                   "text-sm font-bold",
-                  done || current ? "text-gray-900" : "text-gray-400"
+                  done || current ? "text-fg" : "text-fg-subtle"
                 )}
               >
                 {stage.label}
@@ -68,7 +68,7 @@ export function OrderTimeline({ status }: { status: OrderStatus }) {
               <p
                 className={cn(
                   "text-xs",
-                  done || current ? "text-gray-500" : "text-gray-400"
+                  done || current ? "text-fg-subtle" : "text-fg-subtle"
                 )}
               >
                 {stage.note}

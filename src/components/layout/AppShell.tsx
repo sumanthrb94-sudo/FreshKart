@@ -21,10 +21,10 @@ export function AppShell({
   contentClassName?: string;
 }) {
   return (
-    <div className="flex min-h-[100dvh] justify-center bg-gray-100">
+    <div className="flex min-h-[100dvh] justify-center bg-black">
       <div
         className={cn(
-          "relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-gray-50 shadow-xl",
+          "relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-canvas shadow-xl",
           className
         )}
       >

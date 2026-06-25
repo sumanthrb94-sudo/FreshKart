@@ -19,7 +19,7 @@ export function Chip({
         "shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors",
         active
           ? "bg-brand-500 text-white"
-          : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300"
+          : "bg-surface text-fg-muted border border-line hover:border-fg-subtle"
       )}
     >
       {children}

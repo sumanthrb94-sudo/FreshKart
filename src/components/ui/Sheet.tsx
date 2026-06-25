@@ -40,9 +40,9 @@ export function Sheet({
         onClick={onClose}
         aria-hidden
       />
-      <div className="relative mt-auto flex max-h-[88vh] w-full max-w-app animate-rise flex-col rounded-t-2xl bg-gray-50 shadow-xl">
-        <div className="flex shrink-0 items-center justify-between gap-2 rounded-t-2xl border-b border-gray-100 bg-white px-5 py-4">
-          <div className="flex items-center gap-2 text-lg font-bold text-gray-900">
+      <div className="relative mt-auto flex max-h-[88vh] w-full max-w-app animate-rise flex-col rounded-t-2xl bg-canvas shadow-xl">
+        <div className="flex shrink-0 items-center justify-between gap-2 rounded-t-2xl border-b border-line bg-surface px-5 py-4">
+          <div className="flex items-center gap-2 text-lg font-bold text-fg">
             {title}
           </div>
           <div className="flex items-center gap-2">
@@ -51,7 +51,7 @@ export function Sheet({
               type="button"
               aria-label="Close"
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-raised"
             >
               <X className="h-5 w-5" />
             </button>

@@ -202,17 +202,17 @@ export function AddressPicker({
     <div className="flex flex-col gap-3">
       {/* Search */}
       <form onSubmit={runSearch} className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search area, street, landmark…"
-          className="h-11 w-full rounded-xl border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          className="h-11 w-full rounded-xl border border-line bg-surface pl-9 pr-3 text-sm text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
         />
       </form>
 
       {/* Map with fixed centre pin + locate button */}
-      <div className={cn("relative overflow-hidden rounded-xl border border-gray-200", mapClassName)}>
+      <div className={cn("relative overflow-hidden rounded-xl border border-line", mapClassName)}>
         <div ref={mapEl} className="h-full w-full" />
         {/* Fixed pin — tip sits at the exact map centre */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-full">
@@ -224,26 +224,26 @@ export function AddressPicker({
           <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-700 ring-2 ring-white" />
         </div>
         {accuracy != null && (
-          <div className="pointer-events-none absolute left-3 top-3 z-[1000] rounded-full bg-white/90 px-2.5 py-1 text-2xs font-bold text-brand-700 shadow">
+          <div className="pointer-events-none absolute left-3 top-3 z-[1000] rounded-full bg-canvas/90 px-2.5 py-1 text-2xs font-bold text-brand-300 shadow">
             GPS · accurate to ~{Math.round(accuracy)} m
           </div>
         )}
         {/* Zoom controls — tap to zoom; pinch also works */}
-        <div className="absolute right-3 top-3 z-[1000] flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
+        <div className="absolute right-3 top-3 z-[1000] flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-md">
           <button
             type="button"
             aria-label="Zoom in"
             onClick={() => mapRef.current?.zoomIn()}
-            className="flex h-9 w-9 items-center justify-center text-gray-700 transition-colors hover:bg-brand-50 active:bg-brand-100"
+            className="flex h-9 w-9 items-center justify-center text-fg-muted transition-colors hover:bg-brand-500/15 active:bg-brand-500/20"
           >
             <Plus className="h-5 w-5" />
           </button>
-          <span className="h-px bg-gray-200" />
+          <span className="h-px bg-line" />
           <button
             type="button"
             aria-label="Zoom out"
             onClick={() => mapRef.current?.zoomOut()}
-            className="flex h-9 w-9 items-center justify-center text-gray-700 transition-colors hover:bg-brand-50 active:bg-brand-100"
+            className="flex h-9 w-9 items-center justify-center text-fg-muted transition-colors hover:bg-brand-500/15 active:bg-brand-500/20"
           >
             <Minus className="h-5 w-5" />
           </button>
@@ -251,7 +251,7 @@ export function AddressPicker({
         <button
           type="button"
           onClick={captureLocation}
-          className="absolute bottom-3 right-3 z-[1000] flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-bold text-brand-700 shadow-md transition-colors hover:bg-brand-50"
+          className="absolute bottom-3 right-3 z-[1000] flex items-center gap-1.5 rounded-full bg-surface px-3 py-2 text-xs font-bold text-brand-300 shadow-md transition-colors hover:bg-brand-500/15"
         >
           {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}
           {locating ? "Locating…" : "Use my location"}
@@ -259,23 +259,23 @@ export function AddressPicker({
       </div>
 
       {/* Live address read-out */}
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+      <div className="rounded-xl border border-line bg-raised p-3">
         <div className="flex items-start gap-2">
           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
               Delivering to
             </p>
             {geoLoading ? (
-              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-400">
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-fg-subtle">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Finding address…
               </p>
             ) : (
-              <p className="mt-0.5 text-sm font-medium text-gray-800">
+              <p className="mt-0.5 text-sm font-medium text-fg">
                 {addr.address || "Move the map to set your location"}
               </p>
             )}
-            <p className="mt-1 font-mono text-2xs text-gray-400">
+            <p className="mt-1 font-mono text-2xs text-fg-subtle">
               📍 {center.lat.toFixed(6)}, {center.lng.toFixed(6)}
             </p>
           </div>
@@ -287,7 +287,7 @@ export function AddressPicker({
         value={houseLine}
         onChange={(e) => setHouseLine(e.target.value)}
         placeholder="Flat / House no. / Building / Landmark"
-        className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3.5 text-sm text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        className="h-11 w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
       />
 
       {/* Label */}
@@ -301,7 +301,7 @@ export function AddressPicker({
               "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors",
               label === l
                 ? "bg-brand-500 text-white"
-                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                : "border border-line bg-surface text-fg-muted hover:bg-raised"
             )}
           >
             {l}
@@ -377,7 +377,7 @@ export function AddressMapPreview({
   );
 
   return (
-    <div className={cn("relative overflow-hidden rounded-xl border border-gray-200", className)}>
+    <div className={cn("relative overflow-hidden rounded-xl border border-line", className)}>
       <div ref={el} className="h-full w-full" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full">
         <MapPin className="h-8 w-8 fill-brand-500 text-white drop-shadow-lg" strokeWidth={2} />

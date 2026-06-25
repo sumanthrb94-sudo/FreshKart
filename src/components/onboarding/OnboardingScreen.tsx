@@ -198,7 +198,7 @@ export function OnboardingScreen() {
             key={i}
             className={cn(
               "h-1.5 flex-1 rounded-full transition-colors",
-              i <= stepIndex ? "bg-brand-500" : "bg-gray-200"
+              i <= stepIndex ? "bg-brand-500" : "bg-raised"
             )}
           />
         ))}
@@ -209,7 +209,7 @@ export function OnboardingScreen() {
   // ---- Done: full-bleed brand celebration ----
   if (step === "done") {
     return (
-      <div className="flex min-h-[100dvh] justify-center bg-gray-100">
+      <div className="flex min-h-[100dvh] justify-center bg-canvas">
         <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-gradient-to-b from-brand-600 via-brand-700 to-brand-800 px-7 text-white shadow-xl">
           <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10" />
           <div className="pointer-events-none absolute bottom-40 -left-20 h-48 w-48 rounded-full bg-brand-400/30 blur-2xl" />
@@ -249,7 +249,7 @@ export function OnboardingScreen() {
   // ---- Sign in (landing): branded animated hero + auth card ----
   if (step === "mobile") {
     return (
-      <div className="flex min-h-[100dvh] justify-center bg-gray-100">
+      <div className="flex min-h-[100dvh] justify-center bg-canvas">
         <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-gradient-to-b from-brand-500 via-brand-600 to-brand-700 shadow-xl">
           {/* Decorative orbs */}
           <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-white/10" />
@@ -297,9 +297,9 @@ export function OnboardingScreen() {
           </div>
 
           {/* Auth card */}
-          <div className="relative z-10 rounded-t-[28px] bg-white px-7 pb-9 pt-7 shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]">
-            <h2 className="text-lg font-extrabold text-gray-900">Sign in to continue</h2>
-            <p className="mt-1 text-sm text-gray-500">Use whichever&apos;s easiest for your shop.</p>
+          <div className="relative z-10 rounded-t-[28px] bg-surface px-7 pb-9 pt-7 shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]">
+            <h2 className="text-lg font-extrabold text-fg">Sign in to continue</h2>
+            <p className="mt-1 text-sm text-fg-subtle">Use whichever&apos;s easiest for your shop.</p>
 
             {/* Primary: Google */}
             {googleEnabled && (
@@ -308,10 +308,10 @@ export function OnboardingScreen() {
                   type="button"
                   onClick={handleGoogle}
                   disabled={busy || googleBusy}
-                  className="mt-5 flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white py-3.5 text-base font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50"
+                  className="mt-5 flex w-full items-center justify-center gap-3 rounded-xl border border-line bg-surface py-3.5 text-base font-bold text-fg-muted shadow-sm transition-colors hover:bg-raised disabled:opacity-50"
                 >
                   {googleBusy ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                    <Loader2 className="h-5 w-5 animate-spin text-fg-subtle" />
                   ) : (
                     <GoogleIcon />
                   )}
@@ -319,16 +319,16 @@ export function OnboardingScreen() {
                 </button>
 
                 <div className="my-5 flex items-center gap-3">
-                  <span className="h-px flex-1 bg-gray-200" />
-                  <span className="text-xs font-medium text-gray-400">or use your mobile</span>
-                  <span className="h-px flex-1 bg-gray-200" />
+                  <span className="h-px flex-1 bg-line" />
+                  <span className="text-xs font-medium text-fg-subtle">or use your mobile</span>
+                  <span className="h-px flex-1 bg-line" />
                 </div>
               </>
             )}
 
             {/* Secondary: phone OTP */}
-            <div className="flex items-center gap-2 rounded-xl border border-gray-300 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
-              <span className="border-r border-gray-200 py-3 pr-3 text-sm font-semibold text-gray-500">
+            <div className="flex items-center gap-2 rounded-xl border border-line px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/30">
+              <span className="border-r border-line py-3 pr-3 text-sm font-semibold text-fg-subtle">
                 +91
               </span>
               <input
@@ -338,7 +338,7 @@ export function OnboardingScreen() {
                 onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
                 placeholder="98765 43210"
                 aria-label="Mobile number"
-                className="h-12 flex-1 bg-transparent text-lg font-semibold tracking-wide text-gray-900 outline-none placeholder:font-normal placeholder:text-gray-300"
+                className="h-12 flex-1 bg-transparent text-lg font-semibold tracking-wide text-fg outline-none placeholder:font-normal placeholder:text-fg-subtle"
               />
             </div>
             <button
@@ -353,7 +353,7 @@ export function OnboardingScreen() {
 
             {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}
 
-            <p className="mt-4 text-center text-2xs leading-relaxed text-gray-400">
+            <p className="mt-4 text-center text-2xs leading-relaxed text-fg-subtle">
               By continuing you agree to FreshKart&apos;s Terms &amp; Privacy Policy.
             </p>
           </div>
@@ -367,14 +367,14 @@ export function OnboardingScreen() {
 
   // ---- Form steps (verify / shop): light background ----
   return (
-    <div className="flex min-h-[100dvh] justify-center bg-gray-100">
-      <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-white px-7 pt-14 shadow-xl">
+    <div className="flex min-h-[100dvh] justify-center bg-canvas">
+      <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-canvas px-7 pt-14 shadow-xl">
         <Progress />
 
         {step === "verify" && (
           <div className="flex flex-1 flex-col">
-            <h1 className="text-2xl font-extrabold text-gray-900">Enter the code</h1>
-            <p className="mt-2 text-sm text-gray-500">
+            <h1 className="text-2xl font-extrabold text-fg">Enter the code</h1>
+            <p className="mt-2 text-sm text-fg-subtle">
               Sent to +91 {phone} ·{" "}
               <button
                 onClick={() => {
@@ -382,7 +382,7 @@ export function OnboardingScreen() {
                   setError(null);
                   setStep("mobile");
                 }}
-                className="font-semibold text-brand-600"
+                className="font-semibold text-brand-400"
               >
                 Edit
               </button>
@@ -411,32 +411,32 @@ export function OnboardingScreen() {
                     if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs.current[i - 1]?.focus();
                   }}
                   className={cn(
-                    "h-14 w-12 rounded-xl border text-center text-xl font-bold text-gray-900 outline-none transition-colors",
+                    "h-14 w-12 rounded-xl border text-center text-xl font-bold text-fg outline-none transition-colors",
                     digit
-                      ? "border-brand-500 bg-brand-50"
-                      : "border-gray-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                      ? "border-brand-500 bg-brand-500/15"
+                      : "border-line focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
                   )}
                 />
               ))}
             </div>
 
             {/* Resend + delivery hint */}
-            <div className="mt-5 text-center text-sm text-gray-500">
+            <div className="mt-5 text-center text-sm text-fg-subtle">
               Didn&apos;t get the code?{" "}
               {resendIn > 0 ? (
-                <span className="text-gray-400">Resend in {resendIn}s</span>
+                <span className="text-fg-subtle">Resend in {resendIn}s</span>
               ) : (
                 <button
                   type="button"
                   onClick={handleSendOtp}
                   disabled={busy}
-                  className="font-semibold text-brand-600 disabled:opacity-50"
+                  className="font-semibold text-brand-400 disabled:opacity-50"
                 >
                   {busy ? "Sending…" : "Resend code"}
                 </button>
               )}
             </div>
-            <p className="mt-1 text-center text-xs text-gray-400">
+            <p className="mt-1 text-center text-xs text-fg-subtle">
               SMS can take a moment. Check the number is right, or try again in a minute.
             </p>
 
@@ -456,8 +456,8 @@ export function OnboardingScreen() {
 
         {step === "shop" && (
           <div className="flex flex-1 flex-col overflow-y-auto pb-8">
-            <h1 className="text-2xl font-extrabold text-gray-900">Set up your address</h1>
-            <p className="mt-2 text-sm text-gray-500">
+            <h1 className="text-2xl font-extrabold text-fg">Set up your address</h1>
+            <p className="mt-2 text-sm text-fg-subtle">
               {method === "phone"
                 ? "Add your email & pin your delivery location — used at checkout."
                 : "Add your phone & pin your delivery location — used at checkout."}
@@ -467,11 +467,11 @@ export function OnboardingScreen() {
                 — so every account has both phone + email, with no duplicate ask. */}
             {method === "google" && (
               <>
-                <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                   Mobile number
                 </label>
-                <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-gray-300 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
-                  <span className="border-r border-gray-200 py-3 pr-3 text-sm font-semibold text-gray-500">
+                <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-line px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/30">
+                  <span className="border-r border-line py-3 pr-3 text-sm font-semibold text-fg-subtle">
                     +91
                   </span>
                   <input
@@ -480,7 +480,7 @@ export function OnboardingScreen() {
                     onChange={(e) => setAddrPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                     placeholder="98765 43210"
                     aria-label="Mobile number"
-                    className="h-12 flex-1 bg-transparent text-base font-semibold tracking-wide text-gray-900 outline-none placeholder:font-normal placeholder:text-gray-300"
+                    className="h-12 flex-1 bg-transparent text-base font-semibold tracking-wide text-fg outline-none placeholder:font-normal placeholder:text-fg-subtle"
                   />
                 </div>
               </>
@@ -488,7 +488,7 @@ export function OnboardingScreen() {
 
             {method === "phone" && (
               <>
-                <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                   Email address
                 </label>
                 <input
@@ -498,7 +498,7 @@ export function OnboardingScreen() {
                   onChange={(e) => setAddrEmail(e.target.value)}
                   placeholder="you@business.com"
                   aria-label="Email address"
-                  className="mt-1.5 h-12 w-full rounded-xl border border-gray-300 px-3.5 text-base font-medium text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                  className="mt-1.5 h-12 w-full rounded-xl border border-line px-3.5 text-base font-medium text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
                 />
               </>
             )}

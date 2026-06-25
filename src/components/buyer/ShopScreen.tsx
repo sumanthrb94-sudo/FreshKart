@@ -125,7 +125,7 @@ export function ShopScreen() {
       footer={<StickyCartBar onReview={handleReview} />}
     >
       {/* Sticky language + search + category rail */}
-      <div className="sticky top-0 z-20 border-b border-gray-100 bg-white/95 px-4 py-3 backdrop-blur">
+      <div className="sticky top-0 z-20 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur">
         {/* Language scroller — scroll & tap to switch */}
         <div className="fc-scroll -mx-4 mb-3 flex items-center gap-2 overflow-x-auto px-4">
           <Globe className="h-4 w-4 shrink-0 text-brand-500" />
@@ -138,7 +138,7 @@ export function ShopScreen() {
                 "shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold transition-colors",
                 lang === l.code
                   ? "bg-brand-500 text-white shadow-sm"
-                  : "border border-gray-200 bg-white text-gray-600 hover:border-brand-300"
+                  : "border border-line bg-surface text-fg-muted hover:border-brand-500/30"
               )}
             >
               {l.native}
@@ -146,7 +146,7 @@ export function ShopScreen() {
           ))}
         </div>
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
           <Input
             flavor="field"
             value={search}
@@ -218,7 +218,7 @@ export function ShopScreen() {
         onPaid={() => pending && placeOrder(pending.delivery, pending.method, true)}
       />
       {busy && !checkoutOpen && !paymentOpen && (
-        <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app items-center justify-center bg-white/80 backdrop-blur">
+        <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app items-center justify-center bg-canvas/95 backdrop-blur">
           <FullScreenLoader label="Placing order…" />
         </div>
       )}
