@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
+import { PwaRegistrar } from "@/components/pwa/PwaRegistrar";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -14,6 +15,12 @@ export const metadata: Metadata = {
   description:
     "B2B wholesale fresh-produce marketplace. Live B2B rates · order in bulk · pay COD, credit or online · 1–2 day delivery.",
   applicationName: "FreshKart",
+  // Installable-app (PWA) metadata.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "FreshKart",
+  },
 };
 
 export const viewport: Viewport = {
@@ -31,6 +38,7 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <body className="font-sans text-gray-900 antialiased">
         <AppProviders>{children}</AppProviders>
+        <PwaRegistrar />
       </body>
     </html>
   );
