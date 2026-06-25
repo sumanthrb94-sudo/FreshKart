@@ -203,7 +203,7 @@ export class FirebaseDataSource implements DataSource {
     const name = input.name?.trim() || fb.displayName || fb.phoneNumber || "Customer";
     const profile: Omit<User, "id"> = {
       name,
-      email: fb.email ?? "",
+      email: fb.email || input.email?.trim() || "",
       phone: fb.phoneNumber || input.phone?.trim() || "",
       role: "BUYER",
       businessName: input.businessName?.trim() || name,

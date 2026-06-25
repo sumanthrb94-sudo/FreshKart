@@ -51,6 +51,8 @@ export function OnboardingScreen() {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [addrPhone, setAddrPhone] = useState("");
+  const [addrEmail, setAddrEmail] = useState("");
+  const [method, setMethod] = useState<"phone" | "google" | null>(null);
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +86,8 @@ export function OnboardingScreen() {
       if (existing) {
         router.replace(existing.role === "ADMIN" ? "/admin" : "/");
       } else {
-        setStep("shop"); // new Google account → set up shop next
+        setMethod("google"); // Google gave us the email — we'll ask the phone
+        setStep("shop");
       }
     } catch (e) {
       // status 499 = user dismissed the popup; ignore quietly.
@@ -139,8 +142,8 @@ export function OnboardingScreen() {
       if (existing) {
         router.replace(existing.role === "ADMIN" ? "/admin" : "/");
       } else {
-        setAddrPhone(phone); // prefill the address step with the verified number
-        setStep("shop"); // new user → set up address
+        setMethod("phone"); // phone is verified — we'll ask the email
+        setStep("shop");
       }
     } catch {
       setError("Invalid or expired code. Please try again.");
@@ -154,11 +157,23 @@ export function OnboardingScreen() {
       setError("Auth backend not available.");
       return;
     }
+    // Every account ends up with BOTH a phone and an email: the sign-in method
+    // supplies one, and we require the other here — never asking for the same
+    // detail twice (no duplication).
+    if (method === "google" && addrPhone.trim().length < 10) {
+      setError("Please enter your 10-digit mobile number.");
+      return;
+    }
+    if (method === "phone" && !/^\S+@\S+\.\S+$/.test(addrEmail.trim())) {
+      setError("Please enter a valid email address.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       await api.completeProfile({
         phone: addrPhone.trim() || undefined,
+        email: addrEmail.trim() || undefined,
         address: addr.address,
         city: addr.city,
         pincode: addr.pincode,
@@ -443,26 +458,50 @@ export function OnboardingScreen() {
           <div className="flex flex-1 flex-col overflow-y-auto pb-8">
             <h1 className="text-2xl font-extrabold text-gray-900">Set up your address</h1>
             <p className="mt-2 text-sm text-gray-500">
-              Add your phone &amp; pin your delivery location — we&apos;ll use them
-              automatically at checkout.
+              {method === "phone"
+                ? "Add your email & pin your delivery location — used at checkout."
+                : "Add your phone & pin your delivery location — used at checkout."}
             </p>
 
-            <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Phone number
-            </label>
-            <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-gray-300 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
-              <span className="border-r border-gray-200 py-3 pr-3 text-sm font-semibold text-gray-500">
-                +91
-              </span>
-              <input
-                inputMode="numeric"
-                value={addrPhone}
-                onChange={(e) => setAddrPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                placeholder="98765 43210"
-                aria-label="Phone number"
-                className="h-12 flex-1 bg-transparent text-base font-semibold tracking-wide text-gray-900 outline-none placeholder:font-normal placeholder:text-gray-300"
-              />
-            </div>
+            {/* Ask only for the contact detail the sign-in method didn't give us
+                — so every account has both phone + email, with no duplicate ask. */}
+            {method === "google" && (
+              <>
+                <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  Mobile number
+                </label>
+                <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-gray-300 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
+                  <span className="border-r border-gray-200 py-3 pr-3 text-sm font-semibold text-gray-500">
+                    +91
+                  </span>
+                  <input
+                    inputMode="numeric"
+                    value={addrPhone}
+                    onChange={(e) => setAddrPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="98765 43210"
+                    aria-label="Mobile number"
+                    className="h-12 flex-1 bg-transparent text-base font-semibold tracking-wide text-gray-900 outline-none placeholder:font-normal placeholder:text-gray-300"
+                  />
+                </div>
+              </>
+            )}
+
+            {method === "phone" && (
+              <>
+                <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  Email address
+                </label>
+                <input
+                  type="email"
+                  inputMode="email"
+                  value={addrEmail}
+                  onChange={(e) => setAddrEmail(e.target.value)}
+                  placeholder="you@business.com"
+                  aria-label="Email address"
+                  className="mt-1.5 h-12 w-full rounded-xl border border-gray-300 px-3.5 text-base font-medium text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                />
+              </>
+            )}
 
             <div className="mt-5">
               <AddressPicker

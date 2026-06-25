@@ -74,6 +74,7 @@ export interface ProfileSetupInput {
   businessName?: string;
   businessType?: string;
   phone?: string;
+  email?: string;
   address?: string;
   city?: string;
   pincode?: string;
