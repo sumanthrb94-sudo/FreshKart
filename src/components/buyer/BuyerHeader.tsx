@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   LogOut,
   Package,
+  ShoppingCart,
   Sprout,
   User as UserIcon,
 } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { useCart } from "@/components/providers/CartProvider";
 
 function IconButton({
   label,
@@ -38,6 +41,8 @@ function IconButton({
 
 export function BuyerHeader() {
   const { isAuthenticated, isAdmin, logout } = useAuth();
+  const { itemCount } = useCart();
+  const router = useRouter();
 
   async function handleLogout() {
     await logout();
@@ -72,6 +77,20 @@ export function BuyerHeader() {
                   Admin
                 </Link>
               )}
+              {/* Cart with a live count badge — always-visible "memory" */}
+              <button
+                type="button"
+                aria-label={`Your cart (${itemCount})`}
+                onClick={() => router.push("/?cart=1")}
+                className="relative flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                {itemCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-accent-500 px-1 text-[10px] font-extrabold leading-none text-white ring-2 ring-brand-500">
+                    {itemCount}
+                  </span>
+                )}
+              </button>
               <IconButton label="Your orders" href="/orders">
                 <Package className="h-4 w-4" />
               </IconButton>

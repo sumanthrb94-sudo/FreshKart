@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Globe, Phone, Search, SearchX } from "lucide-react";
 import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -30,6 +30,7 @@ const SUPPORT_PHONE = "+918000000000";
 
 export function ShopScreen() {
   const router = useRouter();
+  const params = useSearchParams();
   const { user } = useAuth();
   const { lines, subtotal, clear } = useCart();
   const { t, tCategory, lang, setLang } = useLang();
@@ -45,6 +46,14 @@ export function ShopScreen() {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [pending, setPending] = useState<{ delivery: DeliveryDetails; method: PaymentMethod } | null>(null);
   const [placed, setPlaced] = useState<Order | null>(null);
+
+  // Open checkout when arriving via the header cart badge (/?cart=1).
+  useEffect(() => {
+    if (params.get("cart") === "1" && lines.length > 0) {
+      setCheckoutOpen(true);
+      router.replace("/");
+    }
+  }, [params, lines.length, router]);
 
   const visible = useMemo(() => {
     const list = (products ?? []).filter((p) => p.active);
@@ -180,7 +189,10 @@ export function ShopScreen() {
         <a
           href={`tel:${SUPPORT_PHONE}`}
           aria-label={t("callSupport")}
-          className="animate-float pointer-events-auto absolute bottom-24 right-4 flex items-center gap-2 rounded-full bg-gradient-to-b from-accent-400 to-accent-600 px-4 py-3 text-sm font-extrabold text-white shadow-[0_8px_0_-2px_#c74c0b,0_16px_26px_-8px_rgba(0,0,0,.5)] transition-all active:translate-y-1 active:shadow-[0_4px_0_-2px_#c74c0b,0_8px_16px_-8px_rgba(0,0,0,.4)] motion-reduce:animate-none"
+          className={cn(
+            "animate-float pointer-events-auto absolute right-4 flex items-center gap-2 rounded-full bg-gradient-to-b from-accent-400 to-accent-600 px-4 py-3 text-sm font-extrabold text-white shadow-[0_8px_0_-2px_#c74c0b,0_16px_26px_-8px_rgba(0,0,0,.5)] transition-all active:translate-y-1 active:shadow-[0_4px_0_-2px_#c74c0b,0_8px_16px_-8px_rgba(0,0,0,.4)] motion-reduce:animate-none",
+            lines.length > 0 ? "bottom-28" : "bottom-6"
+          )}
         >
           <Phone className="h-5 w-5" />
           {t("callSupport")}
