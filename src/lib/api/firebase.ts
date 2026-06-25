@@ -210,7 +210,19 @@ export class FirebaseDataSource implements DataSource {
       city: input.city,
       createdAt: new Date().toISOString(),
     };
-    await setDoc(doc(getDb(), COL.users, fb.uid), profile, { merge: true });
+    // Bound the write so a stalled connection surfaces a retryable error
+    // instead of hanging forever on "Saving…".
+    try {
+      await withTimeout(
+        setDoc(doc(getDb(), COL.users, fb.uid), profile, { merge: true }),
+        12000
+      );
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 599) {
+        throw new ApiError("Couldn't save — your connection dropped. Please try again.", 599);
+      }
+      throw e;
+    }
     return { ...profile, id: fb.uid };
   }
 
