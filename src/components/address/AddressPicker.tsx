@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Circle, Map as LeafletMap } from "leaflet";
-import { Crosshair, Loader2, MapPin, Search } from "lucide-react";
+import { Crosshair, Loader2, MapPin, Minus, Plus, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface PickedAddress {
@@ -92,9 +92,13 @@ export function AddressPicker({
       const map = L.map(mapEl.current, {
         zoomControl: false,
         attributionControl: true,
-      }).setView([center.lat, center.lng], 16);
+        maxZoom: 21,
+      }).setView([center.lat, center.lng], 17);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
+        // OSM serves tiles up to z19; Leaflet up-scales them past that so the
+        // user can keep zooming in and drop the pin to ~1 m precision.
+        maxNativeZoom: 19,
+        maxZoom: 21,
         attribution: "&copy; OpenStreetMap contributors",
       }).addTo(map);
       map.on("moveend", () => {
@@ -133,7 +137,9 @@ export function AddressPicker({
         setAccuracy(acc);
         const map = mapRef.current;
         if (!map) return;
-        map.setView([latitude, longitude], acc <= 100 ? 18 : 16);
+        // Zoom proportionally to how tight the GPS fix is — a sub-30 m fix
+        // jumps right in so the pin can be nudged to the exact doorstep.
+        map.setView([latitude, longitude], acc <= 30 ? 20 : acc <= 100 ? 18 : 16);
         // Draw / refresh the GPS accuracy circle so the user sees how precise
         // the fix is (high-accuracy GPS is typically well within 100 m).
         const L = await import("leaflet");
@@ -210,14 +216,38 @@ export function AddressPicker({
         <div ref={mapEl} className="h-full w-full" />
         {/* Fixed pin — tip sits at the exact map centre */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-full">
-          <MapPin className="h-10 w-10 fill-brand-500 text-white drop-shadow-lg" strokeWidth={2} />
+          <MapPin className="h-11 w-11 fill-brand-500 text-white drop-shadow-lg" strokeWidth={2} />
         </div>
-        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-700 ring-2 ring-white" />
+        {/* Exact-coordinate target — pulsing halo + dot marking the precise point */}
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-1/2">
+          <span className="absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-brand-500/30" />
+          <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-700 ring-2 ring-white" />
+        </div>
         {accuracy != null && (
           <div className="pointer-events-none absolute left-3 top-3 z-[1000] rounded-full bg-white/90 px-2.5 py-1 text-2xs font-bold text-brand-700 shadow">
             GPS · accurate to ~{Math.round(accuracy)} m
           </div>
         )}
+        {/* Zoom controls — tap to zoom; pinch also works */}
+        <div className="absolute right-3 top-3 z-[1000] flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
+          <button
+            type="button"
+            aria-label="Zoom in"
+            onClick={() => mapRef.current?.zoomIn()}
+            className="flex h-9 w-9 items-center justify-center text-gray-700 transition-colors hover:bg-brand-50 active:bg-brand-100"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+          <span className="h-px bg-gray-200" />
+          <button
+            type="button"
+            aria-label="Zoom out"
+            onClick={() => mapRef.current?.zoomOut()}
+            className="flex h-9 w-9 items-center justify-center text-gray-700 transition-colors hover:bg-brand-50 active:bg-brand-100"
+          >
+            <Minus className="h-5 w-5" />
+          </button>
+        </div>
         <button
           type="button"
           onClick={captureLocation}
@@ -245,6 +275,9 @@ export function AddressPicker({
                 {addr.address || "Move the map to set your location"}
               </p>
             )}
+            <p className="mt-1 font-mono text-2xs text-gray-400">
+              📍 {center.lat.toFixed(6)}, {center.lng.toFixed(6)}
+            </p>
           </div>
         </div>
       </div>
