@@ -148,9 +148,9 @@ export function AddressPicker({
         } else {
           circleRef.current = L.circle([latitude, longitude], {
             radius: acc,
-            color: "#16bd5f",
+            color: "#e23744",
             weight: 1,
-            fillColor: "#16bd5f",
+            fillColor: "#e23744",
             fillOpacity: 0.12,
           }).addTo(map);
         }

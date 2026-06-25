@@ -2,7 +2,7 @@ import type { Config } from "tailwindcss";
 
 /**
  * FreshKart design tokens — mirrors Section 3 of the Figma design brief.
- * Brand green (#16bd5f) primary, orange accent, Tailwind grays, status colors.
+ * Brand red (#e23744, Zomato-style) primary, orange accent, Tailwind grays.
  */
 const config: Config = {
   content: [
@@ -14,16 +14,16 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: "#effdf4",
-          100: "#d8fbe5",
-          200: "#b3f5cd",
-          300: "#79eaa8",
-          400: "#3dd67d",
-          500: "#16bd5f", // PRIMARY
-          600: "#0a9a4b",
-          700: "#0a793e",
-          800: "#0d5f34",
-          900: "#0c4e2d",
+          50: "#fff1f2",
+          100: "#ffe1e3",
+          200: "#ffc8cd",
+          300: "#fba1a9",
+          400: "#f56b78",
+          500: "#e23744", // PRIMARY — Zomato red
+          600: "#c81e2c",
+          700: "#a81824",
+          800: "#8a1620",
+          900: "#73171f",
         },
         accent: {
           50: "#fff8ed",
@@ -51,7 +51,7 @@ const config: Config = {
         card: "0 1px 3px rgba(0,0,0,.06), 0 1px 2px -1px rgba(0,0,0,.04)",
         "card-hover": "0 8px 24px -6px rgba(0,0,0,.12)",
         "cart-bar": "0 10px 30px -10px rgba(0,0,0,.25)",
-        phone: "0 50px 90px -28px rgba(20,40,28,.45), 0 0 0 1px rgba(0,0,0,.04)",
+        phone: "0 50px 90px -28px rgba(60,12,18,.45), 0 0 0 1px rgba(0,0,0,.04)",
       },
       maxWidth: {
         app: "480px",

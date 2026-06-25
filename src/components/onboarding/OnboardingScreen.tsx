@@ -206,7 +206,7 @@ export function OnboardingScreen() {
     );
   }
 
-  // ---- Done: full-bleed green celebration ----
+  // ---- Done: full-bleed brand celebration ----
   if (step === "done") {
     return (
       <div className="flex min-h-[100dvh] justify-center bg-gray-100">

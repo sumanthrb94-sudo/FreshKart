@@ -5,7 +5,7 @@ import type { Product } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
- * Brand-green pill stepper (brief §4.15). Steps by product.minOrderQty.
+ * Brand pill stepper (brief §4.15). Steps by product.minOrderQty.
  * At the minimum step the "–" becomes a trash icon (removes the line);
  * "+" is disabled once the next step would exceed stock.
  */
