@@ -6,7 +6,7 @@ import {
   browserLocalPersistence,
   type Auth,
 } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { initializeFirestore, type Firestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 /**
@@ -62,7 +62,15 @@ export function getFirebaseAuth(): Auth {
 }
 
 export function getDb(): Firestore {
-  if (!_db) _db = getFirestore(getFirebaseApp());
+  if (!_db) {
+    // Auto-detect when the streaming (WebChannel) transport is blocked — common
+    // on mobile / proxied networks — and fall back to long polling. Without
+    // this, reads can fail with "Failed to get document because the client is
+    // offline" even when the network is healthy.
+    _db = initializeFirestore(getFirebaseApp(), {
+      experimentalAutoDetectLongPolling: true,
+    });
+  }
   return _db;
 }
 

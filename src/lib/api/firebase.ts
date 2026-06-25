@@ -19,6 +19,7 @@ import {
   orderBy,
   runTransaction,
   type DocumentData,
+  type DocumentReference,
   type DocumentSnapshot,
 } from "firebase/firestore";
 import type {
@@ -42,6 +43,31 @@ const COL = { users: "users", products: "products", orders: "orders" } as const;
 
 function snapToUser(snap: DocumentSnapshot<DocumentData>): User {
   return { ...(snap.data() as Omit<User, "id">), id: snap.id };
+}
+
+/**
+ * Read a document, retrying transient connectivity failures. Firestore can
+ * briefly report "Failed to get document because the client is offline"
+ * (code: unavailable) right after a popup sign-in or on first paint, before its
+ * connection settles — a short retry rides over that instead of surfacing it.
+ */
+async function readDoc(
+  ref: DocumentReference<DocumentData>
+): Promise<DocumentSnapshot<DocumentData>> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await getDoc(ref);
+    } catch (e) {
+      lastErr = e;
+      const code = (e as { code?: string })?.code ?? "";
+      const msg = e instanceof Error ? e.message : "";
+      const transient = code.includes("unavailable") || /offline/i.test(msg);
+      if (!transient) throw e;
+      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
 }
 
 function friendlyAuthError(e: unknown): never {
@@ -76,7 +102,7 @@ export class FirebaseDataSource implements DataSource {
     const auth = getFirebaseAuth();
     try {
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-      const snap = await getDoc(doc(getDb(), COL.users, cred.user.uid));
+      const snap = await readDoc(doc(getDb(), COL.users, cred.user.uid));
       if (!snap.exists()) {
         throw new ApiError("No profile found for this account.", 404);
       }
@@ -131,7 +157,7 @@ export class FirebaseDataSource implements DataSource {
         return;
       }
       try {
-        const snap = await getDoc(doc(getDb(), COL.users, fbUser.uid));
+        const snap = await readDoc(doc(getDb(), COL.users, fbUser.uid));
         cb(snap.exists() ? snapToUser(snap) : null);
       } catch {
         cb(null);
@@ -144,7 +170,7 @@ export class FirebaseDataSource implements DataSource {
     await authReady;
     const fb = auth.currentUser;
     if (!fb) return null;
-    const snap = await getDoc(doc(getDb(), COL.users, fb.uid));
+    const snap = await readDoc(doc(getDb(), COL.users, fb.uid));
     return snap.exists() ? snapToUser(snap) : null;
   }
 
@@ -170,7 +196,7 @@ export class FirebaseDataSource implements DataSource {
     const auth = getFirebaseAuth();
     try {
       const cred = await signInWithPopup(auth, new GoogleAuthProvider());
-      const snap = await getDoc(doc(getDb(), COL.users, cred.user.uid));
+      const snap = await readDoc(doc(getDb(), COL.users, cred.user.uid));
       return snap.exists() ? snapToUser(snap) : null;
     } catch (e) {
       const code = (e as { code?: string })?.code ?? "";

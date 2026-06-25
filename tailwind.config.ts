@@ -67,11 +67,21 @@ const config: Config = {
           "60%": { transform: "scale(1.08)" },
           "100%": { transform: "scale(1)", opacity: "1" },
         },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" },
+        },
+        floatSlow: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-16px)" },
+        },
       },
       animation: {
         rise: "rise .28s cubic-bezier(.22,1,.36,1)",
         fade: "fade .2s ease-out",
         pop: "pop .4s cubic-bezier(.22,1,.36,1)",
+        float: "float 3s ease-in-out infinite",
+        "float-slow": "floatSlow 5.5s ease-in-out infinite",
       },
     },
   },

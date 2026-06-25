@@ -210,33 +210,47 @@ export function OnboardingScreen() {
     );
   }
 
-  // ---- Form steps: light background ----
-  return (
-    <div className="flex min-h-[100dvh] justify-center bg-gray-100">
-      <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-white px-7 pt-12 shadow-xl">
-        {/* Brand mark on the landing (phone sign-in) step */}
-        {step === "mobile" && (
-          <div className="mb-7 flex items-center gap-2.5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-500 text-white">
-              <Sprout className="h-5 w-5" />
-            </span>
-            <span className="leading-tight">
-              <span className="block text-base font-extrabold text-gray-900">FreshKart</span>
-              <span className="block text-2xs font-medium text-gray-400">
-                Wholesale B2B · per kg
-              </span>
-            </span>
-          </div>
-        )}
+  // ---- Sign in (landing): branded animated hero + auth card ----
+  if (step === "mobile") {
+    return (
+      <div className="flex min-h-[100dvh] justify-center bg-gray-100">
+        <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-gradient-to-b from-brand-500 via-brand-600 to-brand-700 shadow-xl">
+          {/* Decorative orbs */}
+          <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-white/10" />
+          <div className="pointer-events-none absolute -left-12 top-28 h-44 w-44 rounded-full bg-brand-300/20 blur-2xl" />
 
-        <Progress />
+          {/* Floating produce */}
+          <span className="pointer-events-none absolute left-7 top-20 animate-float-slow text-3xl opacity-80 drop-shadow">
+            🍅
+          </span>
+          <span className="pointer-events-none absolute right-9 top-14 animate-float text-4xl opacity-80 drop-shadow">
+            🥦
+          </span>
+          <span className="pointer-events-none absolute right-12 top-44 animate-float-slow text-2xl opacity-70 drop-shadow">
+            🥕
+          </span>
+          <span className="pointer-events-none absolute left-10 top-48 animate-float text-2xl opacity-70 drop-shadow">
+            🧅
+          </span>
 
-        {step === "mobile" && (
-          <div className="flex flex-1 flex-col">
-            <h1 className="text-2xl font-extrabold text-gray-900">Sign in to FreshKart</h1>
-            <p className="mt-2 text-sm text-gray-500">
-              Sign in to order fresh wholesale produce for your shop.
+          {/* Brand hero */}
+          <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-7 text-center text-white">
+            <div className="flex h-24 w-24 animate-float items-center justify-center rounded-[28px] bg-white/15 shadow-lg backdrop-blur">
+              <Sprout className="h-12 w-12" />
+            </div>
+            <h1 className="mt-6 text-5xl font-extrabold tracking-tight drop-shadow-sm">FreshKart</h1>
+            <p className="mt-2 text-sm font-semibold text-white/90">
+              Wholesale B2B · fresh produce, per kg
             </p>
+            <p className="mt-1 text-xs text-white/70">
+              Order in bulk · live rates · 1–2 day delivery
+            </p>
+          </div>
+
+          {/* Auth card */}
+          <div className="relative z-10 rounded-t-[28px] bg-white px-7 pb-9 pt-7 shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]">
+            <h2 className="text-lg font-extrabold text-gray-900">Sign in to continue</h2>
+            <p className="mt-1 text-sm text-gray-500">Use whichever&apos;s easiest for your shop.</p>
 
             {/* Primary: Google */}
             {googleEnabled && (
@@ -245,7 +259,7 @@ export function OnboardingScreen() {
                   type="button"
                   onClick={handleGoogle}
                   disabled={busy || googleBusy}
-                  className="mt-7 flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white py-3.5 text-base font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50"
+                  className="mt-5 flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white py-3.5 text-base font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50"
                 >
                   {googleBusy ? (
                     <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
@@ -255,7 +269,7 @@ export function OnboardingScreen() {
                   {googleBusy ? "Signing in…" : "Continue with Google"}
                 </button>
 
-                <div className="my-6 flex items-center gap-3">
+                <div className="my-5 flex items-center gap-3">
                   <span className="h-px flex-1 bg-gray-200" />
                   <span className="text-xs font-medium text-gray-400">or use your mobile</span>
                   <span className="h-px flex-1 bg-gray-200" />
@@ -264,10 +278,7 @@ export function OnboardingScreen() {
             )}
 
             {/* Secondary: phone OTP */}
-            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Mobile number
-            </label>
-            <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-gray-300 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
+            <div className="flex items-center gap-2 rounded-xl border border-gray-300 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
               <span className="border-r border-gray-200 py-3 pr-3 text-sm font-semibold text-gray-500">
                 +91
               </span>
@@ -277,12 +288,10 @@ export function OnboardingScreen() {
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                 onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
                 placeholder="98765 43210"
+                aria-label="Mobile number"
                 className="h-12 flex-1 bg-transparent text-lg font-semibold tracking-wide text-gray-900 outline-none placeholder:font-normal placeholder:text-gray-300"
               />
             </div>
-            <p className="mt-2 text-xs text-gray-400">
-              We&apos;ll text a 6-digit code. Standard SMS rates may apply.
-            </p>
             <button
               type="button"
               disabled={phone.length < 10 || busy || googleBusy}
@@ -293,13 +302,25 @@ export function OnboardingScreen() {
               {busy ? "Sending code…" : "Continue with mobile"}
             </button>
 
-            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+            {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}
 
-            <p className="mt-auto pb-9 pt-6 text-center text-xs text-gray-400">
+            <p className="mt-4 text-center text-2xs leading-relaxed text-gray-400">
               By continuing you agree to FreshKart&apos;s Terms &amp; Privacy Policy.
             </p>
           </div>
-        )}
+
+          {/* Invisible reCAPTCHA mount point for phone OTP */}
+          <div id={RECAPTCHA_ID} />
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Form steps (verify / shop): light background ----
+  return (
+    <div className="flex min-h-[100dvh] justify-center bg-gray-100">
+      <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-white px-7 pt-14 shadow-xl">
+        <Progress />
 
         {step === "verify" && (
           <div className="flex flex-1 flex-col">
