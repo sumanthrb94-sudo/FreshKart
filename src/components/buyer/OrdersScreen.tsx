@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
+import { BuyerBottomNav } from "./BuyerBottomNav";
 import { OrderCard } from "./OrderCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader } from "@/components/ui/Spinner";
@@ -27,7 +28,7 @@ export function OrdersScreen() {
   }
 
   return (
-    <AppShell header={<BuyerHeader />}>
+    <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />}>
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold text-fg">Your orders</h1>

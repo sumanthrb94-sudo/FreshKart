@@ -7,6 +7,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
+import { BuyerBottomNav } from "./BuyerBottomNav";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Field, Input } from "@/components/ui/Field";
@@ -100,7 +101,7 @@ export function AccountScreen() {
   }
 
   return (
-    <AppShell header={<BuyerHeader />}>
+    <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />}>
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-fg">Your account</h1>

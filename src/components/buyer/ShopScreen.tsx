@@ -20,6 +20,7 @@ import { BuyerHeader } from "./BuyerHeader";
 import { PromoBanner } from "./PromoBanner";
 import { ProductListItem } from "./ProductListItem";
 import { StickyCartBar } from "./StickyCartBar";
+import { BuyerBottomNav } from "./BuyerBottomNav";
 import { CheckoutSheet } from "./CheckoutSheet";
 import { PaymentSheet } from "./PaymentSheet";
 import { SuccessOverlay } from "./SuccessOverlay";
@@ -122,7 +123,12 @@ export function ShopScreen() {
   return (
     <AppShell
       header={<BuyerHeader />}
-      footer={<StickyCartBar onReview={handleReview} />}
+      footer={
+        <>
+          <StickyCartBar onReview={handleReview} />
+          <BuyerBottomNav />
+        </>
+      }
     >
       {/* Sticky language + search + category rail */}
       <div className="sticky top-0 z-20 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur">
@@ -191,7 +197,7 @@ export function ShopScreen() {
           aria-label={t("callSupport")}
           className={cn(
             "animate-float pointer-events-auto absolute right-4 flex items-center gap-2 rounded-full bg-gradient-to-b from-accent-400 to-accent-600 px-4 py-3 text-sm font-extrabold text-white shadow-[0_8px_0_-2px_#c74c0b,0_16px_26px_-8px_rgba(0,0,0,.5)] transition-all active:translate-y-1 active:shadow-[0_4px_0_-2px_#c74c0b,0_8px_16px_-8px_rgba(0,0,0,.4)] motion-reduce:animate-none",
-            lines.length > 0 ? "bottom-28" : "bottom-6"
+            lines.length > 0 ? "bottom-40" : "bottom-24"
           )}
         >
           <Phone className="h-5 w-5" />
