@@ -56,11 +56,19 @@ export function OnboardingScreen() {
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resendIn, setResendIn] = useState(0);
 
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
   const confirmation = useRef<ConfirmationResult | null>(null);
 
   useEffect(() => () => resetRecaptcha(), []);
+
+  // Tick down the resend cooldown.
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const id = setTimeout(() => setResendIn(resendIn - 1), 1000);
+    return () => clearTimeout(id);
+  }, [resendIn]);
 
   const stepIndex = STEP_ORDER.indexOf(step as Step);
   const googleEnabled = typeof api.signInWithGoogle === "function";
@@ -102,9 +110,13 @@ export function OnboardingScreen() {
     setBusy(true);
     setError(null);
     try {
+      // Fresh reCAPTCHA each send so a resend (after navigating to the OTP
+      // screen) binds to the current mount point rather than a stale node.
+      resetRecaptcha();
       confirmation.current = await sendOtp(toE164(phone), RECAPTCHA_ID);
       setOtp(["", "", "", "", "", ""]);
       setStep("verify");
+      setResendIn(30);
     } catch (e) {
       resetRecaptcha();
       setError(
@@ -394,7 +406,28 @@ export function OnboardingScreen() {
                 />
               ))}
             </div>
-            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+            {/* Resend + delivery hint */}
+            <div className="mt-5 text-center text-sm text-gray-500">
+              Didn&apos;t get the code?{" "}
+              {resendIn > 0 ? (
+                <span className="text-gray-400">Resend in {resendIn}s</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  disabled={busy}
+                  className="font-semibold text-brand-600 disabled:opacity-50"
+                >
+                  {busy ? "Sending…" : "Resend code"}
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-center text-xs text-gray-400">
+              SMS can take a moment. Check the number is right, or try again in a minute.
+            </p>
+
+            {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}
             <div className="mt-auto pb-9">
               <button
                 disabled={otp.join("").length < 6 || busy}
