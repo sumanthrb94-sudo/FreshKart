@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Map as LeafletMap } from "leaflet";
+import type { Circle, Map as LeafletMap } from "leaflet";
 import { Crosshair, Loader2, MapPin, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +43,7 @@ export function AddressPicker({
   const mapEl = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const geoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const circleRef = useRef<Circle | null>(null);
 
   const [center, setCenter] = useState({
     lat: initial?.lat ?? DEFAULT_CENTER.lat,
@@ -58,6 +59,7 @@ export function AddressPicker({
   const [search, setSearch] = useState("");
   const [geoLoading, setGeoLoading] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
@@ -105,6 +107,8 @@ export function AddressPicker({
       // The container may have animated in (e.g. a sheet) — re-measure.
       setTimeout(() => map.invalidateSize(), 200);
       if (!initial?.address) reverseGeocode(center.lat, center.lng);
+      // Fresh capture (no saved pin) → grab the device's GPS location now.
+      if (initial?.lat == null) captureLocation();
     })();
     return () => {
       cancelled = true;
@@ -115,7 +119,7 @@ export function AddressPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function useMyLocation() {
+  function captureLocation() {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setError("Location isn't available on this device.");
       return;
@@ -123,15 +127,33 @@ export function AddressPicker({
     setLocating(true);
     setError(null);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         setLocating(false);
-        mapRef.current?.setView([pos.coords.latitude, pos.coords.longitude], 17);
+        const { latitude, longitude, accuracy: acc } = pos.coords;
+        setAccuracy(acc);
+        const map = mapRef.current;
+        if (!map) return;
+        map.setView([latitude, longitude], acc <= 100 ? 18 : 16);
+        // Draw / refresh the GPS accuracy circle so the user sees how precise
+        // the fix is (high-accuracy GPS is typically well within 100 m).
+        const L = await import("leaflet");
+        if (circleRef.current) {
+          circleRef.current.setLatLng([latitude, longitude]).setRadius(acc);
+        } else {
+          circleRef.current = L.circle([latitude, longitude], {
+            radius: acc,
+            color: "#16bd5f",
+            weight: 1,
+            fillColor: "#16bd5f",
+            fillOpacity: 0.12,
+          }).addTo(map);
+        }
       },
       () => {
         setLocating(false);
         setError("Couldn't get your location — allow location access and try again.");
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   }
 
@@ -186,13 +208,19 @@ export function AddressPicker({
       {/* Map with fixed centre pin + locate button */}
       <div className={cn("relative overflow-hidden rounded-xl border border-gray-200", mapClassName)}>
         <div ref={mapEl} className="h-full w-full" />
-        {/* Fixed pin — tip sits at the map centre */}
+        {/* Fixed pin — tip sits at the exact map centre */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-full">
-          <MapPin className="h-9 w-9 fill-brand-500 text-brand-700 drop-shadow-md" strokeWidth={1.5} />
+          <MapPin className="h-10 w-10 fill-brand-500 text-white drop-shadow-lg" strokeWidth={2} />
         </div>
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-700 ring-2 ring-white" />
+        {accuracy != null && (
+          <div className="pointer-events-none absolute left-3 top-3 z-[1000] rounded-full bg-white/90 px-2.5 py-1 text-2xs font-bold text-brand-700 shadow">
+            GPS · accurate to ~{Math.round(accuracy)} m
+          </div>
+        )}
         <button
           type="button"
-          onClick={useMyLocation}
+          onClick={captureLocation}
           className="absolute bottom-3 right-3 z-[1000] flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-bold text-brand-700 shadow-md transition-colors hover:bg-brand-50"
         >
           {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}
@@ -319,8 +347,9 @@ export function AddressMapPreview({
     <div className={cn("relative overflow-hidden rounded-xl border border-gray-200", className)}>
       <div ref={el} className="h-full w-full" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full">
-        <MapPin className="h-7 w-7 fill-brand-500 text-brand-700 drop-shadow" strokeWidth={1.5} />
+        <MapPin className="h-8 w-8 fill-brand-500 text-white drop-shadow-lg" strokeWidth={2} />
       </div>
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-700 ring-2 ring-white" />
     </div>
   );
 }
