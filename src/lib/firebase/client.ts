@@ -63,12 +63,13 @@ export function getFirebaseAuth(): Auth {
 
 export function getDb(): Firestore {
   if (!_db) {
-    // Auto-detect when the streaming (WebChannel) transport is blocked — common
-    // on mobile / proxied networks — and fall back to long polling. Without
-    // this, reads can fail with "Failed to get document because the client is
-    // offline" even when the network is healthy.
+    // Force long polling instead of the streaming (WebChannel) transport, which
+    // mobile carriers / proxies frequently block or buffer — that's what makes
+    // reads fail or hang with "Failed to get document because the client is
+    // offline" even on a healthy connection. Long polling is plain HTTPS and
+    // works everywhere; the small latency cost is worth the reliability.
     _db = initializeFirestore(getFirebaseApp(), {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
     });
   }
   return _db;

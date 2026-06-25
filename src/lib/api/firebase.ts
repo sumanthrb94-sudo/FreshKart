@@ -45,26 +45,48 @@ function snapToUser(snap: DocumentSnapshot<DocumentData>): User {
   return { ...(snap.data() as Omit<User, "id">), id: snap.id };
 }
 
+/** Reject if a promise doesn't settle within `ms` — so a stalled Firestore
+ *  read can never pin the UI (e.g. the auth gate) on a loader forever. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new ApiError("Connection timed out.", 599)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      }
+    );
+  });
+}
+
 /**
- * Read a document, retrying transient connectivity failures. Firestore can
- * briefly report "Failed to get document because the client is offline"
- * (code: unavailable) right after a popup sign-in or on first paint, before its
- * connection settles — a short retry rides over that instead of surfacing it.
+ * Read a document, retrying transient connectivity failures and bounding each
+ * attempt so it can never hang. Firestore can briefly report "client is
+ * offline" (code: unavailable) or stall right after a popup sign-in / on first
+ * paint before its connection settles — a short, bounded retry rides over that
+ * instead of surfacing a scary error (or hanging).
  */
 async function readDoc(
   ref: DocumentReference<DocumentData>
 ): Promise<DocumentSnapshot<DocumentData>> {
   let lastErr: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      return await getDoc(ref);
+      return await withTimeout(getDoc(ref), 4000);
     } catch (e) {
       lastErr = e;
       const code = (e as { code?: string })?.code ?? "";
       const msg = e instanceof Error ? e.message : "";
-      const transient = code.includes("unavailable") || /offline/i.test(msg);
+      const transient =
+        code.includes("unavailable") ||
+        /offline/i.test(msg) ||
+        (e instanceof ApiError && e.status === 599);
       if (!transient) throw e;
-      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      await new Promise((r) => setTimeout(r, 500));
     }
   }
   throw lastErr;

@@ -56,11 +56,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (hydrated) setUser(hydrated);
 
     if (api.subscribeAuth) {
+      // Safety net: never let a stalled backend read pin the app on a loader.
+      const safety = setTimeout(() => setLoading(false), 9000);
       const unsub = api.subscribeAuth((next) => {
         persist(next);
         setLoading(false);
+        clearTimeout(safety);
       });
-      return unsub;
+      return () => {
+        clearTimeout(safety);
+        unsub();
+      };
     }
 
     setLoading(false);
@@ -104,9 +110,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     if (!api.getCurrentUser) return user;
-    const u = await api.getCurrentUser();
-    persist(u);
-    return u;
+    try {
+      const u = await api.getCurrentUser();
+      persist(u);
+      return u;
+    } catch {
+      // A transient read failure shouldn't break the sign-in flow.
+      return user;
+    }
   }, [persist, user]);
 
   const value = useMemo<AuthContextValue>(
