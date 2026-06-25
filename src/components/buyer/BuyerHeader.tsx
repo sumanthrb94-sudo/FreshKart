@@ -45,7 +45,7 @@ export function BuyerHeader() {
   async function handleLogout() {
     await logout();
     // Full navigation so the back button can't return to a protected page.
-    window.location.assign("/login");
+    window.location.assign("/onboarding");
   }
 
   return (
@@ -88,11 +88,11 @@ export function BuyerHeader() {
           ) : (
             <button
               type="button"
-              onClick={() => router.push("/login")}
+              onClick={() => router.push("/onboarding")}
               className="flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-brand-700 transition-colors hover:bg-brand-50"
             >
               <LogIn className="h-3.5 w-3.5" />
-              Login
+              Sign in
             </button>
           )}
         </div>

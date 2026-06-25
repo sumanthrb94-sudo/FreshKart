@@ -5,6 +5,7 @@ import type {
   Customer,
   Order,
   OrderStatus,
+  ProfileSetupInput,
   Product,
   RegisterInput,
   User,
@@ -34,6 +35,16 @@ export interface DataSource {
    * for the current user. Returns an unsubscribe function.
    */
   subscribeAuth?(cb: (user: User | null) => void): () => void;
+  /**
+   * Optional: read the currently signed-in user's profile (e.g. after a phone
+   * OTP confirm). Returns null if signed in but no profile exists yet.
+   */
+  getCurrentUser?(): Promise<User | null>;
+  /**
+   * Optional: create/complete the signed-in user's profile (phone onboarding
+   * "set up your shop" step). The new user is a BUYER.
+   */
+  completeProfile?(input: ProfileSetupInput): Promise<User>;
 
   // --- Catalog ------------------------------------------------------------
   listProducts(): Promise<Product[]>;

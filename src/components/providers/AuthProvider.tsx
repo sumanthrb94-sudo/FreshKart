@@ -22,6 +22,8 @@ interface AuthContextValue {
   register: (input: RegisterInput) => Promise<User>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<User>) => Promise<User>;
+  /** Re-read the signed-in user's profile (after phone OTP / shop setup). */
+  refreshUser: () => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -100,6 +102,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [persist, user]
   );
 
+  const refreshUser = useCallback(async () => {
+    if (!api.getCurrentUser) return user;
+    const u = await api.getCurrentUser();
+    persist(u);
+    return u;
+  }, [persist, user]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -110,8 +119,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       register,
       logout,
       updateProfile,
+      refreshUser,
     }),
-    [user, loading, login, register, logout, updateProfile]
+    [user, loading, login, register, logout, updateProfile, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

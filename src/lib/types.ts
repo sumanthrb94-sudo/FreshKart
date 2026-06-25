@@ -54,11 +54,21 @@ export interface User {
   phone: string;
   role: Role;
   businessName?: string;
+  /** Set during phone onboarding: Kirana store / Restaurant / Hotel / … */
+  businessType?: string;
   city?: string;
   address?: string;
   pincode?: string;
   gstin?: string;
   createdAt: string;
+}
+
+/** Shop-setup payload captured during phone onboarding (new buyers). */
+export interface ProfileSetupInput {
+  name: string;
+  businessName: string;
+  businessType?: string;
+  city?: string;
 }
 
 export interface DeliveryDetails {

@@ -1,27 +1,115 @@
 "use client";
 
-import { useRef, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check, MapPin } from "lucide-react";
+import type { ConfirmationResult } from "firebase/auth";
+import { ArrowRight, Check, Loader2, MapPin } from "lucide-react";
+import { api } from "@/lib/api";
+import { firebaseConfigured } from "@/lib/firebase/client";
+import { sendOtp, toE164, resetRecaptcha } from "@/lib/firebase/phone-auth";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 
 type Step = "welcome" | "mobile" | "verify" | "shop" | "done";
 
 const STEP_ORDER: Step[] = ["mobile", "verify", "shop"];
 const BUSINESS_TYPES = ["Kirana store", "Restaurant", "Hotel", "Cloud kitchen", "Reseller"];
+const RECAPTCHA_ID = "recaptcha-container";
 
 export function OnboardingScreen() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
+
   const [step, setStep] = useState<Step>("welcome");
   const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState(["", "", "", ""]);
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [shopName, setShopName] = useState("");
   const [bizType, setBizType] = useState("Kirana store");
   const [area, setArea] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const confirmation = useRef<ConfirmationResult | null>(null);
+
+  useEffect(() => () => resetRecaptcha(), []);
 
   const stepIndex = STEP_ORDER.indexOf(step as Step);
+
+  async function handleSendOtp() {
+    if (phone.length < 10) {
+      setError("Enter a valid 10-digit mobile number.");
+      return;
+    }
+    if (!firebaseConfigured) {
+      setError("Auth is not configured. Set the Firebase env vars to enable sign-in.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      confirmation.current = await sendOtp(toE164(phone), RECAPTCHA_ID);
+      setOtp(["", "", "", "", "", ""]);
+      setStep("verify");
+    } catch (e) {
+      resetRecaptcha();
+      setError(
+        e instanceof Error ? e.message : "Couldn't send the code. Please try again."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleVerify() {
+    const code = otp.join("");
+    if (code.length < 6 || !confirmation.current) {
+      setError("Enter the 6-digit code.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await confirmation.current.confirm(code);
+      const existing = await refreshUser();
+      if (existing) {
+        router.replace(existing.role === "ADMIN" ? "/admin" : "/");
+      } else {
+        setStep("shop"); // new user → set up shop
+      }
+    } catch {
+      setError("Invalid or expired code. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleComplete() {
+    if (!shopName.trim()) {
+      setError("Enter your shop name.");
+      return;
+    }
+    if (!api.completeProfile) {
+      setError("Auth backend not available.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.completeProfile({
+        name: shopName.trim(),
+        businessName: shopName.trim(),
+        businessType: bizType,
+        city: area.trim() || undefined,
+      });
+      await refreshUser();
+      setStep("done");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save your shop. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function Progress() {
     if (stepIndex < 0) return null;
@@ -95,12 +183,12 @@ export function OnboardingScreen() {
                 >
                   Get started
                 </button>
-                <Link
-                  href="/login"
+                <button
+                  onClick={() => setStep("mobile")}
                   className="rounded-xl py-3 text-center text-sm font-semibold text-white/90 hover:text-white"
                 >
                   I already have an account
-                </Link>
+                </button>
               </>
             )}
           </div>
@@ -121,7 +209,7 @@ export function OnboardingScreen() {
               What&apos;s your mobile number?
             </h1>
             <p className="mt-2 text-sm text-gray-500">
-              We&apos;ll send a 4-digit code to verify it&apos;s your shop owner.
+              We&apos;ll send a 6-digit code to verify it&apos;s your shop.
             </p>
             <div className="mt-7 flex items-center gap-2 rounded-xl border border-gray-300 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
               <span className="border-r border-gray-200 py-3 pr-3 text-sm font-semibold text-gray-500">
@@ -132,18 +220,21 @@ export function OnboardingScreen() {
                 inputMode="numeric"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
                 placeholder="98765 43210"
                 className="h-12 flex-1 bg-transparent text-lg font-semibold tracking-wide text-gray-900 outline-none placeholder:font-normal placeholder:text-gray-300"
               />
             </div>
             <p className="mt-2 text-xs text-gray-400">Standard SMS rates may apply.</p>
+            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
             <div className="mt-auto pb-9">
               <button
-                disabled={phone.length < 10}
-                onClick={() => setStep("verify")}
-                className="w-full rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
+                disabled={phone.length < 10 || busy}
+                onClick={handleSendOtp}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
               >
-                Continue
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                {busy ? "Sending code…" : "Continue"}
               </button>
               <p className="mt-3 text-center text-xs text-gray-400">
                 By continuing you agree to FreshKart&apos;s Terms &amp; Privacy Policy.
@@ -156,12 +247,19 @@ export function OnboardingScreen() {
           <div className="flex flex-1 flex-col">
             <h1 className="text-2xl font-extrabold text-gray-900">Enter the code</h1>
             <p className="mt-2 text-sm text-gray-500">
-              Sent to +91 {phone || "98765 43210"} ·{" "}
-              <button onClick={() => setStep("mobile")} className="font-semibold text-brand-600">
+              Sent to +91 {phone} ·{" "}
+              <button
+                onClick={() => {
+                  resetRecaptcha();
+                  setError(null);
+                  setStep("mobile");
+                }}
+                className="font-semibold text-brand-600"
+              >
                 Edit
               </button>
             </p>
-            <div className="mt-7 flex gap-3">
+            <div className="mt-7 flex gap-2">
               {otp.map((digit, i) => (
                 <input
                   key={i}
@@ -179,25 +277,29 @@ export function OnboardingScreen() {
                       next[i] = v;
                       return next;
                     });
-                    if (v && i < 3) otpRefs.current[i + 1]?.focus();
+                    if (v && i < 5) otpRefs.current[i + 1]?.focus();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs.current[i - 1]?.focus();
                   }}
                   className={cn(
-                    "h-16 w-16 rounded-xl border text-center text-2xl font-bold text-gray-900 outline-none transition-colors",
-                    digit ? "border-brand-500 bg-brand-50" : "border-gray-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                    "h-14 w-12 rounded-xl border text-center text-xl font-bold text-gray-900 outline-none transition-colors",
+                    digit
+                      ? "border-brand-500 bg-brand-50"
+                      : "border-gray-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
                   )}
                 />
               ))}
             </div>
-            <p className="mt-4 text-xs text-gray-400">
-              Didn&apos;t get it? Resend in <span className="font-semibold text-gray-600">0:24</span>
-            </p>
+            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
             <div className="mt-auto pb-9">
               <button
-                disabled={otp.join("").length < 4}
-                onClick={() => setStep("shop")}
-                className="w-full rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
+                disabled={otp.join("").length < 6 || busy}
+                onClick={handleVerify}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
               >
-                Verify &amp; continue
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                {busy ? "Verifying…" : "Verify & continue"}
               </button>
             </div>
           </div>
@@ -254,17 +356,30 @@ export function OnboardingScreen() {
               />
             </div>
 
+            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
             <div className="mt-auto py-9">
               <button
-                disabled={!shopName}
-                onClick={() => setStep("done")}
+                disabled={!shopName.trim() || busy}
+                onClick={handleComplete}
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
               >
-                Continue <ArrowRight className="h-4 w-4" />
+                {busy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+                  </>
+                ) : (
+                  <>
+                    Continue <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
               </button>
             </div>
           </div>
         )}
+
+        {/* Invisible reCAPTCHA mount point for phone auth */}
+        <div id={RECAPTCHA_ID} />
       </div>
     </div>
   );

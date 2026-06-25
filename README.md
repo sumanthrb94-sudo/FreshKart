@@ -17,8 +17,7 @@ without touching any UI code.
 ## ✨ What's included
 
 **Buyer app**
-- Polished **onboarding** flow (welcome → mobile → OTP → shop setup → done)
-- **Login / Register** with one-tap demo accounts
+- **Phone-OTP onboarding / sign-in** (welcome → mobile number → 6-digit code → shop setup) powered by Firebase Phone Auth — no passwords, no demo accounts
 - **Shop** (search + category filter, promo banner, MOQ quantity steppers, stock caps, sticky cart bar)
 - **Checkout** bottom sheet (items, delivery details, payment method, bill)
 - **Mock payment** sheet (Card / UPI, TEST MODE, simulated gateway)
@@ -43,18 +42,16 @@ npm run dev
 # open http://localhost:3000
 ```
 
-By default the app runs on an **in-browser mock backend** (seeded with the real
-catalog and demo accounts, persisted to `localStorage`) — no backend or database
-required.
+Sign-in is **phone/OTP** via Firebase Phone Auth. New users walk the onboarding
+flow (mobile number → 6-digit code → set up shop); returning users land straight
+in the shop. **Admins** are phone users whose Firestore profile has
+`role: "ADMIN"` (set once in the console — see
+[docs/FIREBASE.md](./docs/FIREBASE.md)).
 
-**Demo accounts** (password `password123`):
-| Role | Email |
-|------|-------|
-| Buyer | `customer@freshkart.in` |
-| Admin | `admin@freshkart.in` |
-
-Both are available as **one-tap buttons** on the login screen. Or click
-**Get started** to walk the onboarding flow.
+> Configure the Firebase env vars (below) to enable sign-in. For local testing
+> without real SMS, add a **test phone number** in Firebase console → Auth →
+> Sign-in method → Phone. Without Firebase configured, the catalog still renders
+> from the in-browser mock, but phone sign-in is disabled.
 
 ---
 

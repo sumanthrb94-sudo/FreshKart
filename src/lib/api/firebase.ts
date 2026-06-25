@@ -27,6 +27,7 @@ import type {
   Order,
   OrderItem,
   OrderStatus,
+  ProfileSetupInput,
   Product,
   RegisterInput,
   User,
@@ -134,6 +135,33 @@ export class FirebaseDataSource implements DataSource {
         cb(null);
       }
     });
+  }
+
+  async getCurrentUser(): Promise<User | null> {
+    const auth = getFirebaseAuth();
+    await authReady;
+    const fb = auth.currentUser;
+    if (!fb) return null;
+    const snap = await getDoc(doc(getDb(), COL.users, fb.uid));
+    return snap.exists() ? snapToUser(snap) : null;
+  }
+
+  async completeProfile(input: ProfileSetupInput): Promise<User> {
+    const auth = getFirebaseAuth();
+    const fb = auth.currentUser;
+    if (!fb) throw new ApiError("Not signed in.", 401);
+    const profile: Omit<User, "id"> = {
+      name: input.name,
+      email: fb.email ?? "",
+      phone: fb.phoneNumber ?? "",
+      role: "BUYER",
+      businessName: input.businessName,
+      businessType: input.businessType,
+      city: input.city,
+      createdAt: new Date().toISOString(),
+    };
+    await setDoc(doc(getDb(), COL.users, fb.uid), profile, { merge: true });
+    return { ...profile, id: fb.uid };
   }
 
   // --- Catalog ------------------------------------------------------------

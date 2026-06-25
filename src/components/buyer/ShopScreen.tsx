@@ -59,7 +59,7 @@ export function ShopScreen() {
 
   function handleReview() {
     if (!user) {
-      router.push("/login?callbackUrl=/");
+      router.push("/onboarding");
       return;
     }
     setOrderError(null);

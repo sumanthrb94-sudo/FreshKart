@@ -42,8 +42,9 @@ export function useAsync<T>(
 }
 
 /**
- * Redirects unauthenticated users to /login?callbackUrl=…; optionally enforces
- * a role. Returns { ready } once the auth check has settled and access is OK.
+ * Redirects unauthenticated users to the phone onboarding/sign-in flow;
+ * optionally enforces a role. Returns { ready } once the auth check has settled
+ * and access is OK.
  */
 export function useRequireAuth(options?: { role?: "ADMIN" | "BUYER"; callbackUrl?: string }) {
   const { user, loading } = useAuth();
@@ -53,10 +54,7 @@ export function useRequireAuth(options?: { role?: "ADMIN" | "BUYER"; callbackUrl
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      const cb = options?.callbackUrl
-        ? `?callbackUrl=${encodeURIComponent(options.callbackUrl)}`
-        : "";
-      router.replace(`/login${cb}`);
+      router.replace("/onboarding");
       return;
     }
     if (options?.role && user.role !== options.role) {

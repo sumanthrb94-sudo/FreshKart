@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "seed:firestore": "tsx scripts/seed-firestore.ts"
+    "seed:firestore": "tsx scripts/seed-firestore.ts",
+    "seed:firestore:client": "tsx scripts/seed-products-client.ts"
   },
   "dependencies": {
     "firebase": "^11.3.0",

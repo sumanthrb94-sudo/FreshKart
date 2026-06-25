@@ -1,21 +1,22 @@
 /**
- * Seed a Firebase project with the FreshKart catalog, demo accounts and sample
- * orders. Uses the Admin SDK (bypasses Security Rules).
+ * Seed the Firestore catalog (39 products) using the Admin SDK, which bypasses
+ * Security Rules — works whether your rules are locked or in test mode.
+ *
+ * Auth is phone/OTP (no email demo accounts), so this only seeds `products`.
+ * The first buyer/admin profile is created when a real phone signs in; to make
+ * yourself an admin, set `role: "ADMIN"` on your users/<uid> doc in the console.
  *
  * Usage:
  *   export GOOGLE_APPLICATION_CREDENTIALS=./serviceAccount.json
- *   export FIREBASE_PROJECT_ID=your-project-id        # or rely on the SA file
+ *   export FIREBASE_PROJECT_ID=freshkart-e0479
  *   npm run seed:firestore
  *
- * Alternatively pass the service account JSON inline via
- *   FIREBASE_SERVICE_ACCOUNT_JSON='{"project_id":...}'
- *
- * It is idempotent — re-running updates existing docs/users.
+ * Or pass the service-account JSON inline via FIREBASE_SERVICE_ACCOUNT_JSON.
+ * Idempotent — re-running overwrites the product docs.
  */
 import { initializeApp, applicationDefault, cert } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { DEMO_PASSWORD, ORDERS, PRODUCTS, USERS } from "../src/lib/mock-data";
+import { PRODUCTS } from "../src/lib/mock-data";
 
 const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 const projectId =
@@ -28,52 +29,16 @@ initializeApp({
   projectId,
 });
 
-const auth = getAuth();
 const db = getFirestore();
 
-async function seedUsers() {
-  for (const user of USERS) {
-    const { id, ...profile } = user;
-    // Auth user (uid == our user id so the Firestore doc id lines up).
-    try {
-      await auth.createUser({
-        uid: id,
-        email: user.email,
-        password: DEMO_PASSWORD,
-        displayName: user.name,
-      });
-    } catch (e) {
-      const code = (e as { code?: string }).code ?? "";
-      if (code.includes("already-exists") || code.includes("email-already-exists")) {
-        await auth.updateUser(id, { email: user.email, password: DEMO_PASSWORD });
-      } else {
-        throw e;
-      }
-    }
-    await db.collection("users").doc(id).set(profile, { merge: true });
-    console.log(`  · user ${user.email} (${user.role})`);
-  }
-}
-
-async function seedCollection<T extends { id: string }>(name: string, rows: T[]) {
+async function main() {
+  console.log(`Seeding ${PRODUCTS.length} products into "${projectId ?? "(from credentials)"}"…`);
   const batch = db.batch();
-  for (const row of rows) {
-    const { id, ...data } = row;
-    batch.set(db.collection(name).doc(id), data);
+  for (const { id, ...data } of PRODUCTS) {
+    batch.set(db.collection("products").doc(id), data);
   }
   await batch.commit();
-  console.log(`  · ${rows.length} ${name}`);
-}
-
-async function main() {
-  console.log(`Seeding Firebase project "${projectId ?? "(from credentials)"}"…`);
-  console.log("Users:");
-  await seedUsers();
-  console.log("Products:");
-  await seedCollection("products", PRODUCTS);
-  console.log("Orders:");
-  await seedCollection("orders", ORDERS);
-  console.log("\n✅ Seed complete. Demo password for all accounts:", DEMO_PASSWORD);
+  console.log("✅ Catalog seeded.");
 }
 
 main()
