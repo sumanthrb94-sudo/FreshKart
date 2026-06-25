@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
-  LogIn,
   LogOut,
   Package,
   Sprout,
@@ -39,8 +37,7 @@ function IconButton({
 }
 
 export function BuyerHeader() {
-  const { user, isAuthenticated, isAdmin, logout } = useAuth();
-  const router = useRouter();
+  const { isAuthenticated, isAdmin, logout } = useAuth();
 
   async function handleLogout() {
     await logout();
@@ -64,7 +61,7 @@ export function BuyerHeader() {
         </Link>
 
         <div className="flex items-center gap-1.5">
-          {isAuthenticated ? (
+          {isAuthenticated && (
             <>
               {isAdmin && (
                 <Link
@@ -85,15 +82,6 @@ export function BuyerHeader() {
                 <LogOut className="h-4 w-4" />
               </IconButton>
             </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => router.push("/onboarding")}
-              className="flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-brand-700 transition-colors hover:bg-brand-50"
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              Sign in
-            </button>
           )}
         </div>
       </div>

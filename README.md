@@ -17,7 +17,7 @@ without touching any UI code.
 ## ✨ What's included
 
 **Buyer app**
-- **Phone-OTP onboarding / sign-in** (welcome → mobile number → 6-digit code → shop setup) powered by Firebase Phone Auth — no passwords, no demo accounts
+- **Phone-OTP onboarding / sign-in** (mobile number → 6-digit code → shop setup) powered by Firebase Phone Auth — no passwords, no demo accounts. The app is **auth-gated**: logged-out visitors land directly on the phone sign-in screen
 - **Shop** (search + category filter, promo banner, MOQ quantity steppers, stock caps, sticky cart bar)
 - **Checkout** bottom sheet (items, delivery details, payment method, bill)
 - **Mock payment** sheet (Card / UPI, TEST MODE, simulated gateway)
@@ -50,8 +50,8 @@ in the shop. **Admins** are phone users whose Firestore profile has
 
 > Configure the Firebase env vars (below) to enable sign-in. For local testing
 > without real SMS, add a **test phone number** in Firebase console → Auth →
-> Sign-in method → Phone. Without Firebase configured, the catalog still renders
-> from the in-browser mock, but phone sign-in is disabled.
+> Sign-in method → Phone. Sign-in is **required** — the app opens on the phone
+> login screen, so Firebase must be configured to get past it.
 
 ---
 

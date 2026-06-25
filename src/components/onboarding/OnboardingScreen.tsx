@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult } from "firebase/auth";
-import { ArrowRight, Check, Loader2, MapPin } from "lucide-react";
+import { ArrowRight, Check, Loader2, MapPin, Sprout } from "lucide-react";
 import { api } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { sendOtp, toE164, resetRecaptcha } from "@/lib/firebase/phone-auth";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 
-type Step = "welcome" | "mobile" | "verify" | "shop" | "done";
+type Step = "mobile" | "verify" | "shop" | "done";
 
 const STEP_ORDER: Step[] = ["mobile", "verify", "shop"];
 const BUSINESS_TYPES = ["Kirana store", "Restaurant", "Hotel", "Cloud kitchen", "Reseller"];
@@ -18,9 +18,9 @@ const RECAPTCHA_ID = "recaptcha-container";
 
 export function OnboardingScreen() {
   const router = useRouter();
-  const { refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
 
-  const [step, setStep] = useState<Step>("welcome");
+  const [step, setStep] = useState<Step>("mobile");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [shopName, setShopName] = useState("");
@@ -33,6 +33,14 @@ export function OnboardingScreen() {
   const confirmation = useRef<ConfirmationResult | null>(null);
 
   useEffect(() => () => resetRecaptcha(), []);
+
+  // Already signed in (fully onboarded)? Skip the login flow and go to the app.
+  // Guarded to the landing step so a just-finished signup still sees "done".
+  useEffect(() => {
+    if (user && step === "mobile") {
+      router.replace(user.role === "ADMIN" ? "/admin" : "/");
+    }
+  }, [user, step, router]);
 
   const stepIndex = STEP_ORDER.indexOf(step as Step);
 
@@ -128,69 +136,35 @@ export function OnboardingScreen() {
     );
   }
 
-  // ---- Welcome & Done: full-bleed green gradient ----
-  if (step === "welcome" || step === "done") {
-    const done = step === "done";
+  // ---- Done: full-bleed green celebration ----
+  if (step === "done") {
     return (
       <div className="flex min-h-[100dvh] justify-center bg-gray-100">
         <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-gradient-to-b from-brand-600 via-brand-700 to-brand-800 px-7 text-white shadow-xl">
           <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10" />
           <div className="pointer-events-none absolute bottom-40 -left-20 h-48 w-48 rounded-full bg-brand-400/30 blur-2xl" />
 
-          {done ? (
-            <div className="relative z-10 flex flex-1 flex-col items-center justify-center text-center">
-              <div className="flex h-20 w-20 animate-pop items-center justify-center rounded-full bg-white/15">
-                <Check className="h-10 w-10" />
-              </div>
-              <h1 className="mt-6 text-2xl font-extrabold">You&apos;re all set!</h1>
-              <p className="mt-2 max-w-xs text-sm text-white/80">
-                {shopName ? `${shopName} is verified. ` : "Your shop is verified. "}
-                Browse today&apos;s fresh arrivals and place your first order.
-              </p>
-              <span className="mt-5 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold">
-                🎉 Free delivery on your first 3 orders
-              </span>
+          <div className="relative z-10 flex flex-1 flex-col items-center justify-center text-center">
+            <div className="flex h-20 w-20 animate-pop items-center justify-center rounded-full bg-white/15">
+              <Check className="h-10 w-10" />
             </div>
-          ) : (
-            <div className="relative z-10 flex flex-1 flex-col justify-end pb-4">
-              <div className="flex flex-1 items-center justify-center">
-                <span className="text-[120px] drop-shadow-lg">🧺</span>
-              </div>
-              <h1 className="text-3xl font-extrabold leading-tight">
-                Fresh produce,
-                <br /> before you open.
-              </h1>
-              <p className="mt-3 text-sm text-white/80">
-                Wholesale fruits &amp; vegetables for your store — graded, priced, and at
-                your door by 6 AM.
-              </p>
-            </div>
-          )}
+            <h1 className="mt-6 text-2xl font-extrabold">You&apos;re all set!</h1>
+            <p className="mt-2 max-w-xs text-sm text-white/80">
+              {shopName ? `${shopName} is verified. ` : "Your shop is verified. "}
+              Browse today&apos;s fresh arrivals and place your first order.
+            </p>
+            <span className="mt-5 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold">
+              🎉 Free delivery on your first 3 orders
+            </span>
+          </div>
 
           <div className="relative z-10 flex flex-col gap-3 pb-9 pt-6">
-            {done ? (
-              <button
-                onClick={() => router.push("/")}
-                className="rounded-xl bg-accent-500 px-5 py-3.5 text-base font-bold text-white shadow-lg transition-colors hover:bg-accent-600"
-              >
-                Start ordering
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={() => setStep("mobile")}
-                  className="rounded-xl bg-accent-500 px-5 py-3.5 text-base font-bold text-white shadow-lg transition-colors hover:bg-accent-600"
-                >
-                  Get started
-                </button>
-                <button
-                  onClick={() => setStep("mobile")}
-                  className="rounded-xl py-3 text-center text-sm font-semibold text-white/90 hover:text-white"
-                >
-                  I already have an account
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => router.push("/")}
+              className="rounded-xl bg-accent-500 px-5 py-3.5 text-base font-bold text-white shadow-lg transition-colors hover:bg-accent-600"
+            >
+              Start ordering
+            </button>
           </div>
         </div>
       </div>
@@ -200,7 +174,22 @@ export function OnboardingScreen() {
   // ---- Form steps: light background ----
   return (
     <div className="flex min-h-[100dvh] justify-center bg-gray-100">
-      <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-white px-7 pt-14 shadow-xl">
+      <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-white px-7 pt-12 shadow-xl">
+        {/* Brand mark on the landing (phone sign-in) step */}
+        {step === "mobile" && (
+          <div className="mb-7 flex items-center gap-2.5">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-500 text-white">
+              <Sprout className="h-5 w-5" />
+            </span>
+            <span className="leading-tight">
+              <span className="block text-base font-extrabold text-gray-900">FreshKart</span>
+              <span className="block text-2xs font-medium text-gray-400">
+                Wholesale B2B · per kg
+              </span>
+            </span>
+          </div>
+        )}
+
         <Progress />
 
         {step === "mobile" && (
@@ -209,7 +198,8 @@ export function OnboardingScreen() {
               What&apos;s your mobile number?
             </h1>
             <p className="mt-2 text-sm text-gray-500">
-              We&apos;ll send a 6-digit code to verify it&apos;s your shop.
+              We&apos;ll text a 6-digit code to verify your shop. New here? You&apos;ll set
+              up your shop next.
             </p>
             <div className="mt-7 flex items-center gap-2 rounded-xl border border-gray-300 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
               <span className="border-r border-gray-200 py-3 pr-3 text-sm font-semibold text-gray-500">
