@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Banknote, CreditCard, MapPin, Pencil, ShieldCheck, Wallet } from "lucide-react";
 import type { DeliveryDetails, PaymentMethod } from "@/lib/types";
 import { formatCurrency, pricePerUnit } from "@/lib/format";
@@ -40,11 +40,19 @@ export function CheckoutSheet({
   onContinue: (delivery: DeliveryDetails, method: PaymentMethod) => void;
 }) {
   const { lines, subtotal, increment, decrement } = useCart();
-  const { updateProfile } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [delivery, setDelivery] = useState<DeliveryDetails>(defaultDelivery);
   const [method, setMethod] = useState<PaymentMethod>("COD");
   const [localError, setLocalError] = useState<string | null>(null);
   const [changeOpen, setChangeOpen] = useState(false);
+
+  // Re-load the saved profile (address + phone) every time the sheet opens, so
+  // details saved elsewhere — Account, or a previous order — show up and we
+  // never ask again for something the user already gave us.
+  useEffect(() => {
+    if (open) setDelivery(defaultDelivery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   function set<K extends keyof DeliveryDetails>(key: K, value: string) {
     setDelivery((d) => ({ ...d, [key]: value }));
@@ -82,6 +90,12 @@ export function CheckoutSheet({
       return;
     }
     setLocalError(null);
+    // Persist the phone back to the profile so it becomes the default and the
+    // next order is pre-filled — no asking twice. Best-effort (the address is
+    // already saved when picked).
+    if (delivery.phone && delivery.phone !== user?.phone) {
+      updateProfile({ phone: delivery.phone }).catch(() => {});
+    }
     onContinue(delivery, method);
   }
 

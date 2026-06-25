@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MapPin, Package, Pencil } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -33,6 +33,23 @@ export function AccountScreen() {
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [addrOpen, setAddrOpen] = useState(false);
   const [savingAddr, setSavingAddr] = useState(false);
+
+  // Re-sync the form once the signed-in profile loads (on a fresh page load it
+  // can arrive after first paint), so saved phone/address always show up.
+  useEffect(() => {
+    if (!user) return;
+    setForm({
+      name: user.name ?? "",
+      businessName: user.businessName ?? "",
+      phone: user.phone ?? "",
+      gstin: user.gstin ?? "",
+      address: user.address ?? "",
+      city: user.city ?? "",
+      pincode: user.pincode ?? "",
+    });
+    // Only when the loaded user identity changes — not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
