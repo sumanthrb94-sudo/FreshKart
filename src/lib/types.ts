@@ -47,6 +47,9 @@ export interface Product {
   imageUrl?: string;
 }
 
+/** Payload to create a catalog product (admin inventory). */
+export type ProductInput = Omit<Product, "id">;
+
 export interface User {
   id: string;
   name: string;

@@ -6,6 +6,7 @@ import type {
   Order,
   OrderStatus,
   Product,
+  ProductInput,
   RegisterInput,
   User,
 } from "@/lib/types";
@@ -85,6 +86,13 @@ export class HttpDataSource implements DataSource {
     });
   }
 
+  createProduct(input: ProductInput) {
+    return this.request<Product>("/products", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
   createOrder(buyerId: string, input: CreateOrderInput) {
     return this.request<Order>("/orders", {
       method: "POST",
@@ -112,11 +120,22 @@ export class HttpDataSource implements DataSource {
     return this.request<Order>(`/orders/${id}/cancel`, { method: "POST" });
   }
 
+  setOrderPaid(id: string, paid: boolean) {
+    return this.request<Order>(`/orders/${id}/payment`, {
+      method: "PATCH",
+      body: JSON.stringify({ paid }),
+    });
+  }
+
   listCustomers() {
     return this.request<Customer[]>("/customers");
   }
 
   getAdminStats() {
     return this.request<AdminStats>("/admin/stats");
+  }
+
+  getUser(id: string) {
+    return this.request<User | null>(`/users/${id}`);
   }
 }

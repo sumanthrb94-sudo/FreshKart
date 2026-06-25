@@ -32,6 +32,7 @@ import type {
   OrderStatus,
   ProfileSetupInput,
   Product,
+  ProductInput,
   RegisterInput,
   User,
 } from "@/lib/types";
@@ -196,6 +197,11 @@ export class FirebaseDataSource implements DataSource {
     return snap.exists() ? snapToUser(snap) : null;
   }
 
+  async getUser(id: string): Promise<User | null> {
+    const snap = await readDoc(doc(getDb(), COL.users, id));
+    return snap.exists() ? snapToUser(snap) : null;
+  }
+
   async completeProfile(input: ProfileSetupInput): Promise<User> {
     const auth = getFirebaseAuth();
     const fb = auth.currentUser;
@@ -288,14 +294,27 @@ export class FirebaseDataSource implements DataSource {
 
   async updateProduct(id: string, patch: Partial<Product>): Promise<Product> {
     const db = getDb();
+    const FIELDS = [
+      "name", "category", "unit", "price", "minOrderQty", "stock", "origin", "active", "imageUrl",
+    ] as const;
     const allowed: DocumentData = {};
-    if (patch.price !== undefined) allowed.price = patch.price;
-    if (patch.stock !== undefined) allowed.stock = patch.stock;
-    if (patch.active !== undefined) allowed.active = patch.active;
+    for (const k of FIELDS) {
+      if (patch[k] !== undefined) allowed[k] = patch[k];
+    }
     await updateDoc(doc(db, COL.products, id), allowed);
     const snap = await getDoc(doc(db, COL.products, id));
     if (!snap.exists()) throw new ApiError("Product not found.", 404);
     return { ...(snap.data() as Omit<Product, "id">), id: snap.id };
+  }
+
+  async createProduct(input: ProductInput): Promise<Product> {
+    const ref = doc(collection(getDb(), COL.products));
+    // Firestore rejects `undefined` field values — drop any unset optionals.
+    const data = Object.fromEntries(
+      Object.entries(input).filter(([, v]) => v !== undefined)
+    ) as DocumentData;
+    await setDoc(ref, data);
+    return { ...input, id: ref.id };
   }
 
   // --- Orders -------------------------------------------------------------
@@ -417,6 +436,17 @@ export class FirebaseDataSource implements DataSource {
 
   async cancelOrder(id: string): Promise<Order> {
     return this.updateOrderStatus(id, "CANCELLED");
+  }
+
+  async setOrderPaid(id: string, paid: boolean): Promise<Order> {
+    const db = getDb();
+    await updateDoc(doc(db, COL.orders, id), {
+      paymentStatus: paid ? "PAID" : "UNPAID",
+      updatedAt: new Date().toISOString(),
+    });
+    const snap = await getDoc(doc(db, COL.orders, id));
+    if (!snap.exists()) throw new ApiError("Order not found.", 404);
+    return { ...(snap.data() as Omit<Order, "id">), id: snap.id };
   }
 
   // --- Admin --------------------------------------------------------------

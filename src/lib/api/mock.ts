@@ -7,6 +7,7 @@ import type {
   OrderStatus,
   OrderItem,
   Product,
+  ProductInput,
   RegisterInput,
   User,
 } from "@/lib/types";
@@ -88,13 +89,22 @@ export class MockDataSource implements DataSource {
     store.mutate((s) => {
       const p = s.products.find((x) => x.id === id);
       if (!p) return;
-      if (patch.price !== undefined) p.price = patch.price;
-      if (patch.stock !== undefined) p.stock = patch.stock;
-      if (patch.active !== undefined) p.active = patch.active;
+      Object.assign(p, patch, { id: p.id });
       updated = p;
     });
     if (!updated) throw new ApiError("Product not found.", 404);
     return delay(structuredClone(updated));
+  }
+
+  async createProduct(input: ProductInput): Promise<Product> {
+    let created: Product | null = null;
+    store.mutate((s) => {
+      const id = `prod-${Date.now()}-${s.products.length + 1}`;
+      const product: Product = { ...input, id };
+      s.products.push(product);
+      created = product;
+    });
+    return delay(structuredClone(created!), 400);
   }
 
   // --- Orders -------------------------------------------------------------
@@ -202,6 +212,19 @@ export class MockDataSource implements DataSource {
     return this.updateOrderStatus(id, "CANCELLED");
   }
 
+  async setOrderPaid(id: string, paid: boolean): Promise<Order> {
+    let updated: Order | null = null;
+    store.mutate((s) => {
+      const o = s.orders.find((x) => x.id === id);
+      if (!o) return;
+      o.paymentStatus = paid ? "PAID" : "UNPAID";
+      o.updatedAt = new Date().toISOString();
+      updated = o;
+    });
+    if (!updated) throw new ApiError("Order not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
   // --- Admin --------------------------------------------------------------
   async listCustomers(): Promise<Customer[]> {
     const s = store.get();
@@ -247,5 +270,10 @@ export class MockDataSource implements DataSource {
       ordersByStatus,
     };
     return delay(stats);
+  }
+
+  async getUser(id: string): Promise<User | null> {
+    const u = store.get().users.find((x) => x.id === id) ?? null;
+    return delay(u ? structuredClone(u) : null);
   }
 }

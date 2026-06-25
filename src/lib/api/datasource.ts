@@ -7,6 +7,7 @@ import type {
   OrderStatus,
   ProfileSetupInput,
   Product,
+  ProductInput,
   RegisterInput,
   User,
 } from "@/lib/types";
@@ -54,8 +55,10 @@ export interface DataSource {
   // --- Catalog ------------------------------------------------------------
   listProducts(): Promise<Product[]>;
   getProduct(id: string): Promise<Product | null>;
-  /** Admin: edit price / stock / active. */
+  /** Admin: edit any product field (price / stock / active / details). */
   updateProduct(id: string, patch: Partial<Product>): Promise<Product>;
+  /** Admin: add a new product to the catalog. */
+  createProduct(input: ProductInput): Promise<Product>;
 
   // --- Orders -------------------------------------------------------------
   createOrder(buyerId: string, input: CreateOrderInput): Promise<Order>;
@@ -64,10 +67,14 @@ export interface DataSource {
   getOrder(id: string): Promise<Order | null>;
   updateOrderStatus(id: string, status: OrderStatus): Promise<Order>;
   cancelOrder(id: string): Promise<Order>;
+  /** Admin: mark an order paid / unpaid (COD / credit settlement, POS). */
+  setOrderPaid(id: string, paid: boolean): Promise<Order>;
 
   // --- Admin --------------------------------------------------------------
   listCustomers(): Promise<Customer[]>;
   getAdminStats(): Promise<AdminStats>;
+  /** Admin: read any user's full profile (e.g. POS customer lookup). */
+  getUser(id: string): Promise<User | null>;
 }
 
 /** Thrown for expected, user-facing failures (bad creds, validation, etc.). */

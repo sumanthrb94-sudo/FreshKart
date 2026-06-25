@@ -1,23 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { LogOut, ShieldCheck, Store } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { FullScreenLoader } from "@/components/ui/Spinner";
-import { cn } from "@/lib/utils";
-
-const TABS = [
-  { href: "/admin", label: "Overview" },
-  { href: "/admin/orders", label: "Orders" },
-  { href: "/admin/products", label: "Products" },
-  { href: "/admin/customers", label: "Customers" },
-];
+import { AdminBottomNav } from "./AdminBottomNav";
 
 function AdminHeader() {
-  const pathname = usePathname();
   const { logout } = useAuth();
 
   async function handleLogout() {
@@ -34,7 +25,9 @@ function AdminHeader() {
           </span>
           <span className="leading-tight">
             <span className="block text-base font-extrabold text-fg">Admin</span>
-            <span className="block text-2xs font-medium text-fg-subtle">FreshKart operations</span>
+            <span className="block text-2xs font-medium text-fg-subtle">
+              FreshKart operations
+            </span>
           </span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -54,28 +47,12 @@ function AdminHeader() {
           </button>
         </div>
       </div>
-      <nav className="fc-scroll flex gap-1.5 overflow-x-auto px-4 pb-3">
-        {TABS.map((tab) => {
-          const active =
-            tab.href === "/admin" ? pathname === "/admin" : pathname.startsWith(tab.href);
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={cn(
-                "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors",
-                active ? "bg-brand-500 text-white" : "bg-raised text-fg-muted hover:bg-raised"
-              )}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
-      </nav>
     </header>
   );
 }
 
+/** Admin wrapper: gated header + bottom tab nav. Each admin screen renders its
+ *  body inside this. */
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const { ready } = useRequireAuth({ role: "ADMIN", callbackUrl: "/admin" });
 
@@ -87,5 +64,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <AppShell header={<AdminHeader />}>{children}</AppShell>;
+  return (
+    <AppShell header={<AdminHeader />} footer={<AdminBottomNav />}>
+      {children}
+    </AppShell>
+  );
 }
