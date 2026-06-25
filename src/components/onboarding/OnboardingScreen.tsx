@@ -215,47 +215,25 @@ export function OnboardingScreen() {
           <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-white/10" />
           <div className="pointer-events-none absolute -left-12 top-28 h-44 w-44 rounded-full bg-brand-300/20 blur-2xl" />
 
-          {/* Brand hero: a cart filling with fresh produce */}
+          {/* Brand hero: a cart of produce, with fruit & veg floating around it */}
           <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-7 text-center text-white">
-            <div className="relative mb-1 h-44 w-full max-w-[280px]">
-              {/* Produce raining into the cart (converges to centre, sinks in) */}
-              {[
-                { e: "🍅", dx: -116, d: "0s", s: "text-3xl" },
-                { e: "🥦", dx: -86, d: "0.45s", s: "text-2xl" },
-                { e: "🥕", dx: -56, d: "0.9s", s: "text-3xl" },
-                { e: "🌽", dx: -20, d: "1.35s", s: "text-2xl" },
-                { e: "🧅", dx: 20, d: "1.8s", s: "text-3xl" },
-                { e: "🥔", dx: 56, d: "2.25s", s: "text-2xl" },
-                { e: "🥬", dx: 86, d: "2.7s", s: "text-3xl" },
-                { e: "🫑", dx: 116, d: "3.15s", s: "text-2xl" },
-                { e: "🍆", dx: 0, d: "3.6s", s: "text-3xl" },
-              ].map((v, i) => (
-                <span
-                  key={i}
-                  className={cn(
-                    "pointer-events-none absolute left-1/2 top-0 -ml-3 animate-drop drop-shadow motion-reduce:hidden",
-                    v.s
-                  )}
-                  style={
-                    { "--dx": `${v.dx}px`, animationDelay: v.d } as React.CSSProperties
-                  }
-                >
-                  {v.e}
-                </span>
-              ))}
+            {/* Floating produce — scattered around the hero, gently bobbing in
+                place (a different mix from what sits in the cart) */}
+            <span className="pointer-events-none absolute left-6 top-6 animate-float text-3xl opacity-90 drop-shadow motion-reduce:animate-none">🍅</span>
+            <span className="pointer-events-none absolute right-7 top-5 animate-float-slow text-2xl opacity-90 drop-shadow motion-reduce:animate-none">🥦</span>
+            <span className="pointer-events-none absolute left-1/2 -ml-16 top-2 animate-float-slow text-xl opacity-80 drop-shadow motion-reduce:animate-none">🍇</span>
+            <span className="pointer-events-none absolute left-1/2 ml-12 top-2 animate-float text-xl opacity-80 drop-shadow motion-reduce:animate-none">🍋</span>
+            <span className="pointer-events-none absolute left-5 top-1/2 -mt-3 animate-float-slow text-2xl opacity-80 drop-shadow motion-reduce:animate-none">🍆</span>
+            <span className="pointer-events-none absolute right-5 top-1/2 -mt-3 animate-float text-2xl opacity-80 drop-shadow motion-reduce:animate-none">🫑</span>
+            <span className="pointer-events-none absolute left-9 bottom-9 animate-float text-2xl opacity-80 drop-shadow motion-reduce:animate-none">🧅</span>
+            <span className="pointer-events-none absolute right-9 bottom-10 animate-float-slow text-2xl opacity-80 drop-shadow motion-reduce:animate-none">🥔</span>
 
-              {/* Produce already resting in the cart (peeking over the rim) */}
-              <span className="pointer-events-none absolute bottom-12 left-1/2 -ml-8 text-2xl drop-shadow">
-                🥬
-              </span>
-              <span className="pointer-events-none absolute bottom-12 left-1/2 ml-2 text-2xl drop-shadow">
-                🍅
-              </span>
-
-              {/* The cart */}
-              <span className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 animate-float text-7xl drop-shadow-lg motion-reduce:animate-none">
-                🛒
-              </span>
+            {/* The cart, with produce sitting in it (bobs gently as one unit) */}
+            <div className="relative mb-2 h-28 w-44 animate-float-slow motion-reduce:animate-none">
+              <span className="absolute bottom-[44px] left-1/2 -ml-9 z-10 text-2xl drop-shadow">🥬</span>
+              <span className="absolute bottom-[52px] left-1/2 -ml-1 z-10 text-2xl drop-shadow">🍎</span>
+              <span className="absolute bottom-[44px] left-1/2 ml-5 z-10 -rotate-12 text-xl drop-shadow">🥕</span>
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-7xl drop-shadow-lg">🛒</span>
             </div>
 
             <h1 className="text-5xl font-extrabold tracking-tight drop-shadow-sm">FreshKart</h1>
