@@ -25,7 +25,7 @@ Legend: ✅ done · 🟡 action needed (dashboard/process) · 🔜 do at domain 
 | Service worker served `no-cache` so updates ship immediately | `next.config.mjs` | Reliability → caching headers |
 | Converted product image to `next/image` (optimization, lazy-load, modern formats) | `src/components/ui/ProductThumb.tsx` | Performance → Image Optimization |
 | Vercel Speed Insights + Web Analytics wired in | `src/app/layout.tsx` | Performance → Speed Insights |
-| Bumped Next.js 14.2.15 → **14.2.35** (clears the **critical** CVE + practically-exploitable ones, non-breaking) | `package.json` | Security → dependency vulns |
+| Upgraded **Next.js 14.2.15 → 15.5.19 + React 18 → 19** — clears all high/critical CVEs; migrated dynamic routes/pages to the async `params` API | `package.json` + 8 route/page files | Security → dependency vulns |
 | Firebase **App Check** (reCAPTCHA v3) wired, env-gated — no-op until a key is set | `src/lib/firebase/client.ts` | Security → rate limiting / abuse |
 | Reference `/api/*` routes **disabled by default** (404 unless `ENABLE_REFERENCE_API=true`); `/api/health` stays up | `src/lib/server/http.ts` | Security → close dead endpoints |
 | `robots.txt` keeps crawlers off `/admin`, `/api`, account/order pages | `src/app/robots.ts` | Security / SEO hygiene |
@@ -135,4 +135,4 @@ checks.
 5. 🟡 Confirm **Firestore region == `asia-south1`** to match `bom1`.
 6. ✅ Unused `/api/*` routes — done (gated to 404 by default).
 7. 📘 Practice an **Instant Rollback** once so you know the muscle memory.
-8. 🔜 Plan a **Next.js 15 upgrade** (tested, not a blind bump) to fully clear the remaining advisories — most don't apply to this app's feature usage today, so this is important-but-not-blocking.
+8. ✅ **Next.js 15 + React 19** upgrade done — clears all high/critical CVEs. **Smoke-test login / maps / checkout** on the deploy since it's a major version jump. (4 *moderate* `postcss` advisories remain *inside Next's own deps* — build-time only, low risk.)
