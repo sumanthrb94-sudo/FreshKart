@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { produceEmoji } from "@/lib/produce";
 import { cn } from "@/lib/utils";
 
@@ -18,13 +19,13 @@ export function ProductThumb({
 }) {
   const radius = size >= 80 ? "rounded-xl" : "rounded-lg";
   if (imageUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
-      <img
+      <Image
         src={imageUrl}
         alt={name}
         width={size}
         height={size}
+        sizes={`${size}px`}
         className={cn("shrink-0 object-cover", radius, className)}
         style={{ width: size, height: size }}
       />

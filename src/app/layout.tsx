@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { PwaRegistrar } from "@/components/pwa/PwaRegistrar";
@@ -39,6 +41,8 @@ export default function RootLayout({
       <body className="font-sans text-fg antialiased">
         <AppProviders>{children}</AppProviders>
         <PwaRegistrar />
+        <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
