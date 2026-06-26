@@ -4,6 +4,7 @@ import { handle } from "@/lib/server/http";
 
 export { dynamic } from "@/lib/server/http";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  return handle(() => repository.getOrder(params.id));
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return handle(() => repository.getOrder(id));
 }

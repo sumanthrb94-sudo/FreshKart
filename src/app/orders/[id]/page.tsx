@@ -3,7 +3,12 @@ import { OrderTrackingScreen } from "@/components/buyer/OrderTrackingScreen";
 import { AppShell } from "@/components/layout/AppShell";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 
-export default function OrderTrackingPage({ params }: { params: { id: string } }) {
+export default async function OrderTrackingPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
   return (
     <Suspense
       fallback={
@@ -12,7 +17,7 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
         </AppShell>
       }
     >
-      <OrderTrackingScreen id={params.id} />
+      <OrderTrackingScreen id={id} />
     </Suspense>
   );
 }

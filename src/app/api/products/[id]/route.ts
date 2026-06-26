@@ -4,11 +4,13 @@ import { handle } from "@/lib/server/http";
 
 export { dynamic } from "@/lib/server/http";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  return handle(() => repository.getProduct(params.id));
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return handle(() => repository.getProduct(id));
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const body = await req.json();
-  return handle(() => repository.updateProduct(params.id, body));
+  return handle(() => repository.updateProduct(id, body));
 }

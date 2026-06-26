@@ -2,11 +2,12 @@ import { brandIcon } from "@/lib/brand-icon";
 
 // PWA manifest icons. One handler serves every size/purpose the manifest needs:
 //   /icons/192  /icons/512  /icons/maskable
-export function GET(
+export async function GET(
   _req: Request,
-  { params }: { params: { variant: string } }
+  { params }: { params: Promise<{ variant: string }> }
 ) {
-  switch (params.variant) {
+  const { variant } = await params;
+  switch (variant) {
     case "192":
       return brandIcon(192);
     case "512":

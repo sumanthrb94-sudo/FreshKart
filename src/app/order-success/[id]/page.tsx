@@ -1,5 +1,10 @@
 import { OrderSuccessScreen } from "@/components/buyer/OrderSuccessScreen";
 
-export default function OrderSuccessPage({ params }: { params: { id: string } }) {
-  return <OrderSuccessScreen id={params.id} />;
+export default async function OrderSuccessPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  return <OrderSuccessScreen id={id} />;
 }
