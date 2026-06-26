@@ -8,6 +8,11 @@ import {
 } from "firebase/auth";
 import { initializeFirestore, type Firestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
+import {
+  initializeAppCheck,
+  ReCaptchaV3Provider,
+  type AppCheck,
+} from "firebase/app-check";
 
 /**
  * Firebase client (browser SDK). The app reaches Firestore / Auth / Storage
@@ -32,13 +37,40 @@ let app: FirebaseApp | undefined;
 let _auth: Auth | undefined;
 let _db: Firestore | undefined;
 let _storage: FirebaseStorage | undefined;
+let _appCheck: AppCheck | undefined;
 
 function getFirebaseApp(): FirebaseApp {
   if (!firebaseConfigured) {
     throw new Error("Firebase is not configured (missing NEXT_PUBLIC_FIREBASE_* env).");
   }
-  if (!app) app = getApps().length ? getApp() : initializeApp(config);
+  if (!app) {
+    app = getApps().length ? getApp() : initializeApp(config);
+    // Start App Check as soon as the app exists — before any Auth/Firestore
+    // call — so attestation tokens attach to every request once enforced.
+    maybeInitAppCheck(app);
+  }
   return app;
+}
+
+/**
+ * Enable Firebase App Check (reCAPTCHA v3) when a site key is configured.
+ * Browser-only and a no-op without NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY, so
+ * it's safe to wire ahead of registering the key. Once the key is set and
+ * enforcement is turned on in the Firebase console, this becomes the app's
+ * abuse / rate-limit layer for direct-to-Firebase traffic.
+ */
+function maybeInitAppCheck(a: FirebaseApp): void {
+  if (_appCheck || typeof window === "undefined") return;
+  const siteKey = process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY;
+  if (!siteKey) return;
+  try {
+    _appCheck = initializeAppCheck(a, {
+      provider: new ReCaptchaV3Provider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch {
+    /* App Check is optional — never block app startup on it. */
+  }
 }
 
 // Resolves once the first auth state is known, so authenticated Firestore reads

@@ -3,6 +3,13 @@ import { RepoError } from "./repository";
 
 /** Wrap a handler so RepoError → JSON error with the right status. */
 export async function handle<T>(fn: () => T | Promise<T>): Promise<NextResponse> {
+  // The in-memory reference backend is disabled in deployed environments unless
+  // explicitly opted in (ENABLE_REFERENCE_API=true). The production app talks to
+  // Firebase directly, so these would otherwise be dead, publicly-reachable
+  // mutation endpoints. /api/health stays up — it doesn't go through handle().
+  if (process.env.ENABLE_REFERENCE_API !== "true") {
+    return NextResponse.json({ message: "Not found" }, { status: 404 });
+  }
   try {
     const data = await fn();
     return NextResponse.json(data ?? null);

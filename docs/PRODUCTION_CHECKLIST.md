@@ -26,6 +26,9 @@ Legend: ✅ done · 🟡 action needed (dashboard/process) · 🔜 do at domain 
 | Converted product image to `next/image` (optimization, lazy-load, modern formats) | `src/components/ui/ProductThumb.tsx` | Performance → Image Optimization |
 | Vercel Speed Insights + Web Analytics wired in | `src/app/layout.tsx` | Performance → Speed Insights |
 | Bumped Next.js 14.2.15 → **14.2.35** (clears the **critical** CVE + practically-exploitable ones, non-breaking) | `package.json` | Security → dependency vulns |
+| Firebase **App Check** (reCAPTCHA v3) wired, env-gated — no-op until a key is set | `src/lib/firebase/client.ts` | Security → rate limiting / abuse |
+| Reference `/api/*` routes **disabled by default** (404 unless `ENABLE_REFERENCE_API=true`); `/api/health` stays up | `src/lib/server/http.ts` | Security → close dead endpoints |
+| `robots.txt` keeps crawlers off `/admin`, `/api`, account/order pages | `src/app/robots.ts` | Security / SEO hygiene |
 
 After deploying, **verify three flows** (the CSP allow-lists are scoped to these):
 1. Google login (Firebase auth iframe + popup)
@@ -63,18 +66,18 @@ directive in `next.config.mjs`.
 | SSL certificate issues | 🔜 | Vercel auto-provisions & renews certs. Just ensure DNS is correct at cutover; nothing to do now on `*.vercel.app`. |
 | Preview Deployment Suffix w/ custom domain | ⬜ | Pro feature. N/A on Hobby. |
 | Commit lockfiles | ✅ | `package-lock.json` is committed. |
-| Rate limiting | 🟡 | App hits Firebase directly, so enforce at the Firebase layer: enable **Firebase App Check** (reCAPTCHA Enterprise/v3) and keep tight Firestore rules (already in `firestore.rules`). For the unused `/api/*` routes, add a Vercel Firewall rate-limit rule **or remove them** (see below). |
+| Rate limiting | ✅ 🟡 | **App Check is now wired** (`client.ts`, env-gated). To activate: register a reCAPTCHA v3 key in Firebase console → App Check, set `NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY`, then turn on enforcement. Firestore rules already tight. |
 | Access roles for team | ⬜ | Hobby is single-user. Configure roles when you move to a Team/Pro plan. |
 | SAML SSO | ⬜ | Pro add-on / Enterprise. |
 | SCIM | ⬜ | Enterprise. |
 | Audit Logs | ⬜ | Enterprise. |
 | Cookie policy compliance | ⬜ | Enterprise item. (Separately: if you add marketing/analytics for EU users, add a consent banner — not required for the current auth-only cookies.) |
-| Firewall rule to block bots | 🟡 | Enable **Attack Challenge Mode** in the Firewall tab when needed; add a `robots` disallow for admin paths if you want them out of crawlers. Full Bot Management is Pro+. |
+| Firewall rule to block bots | ✅ 🟡 | `robots.txt` now disallows `/admin`, `/api` and account/order paths. Enable **Attack Challenge Mode** in the Firewall tab when under attack. Full Bot Management is Pro+. |
 
-**Recommendation — the unused `/api/*` routes:** they deploy as public serverless
-functions but aren't used by the Firebase client. Either delete them before launch
-(smaller attack surface, fewer functions) or protect them with a Firewall rule. Low
-risk today (they're thin), but dead public endpoints are worth closing.
+**Done — the unused `/api/*` routes:** they now return **404 by default** (gated behind
+`ENABLE_REFERENCE_API`), so they're no longer dead, publicly-reachable mutation
+endpoints. The code stays for local reference use; `/api/health` remains up for uptime
+checks.
 
 ## Reliability
 
@@ -128,8 +131,8 @@ risk today (they're thin), but dead public endpoints are worth closing.
 1. ✅ Deploy this branch and **verify login / map / images** (CSP).
 2. 🟡 Turn on **Vercel Authentication** for Preview deployments.
 3. 🟡 Enable **Fluid Compute**.
-4. 🟡 Enable **Firebase App Check** (rate-limit/abuse protection for the direct-to-Firebase calls).
+4. 🟡 Activate **Firebase App Check**: register a reCAPTCHA v3 key, set `NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY`, enable enforcement (code already wired).
 5. 🟡 Confirm **Firestore region == `asia-south1`** to match `bom1`.
-6. 🟡 Decide on the unused `/api/*` routes (delete or firewall).
+6. ✅ Unused `/api/*` routes — done (gated to 404 by default).
 7. 📘 Practice an **Instant Rollback** once so you know the muscle memory.
 8. 🔜 Plan a **Next.js 15 upgrade** (tested, not a blind bump) to fully clear the remaining advisories — most don't apply to this app's feature usage today, so this is important-but-not-blocking.
