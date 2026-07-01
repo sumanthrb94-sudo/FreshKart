@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult } from "firebase/auth";
-import { Check, Loader2 } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { Check, Loader2, ShieldCheck, Store } from "lucide-react";
+import { api, ApiError, usingMockBackend } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { sendOtp, toE164, resetRecaptcha } from "@/lib/firebase/phone-auth";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -45,7 +45,7 @@ const FLOATERS = [
 
 export function OnboardingScreen() {
   const router = useRouter();
-  const { refreshUser } = useAuth();
+  const { login, refreshUser } = useAuth();
 
   const [step, setStep] = useState<Step>("mobile");
   const [phone, setPhone] = useState("");
@@ -55,6 +55,7 @@ export function OnboardingScreen() {
   const [method, setMethod] = useState<"phone" | "google" | null>(null);
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [demoBusy, setDemoBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
 
@@ -72,6 +73,20 @@ export function OnboardingScreen() {
 
   const stepIndex = STEP_ORDER.indexOf(step as Step);
   const googleEnabled = typeof api.signInWithGoogle === "function";
+
+  async function handleDemoLogin(role: "ADMIN" | "BUYER") {
+    setDemoBusy(true);
+    setError(null);
+    try {
+      const email = role === "ADMIN" ? "admin@freshkart.in" : "customer@freshkart.in";
+      const user = await login({ email, password: "password123" });
+      router.replace(user.role === "ADMIN" ? "/admin" : "/");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Demo login failed.");
+    } finally {
+      setDemoBusy(false);
+    }
+  }
 
   async function handleGoogle() {
     if (!api.signInWithGoogle) {
@@ -301,14 +316,46 @@ export function OnboardingScreen() {
             <h2 className="text-lg font-extrabold text-fg">Sign in to continue</h2>
             <p className="mt-1 text-sm text-fg-subtle">Use whichever&apos;s easiest for your shop.</p>
 
+            {/* Demo login buttons (mock mode only) */}
+            {usingMockBackend && (
+              <>
+                <div className="mt-4 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDemoLogin("ADMIN")}
+                    disabled={demoBusy}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-amber-600 disabled:opacity-50"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    {demoBusy ? "Logging in…" : "Demo: Admin"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDemoLogin("BUYER")}
+                    disabled={demoBusy}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold text-fg-muted shadow-sm transition-colors hover:bg-raised disabled:opacity-50"
+                  >
+                    <Store className="h-4 w-4" />
+                    {demoBusy ? "Logging in…" : "Demo: Buyer"}
+                  </button>
+                </div>
+
+                <div className="my-4 flex items-center gap-3">
+                  <span className="h-px flex-1 bg-line" />
+                  <span className="text-xs font-medium text-fg-subtle">or sign in</span>
+                  <span className="h-px flex-1 bg-line" />
+                </div>
+              </>
+            )}
+
             {/* Primary: Google */}
             {googleEnabled && (
               <>
                 <button
                   type="button"
                   onClick={handleGoogle}
-                  disabled={busy || googleBusy}
-                  className="mt-5 flex w-full items-center justify-center gap-3 rounded-xl border border-line bg-surface py-3.5 text-base font-bold text-fg-muted shadow-sm transition-colors hover:bg-raised disabled:opacity-50"
+                  disabled={busy || googleBusy || demoBusy}
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-line bg-surface py-3.5 text-base font-bold text-fg-muted shadow-sm transition-colors hover:bg-raised disabled:opacity-50"
                 >
                   {googleBusy ? (
                     <Loader2 className="h-5 w-5 animate-spin text-fg-subtle" />
@@ -343,7 +390,7 @@ export function OnboardingScreen() {
             </div>
             <button
               type="button"
-              disabled={phone.length < 10 || busy || googleBusy}
+              disabled={phone.length < 10 || busy || googleBusy || demoBusy}
               onClick={handleSendOtp}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
             >
