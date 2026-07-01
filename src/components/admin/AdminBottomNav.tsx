@@ -8,6 +8,7 @@ import {
   Boxes,
   ClipboardList,
   Users,
+  FileBarChart,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,10 +25,11 @@ const TABS: Tab[] = [
   { href: "/admin/pos", label: "POS", icon: ScanLine, isActive: (p) => p.startsWith("/admin/pos") },
   { href: "/admin/products", label: "Inventory", icon: Boxes, isActive: (p) => p.startsWith("/admin/products") },
   { href: "/admin/orders", label: "Orders", icon: ClipboardList, isActive: (p) => p.startsWith("/admin/orders") },
-  { href: "/admin/customers", label: "Customers", icon: Users, isActive: (p) => p.startsWith("/admin/customers") },
+  { href: "/admin/customers", label: "Buyers", icon: Users, isActive: (p) => p.startsWith("/admin/customers") },
+  { href: "/admin/reports", label: "Report", icon: FileBarChart, isActive: (p) => p.startsWith("/admin/reports") },
 ];
 
-/** Admin bottom tab bar — Dashboard · POS · Inventory · Orders · Customers. */
+/** Admin bottom tab bar — Dashboard · POS · Inventory · Orders · Buyers · Report. */
 export function AdminBottomNav() {
   const pathname = usePathname() || "/admin";
 
