@@ -35,7 +35,7 @@ export function AdminReportScreen() {
   // Generate on mount
   useEffect(() => {
     generate();
-  }, []);
+  }, [generate]);
 
   const downloadCSV = useCallback(() => {
     if (!report) return;
