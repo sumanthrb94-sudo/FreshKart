@@ -10,6 +10,7 @@ import {
   sendOtp,
   toE164,
   resetRecaptcha,
+  renderRecaptcha,
   PhoneAuthError,
 } from "@/lib/firebase/phone-auth";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -62,11 +63,30 @@ export function OnboardingScreen() {
   const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
+  const [recaptchaReady, setRecaptchaReady] = useState(false);
 
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
   const confirmation = useRef<ConfirmationResult | null>(null);
 
   useEffect(() => () => resetRecaptcha(), []);
+
+  useEffect(() => {
+    if (step === "mobile" && firebaseConfigured) {
+      setRecaptchaReady(false);
+      try {
+        renderRecaptcha(
+          RECAPTCHA_ID,
+          () => setRecaptchaReady(true),
+          () => setRecaptchaReady(false)
+        );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not load security check.");
+      }
+    }
+    return () => {
+      if (step !== "mobile") resetRecaptcha();
+    };
+  }, [step]);
 
   // Tick down the resend cooldown.
   useEffect(() => {
@@ -113,18 +133,20 @@ export function OnboardingScreen() {
       setError("Auth is not configured. Set the Firebase env vars to enable sign-in.");
       return;
     }
+    if (!recaptchaReady) {
+      setError("Please complete the security check above.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      // Fresh reCAPTCHA each send so a resend (after navigating to the OTP
-      // screen) binds to the current mount point rather than a stale node.
-      resetRecaptcha();
       confirmation.current = await sendOtp(toE164(phone), RECAPTCHA_ID);
       setOtp(["", "", "", "", "", ""]);
       setStep("verify");
       setResendIn(30);
     } catch (e) {
       resetRecaptcha();
+      setRecaptchaReady(false);
       const message =
         e instanceof PhoneAuthError
           ? e.message
@@ -350,9 +372,14 @@ export function OnboardingScreen() {
                 className="h-12 flex-1 bg-transparent text-lg font-semibold tracking-wide text-fg outline-none placeholder:font-normal placeholder:text-fg-subtle"
               />
             </div>
+            {/* Visible reCAPTCHA widget — much more reliable than invisible on mobile */}
+            <div className="mt-3 flex justify-center">
+              <div id={RECAPTCHA_ID} />
+            </div>
+
             <button
               type="button"
-              disabled={phone.length < 10 || busy || googleBusy}
+              disabled={phone.length < 10 || busy || googleBusy || !recaptchaReady}
               onClick={handleSendOtp}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
             >
@@ -366,9 +393,6 @@ export function OnboardingScreen() {
               By continuing you agree to FreshKart&apos;s Terms &amp; Privacy Policy.
             </p>
           </div>
-
-          {/* Invisible reCAPTCHA mount point for phone OTP */}
-          <div id={RECAPTCHA_ID} />
         </div>
       </div>
     );
@@ -437,11 +461,15 @@ export function OnboardingScreen() {
               ) : (
                 <button
                   type="button"
-                  onClick={handleSendOtp}
+                  onClick={() => {
+                    resetRecaptcha();
+                    setRecaptchaReady(false);
+                    setStep("mobile");
+                  }}
                   disabled={busy}
                   className="font-semibold text-brand-400 disabled:opacity-50"
                 >
-                  {busy ? "Sending…" : "Resend code"}
+                  Resend code
                 </button>
               )}
             </div>
@@ -522,9 +550,6 @@ export function OnboardingScreen() {
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
           </div>
         )}
-
-        {/* Invisible reCAPTCHA mount point for phone auth */}
-        <div id={RECAPTCHA_ID} />
       </div>
     </div>
   );

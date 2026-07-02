@@ -6,8 +6,12 @@ import {
 import { getFirebaseAuth } from "./client";
 
 /**
- * Firebase Phone Authentication helpers (browser only). Phone sign-in requires
- * an invisible reCAPTCHA verifier; we keep a single instance per page.
+ * Firebase Phone Authentication helpers (browser only).
+ *
+ * We use a **visible** reCAPTCHA v2 widget instead of invisible because invisible
+ * reCAPTCHA frequently fails silently on mobile (challenge never surfaces,
+ * CSP/fetch blocked, or the user never sees the image challenge). The visible
+ * checkbox is one extra tap but works reliably across devices and browsers.
  *
  * For local/test sign-in without real SMS, add a test phone number in
  * Firebase console → Authentication → Sign-in method → Phone → "Phone numbers
@@ -24,35 +28,6 @@ function getContainer(containerId: string): HTMLElement {
     );
   }
   return el;
-}
-
-async function ensureVerifier(containerId: string): Promise<RecaptchaVerifier> {
-  if (verifier) return verifier;
-
-  const container = getContainer(containerId);
-
-  // The invisible reCAPTCHA must be attached to a visible, rendered element.
-  // Wait one frame so the container is fully laid out before mounting.
-  await new Promise((res) => requestAnimationFrame(() => res(undefined)));
-
-  verifier = new RecaptchaVerifier(getFirebaseAuth(), container, {
-    size: "invisible",
-    callback: () => {
-      // reCAPTCHA solved silently — signInWithPhoneNumber will proceed.
-    },
-    "expired-callback": () => {
-      // Token expired; force a fresh verifier on the next attempt.
-      resetRecaptcha();
-    },
-  });
-  return verifier;
-}
-
-/** Normalize a 10-digit Indian number (or any input) to E.164 (+91…). */
-export function toE164(input: string, countryCode = "+91"): string {
-  const digits = input.replace(/\D/g, "");
-  if (input.trim().startsWith("+")) return `+${digits}`;
-  return `${countryCode}${digits}`;
 }
 
 /** Human-friendly error with the original Firebase code preserved. */
@@ -98,7 +73,7 @@ function normalizeFirebaseError(e: unknown): PhoneAuthError {
     case code.includes("recaptcha"):
       return new PhoneAuthError(
         code,
-        "reCAPTCHA check failed. Disable ad-blockers, refresh the page, and try again."
+        "reCAPTCHA check failed. Complete the 'I'm not a robot' box, disable ad-blockers, and try again."
       );
     case code.includes("network-request-failed"):
       return new PhoneAuthError(code, "Network error. Please check your connection and try again.");
@@ -113,6 +88,47 @@ function normalizeFirebaseError(e: unknown): PhoneAuthError {
   }
 }
 
+/** Normalize a 10-digit Indian number (or any input) to E.164 (+91…). */
+export function toE164(input: string, countryCode = "+91"): string {
+  const digits = input.replace(/\D/g, "");
+  if (input.trim().startsWith("+")) return `+${digits}`;
+  return `${countryCode}${digits}`;
+}
+
+/**
+ * Render a visible reCAPTCHA widget in the given container.
+ * Returns a promise that resolves once the user checks the box, and rejects
+ * if the challenge expires before sign-in proceeds.
+ */
+export function renderRecaptcha(
+  containerId: string,
+  onVerified: () => void,
+  onExpired: () => void
+): void {
+  resetRecaptcha();
+  const container = getContainer(containerId);
+
+  try {
+    verifier = new RecaptchaVerifier(getFirebaseAuth(), container, {
+      size: "normal",
+      callback: () => {
+        onVerified();
+      },
+      "expired-callback": () => {
+        onExpired();
+      },
+    });
+    verifier.render().catch(() => {
+      throw new PhoneAuthError(
+        "RECAPTCHA_RENDER_FAILED",
+        "Could not load the security check. Please refresh the page."
+      );
+    });
+  } catch (e) {
+    throw normalizeFirebaseError(e);
+  }
+}
+
 /** Send an OTP; returns a confirmation handle used to verify the code. */
 export async function sendOtp(
   phoneE164: string,
@@ -120,16 +136,20 @@ export async function sendOtp(
 ): Promise<ConfirmationResult> {
   try {
     const auth = getFirebaseAuth();
-    const v = await ensureVerifier(recaptchaContainerId);
-    return await signInWithPhoneNumber(auth, phoneE164, v);
+    if (!verifier) {
+      throw new PhoneAuthError(
+        "RECAPTCHA_NOT_READY",
+        "Please complete the reCAPTCHA check before requesting the code."
+      );
+    }
+    return await signInWithPhoneNumber(auth, phoneE164, verifier);
   } catch (e) {
-    // Reset the verifier on any failure so the next attempt starts clean.
     resetRecaptcha();
     throw normalizeFirebaseError(e);
   }
 }
 
-/** Tear down the reCAPTCHA (e.g. after a failed send) so it can be recreated. */
+/** Tear down the reCAPTCHA so it can be recreated. */
 export function resetRecaptcha(): void {
   try {
     verifier?.clear();
