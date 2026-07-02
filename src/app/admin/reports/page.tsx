@@ -1,16 +1,15 @@
 import { Metadata } from "next";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { AdminReportScreen } from "@/components/admin/AdminReportScreen";
+import { AdminReportsHub } from "@/components/admin/AdminReportsHub";
 
 export const metadata: Metadata = {
-  title: "Supplier Report",
+  title: "Reports",
 };
 
-/** Supplier order report page. */
 export default function AdminReportsPage() {
   return (
     <AdminShell>
-      <AdminReportScreen />
+      <AdminReportsHub />
     </AdminShell>
   );
 }
