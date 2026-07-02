@@ -7,6 +7,10 @@
     {
       "path": "/api/supplier-report?format=csv",
       "schedule": "30 12 * * *"
+    },
+    {
+      "path": "/api/reports?type=inventory&format=csv",
+      "schedule": "30 16 * * *"
     }
   ]
 }
