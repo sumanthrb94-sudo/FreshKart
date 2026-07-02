@@ -97,14 +97,14 @@ export function toE164(input: string, countryCode = "+91"): string {
 
 /**
  * Render a visible reCAPTCHA widget in the given container.
- * Returns a promise that resolves once the user checks the box, and rejects
- * if the challenge expires before sign-in proceeds.
+ * Resolves once the widget is rendered, and calls the callbacks when the user
+ * checks the box or the challenge expires.
  */
-export function renderRecaptcha(
+export async function renderRecaptcha(
   containerId: string,
   onVerified: () => void,
   onExpired: () => void
-): void {
+): Promise<void> {
   resetRecaptcha();
   const container = getContainer(containerId);
 
@@ -118,13 +118,11 @@ export function renderRecaptcha(
         onExpired();
       },
     });
-    verifier.render().catch(() => {
-      throw new PhoneAuthError(
-        "RECAPTCHA_RENDER_FAILED",
-        "Could not load the security check. Please refresh the page."
-      );
-    });
+    await verifier.render();
   } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("[reCAPTCHA] render failed:", e);
+    resetRecaptcha();
     throw normalizeFirebaseError(e);
   }
 }

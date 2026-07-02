@@ -71,19 +71,23 @@ export function OnboardingScreen() {
   useEffect(() => () => resetRecaptcha(), []);
 
   useEffect(() => {
+    let mounted = true;
     if (step === "mobile" && firebaseConfigured) {
       setRecaptchaReady(false);
-      try {
-        renderRecaptcha(
-          RECAPTCHA_ID,
-          () => setRecaptchaReady(true),
-          () => setRecaptchaReady(false)
-        );
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not load security check.");
-      }
+      renderRecaptcha(
+        RECAPTCHA_ID,
+        () => {
+          if (mounted) setRecaptchaReady(true);
+        },
+        () => {
+          if (mounted) setRecaptchaReady(false);
+        }
+      ).catch((e) => {
+        if (mounted) setError(e instanceof Error ? e.message : "Could not load security check.");
+      });
     }
     return () => {
+      mounted = false;
       if (step !== "mobile") resetRecaptcha();
     };
   }, [step]);
