@@ -4,10 +4,9 @@ import { useState, useCallback } from "react";
 import { RefreshCw, TrendingUp, TrendingDown, Save, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
-import type { Product } from "@/lib/types";
 
 export function AdminPriceUpdateScreen() {
-  const { data: products, loading, error, refetch } = useAsync(() => api.listProducts({}), []);
+  const { data: products, loading, error, refetch } = useAsync(() => api.listProducts(), []);
   const [updates, setUpdates] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
