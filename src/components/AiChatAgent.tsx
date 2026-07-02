@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import {
   createChatSession,
   processUserMessage,
-  QUICK_ACTIONS,
 } from "@/lib/ai-chat";
 import type { ChatSession, ChatMessage } from "@/lib/ai-chat";
 

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { RETURN_REASON_LABELS, canBuyerMessage, addThreadMessage } from "@/lib/returns";
+import { RETURN_REASON_LABELS, canBuyerMessage, addThreadMessage, demoReturnRequests } from "@/lib/returns";
 import type { ReturnRequest, ReturnMessage, ReturnStatus } from "@/lib/returns";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
@@ -35,20 +35,21 @@ const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: 
   COMPLETED: { label: "Completed", color: "text-brand-500 bg-brand-500/10", icon: CheckCircle2 },
 };
 
+// FIX: Static import instead of dynamic import (Critical Bug #4)
 function useReturnRequest(id: string) {
   const [data, setData] = useState<ReturnRequest | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check localStorage first
     const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
     const found = stored.find((r: ReturnRequest) => r.id === id);
-    if (found) setData(found);
-    // Also check demo data
-    if (!found) {
-      import("@/lib/returns").then((mod) => {
-        const demo = mod.demoReturnRequests.find((r) => r.id === id);
-        if (demo) setData(demo);
-      });
+    if (found) {
+      setData(found);
+    } else {
+      // Check demo data (static import)
+      const demo = demoReturnRequests.find((r) => r.id === id);
+      if (demo) setData(demo);
     }
     setLoading(false);
   }, [id]);
@@ -56,7 +57,12 @@ function useReturnRequest(id: string) {
   const refresh = () => {
     const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
     const found = stored.find((r: ReturnRequest) => r.id === id);
-    setData(found || null);
+    if (found) {
+      setData(found);
+    } else {
+      const demo = demoReturnRequests.find((r) => r.id === id);
+      setData(demo || null);
+    }
   };
 
   return { data, loading, refresh };
@@ -76,11 +82,20 @@ export function ReturnThreadScreen({ id }: { id: string }) {
   const handleSend = () => {
     if (!reply.trim() || !returnReq) return;
     setSending(true);
+
+    // Update localStorage
     const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
     const idx = stored.findIndex((r: ReturnRequest) => r.id === id);
     if (idx !== -1) {
       addThreadMessage(stored[idx], "buyer", reply.trim());
       localStorage.setItem("freshkart_returns", JSON.stringify(stored));
+      setReply("");
+      refresh();
+    } else {
+      // For demo data, create a localStorage copy
+      const demoCopy = { ...returnReq, thread: [...returnReq.thread] };
+      addThreadMessage(demoCopy, "buyer", reply.trim());
+      localStorage.setItem("freshkart_returns", JSON.stringify([...stored, demoCopy]));
       setReply("");
       refresh();
     }
@@ -199,16 +214,17 @@ export function ReturnThreadScreen({ id }: { id: string }) {
                 type="text"
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                onKeyDown={(e) => e.key === "Enter" && !sending && handleSend()}
                 placeholder="Type a message..."
-                className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
+                disabled={sending}
+                className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle disabled:opacity-50"
               />
               <button
                 onClick={handleSend}
                 disabled={!reply.trim() || sending}
                 className={cn(
                   "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all",
-                  reply.trim() ? "bg-brand-500 text-white hover:bg-brand-600" : "bg-line text-fg-subtle"
+                  reply.trim() && !sending ? "bg-brand-500 text-white hover:bg-brand-600" : "bg-line text-fg-subtle"
                 )}
               >
                 <Send className="h-4 w-4" />

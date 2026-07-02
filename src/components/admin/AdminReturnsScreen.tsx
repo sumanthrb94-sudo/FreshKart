@@ -46,6 +46,7 @@ export function AdminReturnsScreen() {
   const [filter, setFilter] = useState<ReturnStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [threadVersion, setThreadVersion] = useState(0); // FIX: Force re-render on thread change
 
   const refresh = () => {
     const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
@@ -68,6 +69,34 @@ export function AdminReturnsScreen() {
     if (idx !== -1) {
       stored[idx].status = newStatus;
       stored[idx].resolvedAt = new Date().toISOString();
+      localStorage.setItem("freshkart_returns", JSON.stringify(stored));
+    }
+  };
+
+  // FIX: Create a fresh copy of the return with thread updates (Critical Bug #2)
+  const handleSendReply = (returnId: string, text: string) => {
+    if (!text.trim()) return;
+
+    // Update in React state first (create new object for re-render)
+    setReturns((prev) =>
+      prev.map((r) => {
+        if (r.id !== returnId) return r;
+        const newMsg: ReturnMessage = {
+          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          sender: "admin",
+          text: text.trim(),
+          sentAt: new Date().toISOString(),
+        };
+        return { ...r, thread: [...r.thread, newMsg] };
+      })
+    );
+    setThreadVersion((v) => v + 1);
+
+    // Update localStorage
+    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+    const idx = stored.findIndex((r: ReturnRequest) => r.id === returnId);
+    if (idx !== -1) {
+      addThreadMessage(stored[idx], "admin", text.trim());
       localStorage.setItem("freshkart_returns", JSON.stringify(stored));
     }
   };
@@ -120,9 +149,11 @@ export function AdminReturnsScreen() {
         </>
       ) : (
         <ReturnDetail
+          key={activeReturn.id + threadVersion} // Force re-render on thread change
           returnReq={activeReturn}
           onBack={() => setDetailId(null)}
           onStatusChange={handleStatusChange}
+          onSendReply={handleSendReply}
         />
       )}
     </div>
@@ -169,10 +200,12 @@ function ReturnDetail({
   returnReq,
   onBack,
   onStatusChange,
+  onSendReply,
 }: {
   returnReq: ReturnRequest;
   onBack: () => void;
   onStatusChange: (id: string, status: ReturnStatus) => void;
+  onSendReply: (id: string, text: string) => void;
 }) {
   const [reply, setReply] = useState("");
   const [notes, setNotes] = useState(returnReq.adminNotes || "");
@@ -188,14 +221,7 @@ function ReturnDetail({
 
   const handleSendReply = () => {
     if (!reply.trim()) return;
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-    const idx = stored.findIndex((r: ReturnRequest) => r.id === returnReq.id);
-    if (idx !== -1) {
-      addThreadMessage(stored[idx], "admin", reply.trim());
-      localStorage.setItem("freshkart_returns", JSON.stringify(stored));
-    }
-    // Also update demo data
-    addThreadMessage(returnReq, "admin", reply.trim());
+    onSendReply(returnReq.id, reply.trim());
     setReply("");
   };
 
@@ -211,7 +237,6 @@ function ReturnDetail({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Header */}
       <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
         <button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg-muted">
           <ArrowLeft className="h-3.5 w-3.5" /> All returns
@@ -233,9 +258,7 @@ function ReturnDetail({
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {/* Summary */}
         <div className="rounded-xl border border-line bg-surface p-4 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-fg-subtle">Refund amount</span>
@@ -251,7 +274,6 @@ function ReturnDetail({
           </div>
         </div>
 
-        {/* Items */}
         <div className="rounded-xl border border-line bg-surface p-4">
           <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-subtle">Items</h3>
           <div className="space-y-2">
@@ -264,7 +286,6 @@ function ReturnDetail({
           </div>
         </div>
 
-        {/* Images */}
         {returnReq.images.length > 0 && (
           <div className="rounded-xl border border-line bg-surface p-4">
             <h3 className="mb-2 flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-fg-subtle">
@@ -280,7 +301,6 @@ function ReturnDetail({
           </div>
         )}
 
-        {/* Admin notes */}
         <div className="rounded-xl border border-line bg-surface p-4">
           <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-subtle">Internal notes</h3>
           <textarea
@@ -293,7 +313,6 @@ function ReturnDetail({
           />
         </div>
 
-        {/* Status actions */}
         {transitions.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {transitions.map((nextStatus) => (
@@ -308,7 +327,6 @@ function ReturnDetail({
           </div>
         )}
 
-        {/* Thread */}
         <div className="space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wide text-fg-subtle">Conversation Thread</h3>
           {returnReq.thread.map((msg) => (
@@ -318,7 +336,6 @@ function ReturnDetail({
         </div>
       </div>
 
-      {/* Reply input */}
       {canReply && (
         <div className="shrink-0 border-t border-line bg-surface px-4 py-3">
           <div className="flex items-center gap-2 rounded-xl border border-line bg-raised px-3 py-2">

@@ -1,4 +1,4 @@
-/** AI Chat Agent for FreshKart — Order Help & FAQ
+/** AI Chat Agent for FreshKart - Order Help & FAQ
  *  Provides intelligent responses for order tracking, returns, refunds,
  *  store policies, and basic product inquiries.
  */
@@ -22,13 +22,18 @@ const FAQ_RESPONSES: Record<string, string> = {
   "hours": "Our store is open from 9:00 AM to 10:00 PM IST, seven days a week. Prices are updated daily at 7:00 AM before opening.",
   "open": "We are open 9:00 AM - 10:00 PM IST daily. If you are seeing a closed message, we will be back at 9:00 AM tomorrow!",
   "close": "We close at 10:00 PM IST. Last order acceptance is at 9:30 PM for next-day delivery.",
+  "closing": "We close at 10:00 PM IST. Last order acceptance is at 9:30 PM for next-day delivery.",
   "delivery": "We deliver fresh produce directly to your business location. Delivery is typically next-day for orders placed before 6:00 PM.",
+  "deliver": "We deliver fresh produce directly to your business location. Delivery is typically next-day for orders placed before 6:00 PM.",
   "shipping": "Orders placed before 6:00 PM are delivered the next business day. Orders after 6:00 PM are delivered the following day.",
+  "ship": "Orders placed before 6:00 PM are delivered the next business day. Orders after 6:00 PM are delivered the following day.",
   "minimum": "The minimum order quantity is 1 kg for most items. Cauliflower is sold per piece (1 unit).",
+  "min": "The minimum order quantity is 1 kg for most items. Cauliflower is sold per piece (1 unit).",
   "cancel": "You can cancel your order from the order tracking screen while it is in PENDING status. Once confirmed, cancellation requires contacting support.",
   "return": "To start a return, go to your order and tap Request Return. You can upload photos of damaged items and our team will respond within 24 hours.",
   "refund": "Refunds are processed within 3-5 business days after the returned items are picked up. The refund amount is credited to your original payment method.",
   "payment": "We accept online payments via Razorpay (UPI, Cards, Net Banking), Cash on Delivery, and Credit for verified business accounts.",
+  "pay": "We accept online payments via Razorpay (UPI, Cards, Net Banking), Cash on Delivery, and Credit for verified business accounts.",
   "upi": "UPI payments are accepted via Razorpay. You can pay using any UPI app: GPay, PhonePe, Paytm, or any BHIM UPI app.",
   "invoice": "You can download your invoice from the order details screen. Tap Download Invoice to get a printable PDF.",
   "contact": "Need to talk? Tap the Call Now button anywhere in the app to reach our customer service team directly.",
@@ -39,11 +44,14 @@ const FAQ_RESPONSES: Record<string, string> = {
   "account": "You can update your business profile from the Profile screen. Tap your name in the header to access account settings.",
   "password": "To reset your password, sign out and use the Forgot Password option on the login screen. A reset link will be sent to your email.",
   "register": "New users can register by providing business name, email, phone, and city. Approval is instant for B2B buyers.",
+  "sign up": "New users can register by providing business name, email, phone, and city. Approval is instant for B2B buyers.",
   "privacy": "We take your privacy seriously. Your data is encrypted and never shared with third parties. Read our full Privacy Policy at fresh-kart-six.vercel.app/privacy",
   "gst": "GST invoices are auto-generated for all orders. Your GSTIN can be added in your profile settings.",
   "bulk": "For bulk orders above 500 kg, please contact our sales team via Call Now for special wholesale pricing.",
   "price": "Prices are updated daily at 7:00 AM based on market rates. All prices shown are current and include any applicable taxes.",
+  "cost": "Prices are updated daily at 7:00 AM based on market rates. All prices shown are current and include any applicable taxes.",
   "language": "The app supports multiple languages. Language selection will be available in your profile settings soon.",
+  "lang": "The app supports multiple languages. Language selection will be available in your profile settings soon.",
 };
 
 const GREETING = "Hello! I am FreshKart Assistant. I can help you with orders, returns, delivery, payments, and store policies. What can I help you with today?";
@@ -59,13 +67,13 @@ const FOLLOW_UP_SUGGESTIONS = [
 /** Simple keyword matcher for FAQ responses */
 function matchFAQ(input: string): string | null {
   const lower = input.toLowerCase();
-  
+
   for (const [keyword, response] of Object.entries(FAQ_RESPONSES)) {
     if (lower.includes(keyword)) {
       return response;
     }
   }
-  
+
   // Multi-word patterns
   if (lower.includes("how do") && lower.includes("return")) {
     return FAQ_RESPONSES["return"];
@@ -75,6 +83,9 @@ function matchFAQ(input: string): string | null {
   }
   if (lower.includes("how") && lower.includes("pay")) {
     return FAQ_RESPONSES["payment"];
+  }
+  if (lower.includes("how") && lower.includes("get")) {
+    return "I can help you with that! Try asking about orders, returns, delivery, or tap the Call Now button to speak with our team.";
   }
   if (lower.includes("track") || lower.includes("where") || lower.includes("status")) {
     return "You can track your order in real-time from the Orders screen. Tap any order to see its current status: Placed, Confirmed, Packed, Out for Delivery, or Delivered.";
@@ -88,7 +99,7 @@ function matchFAQ(input: string): string | null {
   if (lower.includes("bye") || lower.includes("goodbye")) {
     return "Goodbye! Feel free to come back anytime you need assistance. FreshKart is here for you 24/7!";
   }
-  
+
   return null;
 }
 

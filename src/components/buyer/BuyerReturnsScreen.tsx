@@ -2,14 +2,25 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, RotateCcw, Clock, CheckCircle2, XCircle, Truck, IndianRupee, ChevronRight, PackageX } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  RotateCcw,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Truck,
+  IndianRupee,
+  ChevronRight,
+  PackageX,
+} from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { RETURN_REASON_LABELS } from "@/lib/returns";
+import { RETURN_REASON_LABELS, demoReturnRequests } from "@/lib/returns";
 import type { ReturnRequest, ReturnStatus } from "@/lib/returns";
 
 const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: typeof Clock }> = {
@@ -25,8 +36,24 @@ export function BuyerReturnsScreen() {
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
 
   useEffect(() => {
+    // FIX: Merge demo data with stored data (Critical Bug #3)
     const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-    setReturns(stored);
+    const merged = [
+      ...demoReturnRequests,
+      ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id)),
+    ];
+    setReturns(merged);
+
+    // Listen for storage changes from other tabs/components
+    const handleStorage = () => {
+      const updated = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      setReturns([
+        ...demoReturnRequests,
+        ...updated.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id)),
+      ]);
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
   return (
