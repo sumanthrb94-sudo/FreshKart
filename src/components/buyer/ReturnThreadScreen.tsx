@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   Send,
   Phone,
-  Package,
   Clock,
   CheckCircle2,
   XCircle,
@@ -27,7 +26,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 
-const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: typeof CheckCircle2 }> = {
+const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: typeof Clock }> = {
   REQUESTED: { label: "Requested", color: "text-amber-500 bg-amber-500/10", icon: Clock },
   APPROVED: { label: "Approved", color: "text-emerald-500 bg-emerald-500/10", icon: CheckCircle2 },
   REJECTED: { label: "Rejected", color: "text-red-500 bg-red-500/10", icon: XCircle },
@@ -36,15 +35,20 @@ const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: 
   COMPLETED: { label: "Completed", color: "text-brand-500 bg-brand-500/10", icon: CheckCircle2 },
 };
 
-function useReturnRequest(id: string): { data: ReturnRequest | null; loading: boolean; refresh: () => void } {
+function useReturnRequest(id: string) {
   const [data, setData] = useState<ReturnRequest | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
     const found = stored.find((r: ReturnRequest) => r.id === id);
-    if (found) {
-      setData(found);
+    if (found) setData(found);
+    // Also check demo data
+    if (!found) {
+      import("@/lib/returns").then((mod) => {
+        const demo = mod.demoReturnRequests.find((r) => r.id === id);
+        if (demo) setData(demo);
+      });
     }
     setLoading(false);
   }, [id]);
@@ -102,13 +106,11 @@ export function ReturnThreadScreen({ id }: { id: string }) {
   }
 
   const statusCfg = STATUS_CONFIG[returnReq.status];
-  const StatusIcon = statusCfg.icon;
   const canMessage = canBuyerMessage(returnReq.status);
 
   return (
     <AppShell header={<BuyerHeader />}>
       <div className="flex h-[calc(100dvh-56px)] flex-col">
-        {/* Header */}
         <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
           <button onClick={() => router.back()} className="flex items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg-muted">
             <ArrowLeft className="h-3.5 w-3.5" /> Back
@@ -119,14 +121,12 @@ export function ReturnThreadScreen({ id }: { id: string }) {
               <p className="text-xs text-fg-subtle">{returnReq.orderNumber}</p>
             </div>
             <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${statusCfg.color}`}>
-              <StatusIcon className="h-3 w-3" /> {statusCfg.label}
+              <statusCfg.icon className="h-3 w-3" /> {statusCfg.label}
             </span>
           </div>
         </div>
 
-        {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          {/* Return summary */}
           <Card>
             <CardBody className="p-4 space-y-2">
               <div className="flex items-center justify-between">
@@ -150,7 +150,6 @@ export function ReturnThreadScreen({ id }: { id: string }) {
             </CardBody>
           </Card>
 
-          {/* Items */}
           <Card>
             <CardBody className="p-4">
               <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-subtle">Items being returned</h3>
@@ -165,7 +164,6 @@ export function ReturnThreadScreen({ id }: { id: string }) {
             </CardBody>
           </Card>
 
-          {/* Uploaded images */}
           {returnReq.images.length > 0 && (
             <Card>
               <CardBody className="p-4">
@@ -183,7 +181,6 @@ export function ReturnThreadScreen({ id }: { id: string }) {
             </Card>
           )}
 
-          {/* Thread messages */}
           <div className="space-y-3">
             <h3 className="flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-fg-subtle">
               <Shield className="h-3.5 w-3.5" /> Conversation
@@ -195,7 +192,6 @@ export function ReturnThreadScreen({ id }: { id: string }) {
           </div>
         </div>
 
-        {/* Reply input */}
         {canMessage && (
           <div className="shrink-0 border-t border-line bg-surface px-4 py-3">
             <div className="flex items-center gap-2 rounded-xl border border-line bg-raised px-3 py-2">
@@ -228,7 +224,6 @@ export function ReturnThreadScreen({ id }: { id: string }) {
 function ThreadMessage({ message }: { message: ReturnMessage }) {
   const isSystem = message.sender === "system";
   const isBuyer = message.sender === "buyer";
-  const isAdmin = message.sender === "admin";
 
   if (isSystem) {
     return (
@@ -244,9 +239,9 @@ function ThreadMessage({ message }: { message: ReturnMessage }) {
     <div className={cn("flex items-start gap-2", isBuyer ? "flex-row-reverse" : "flex-row")}>
       <div className={cn(
         "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
-        isAdmin ? "bg-brand-500/10" : "bg-fg/10"
+        isBuyer ? "bg-fg/10" : "bg-brand-500/10"
       )}>
-        {isAdmin ? <Bot className="h-4 w-4 text-brand-500" /> : <User className="h-4 w-4 text-fg" />}
+        {isBuyer ? <User className="h-4 w-4 text-fg" /> : <Bot className="h-4 w-4 text-brand-500" />}
       </div>
       <div className={cn(
         "max-w-[80%] rounded-xl px-3 py-2 text-sm leading-relaxed",

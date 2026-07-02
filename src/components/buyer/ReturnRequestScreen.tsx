@@ -5,20 +5,16 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Camera,
-  Upload,
   X,
-  Package,
   Minus,
   Plus,
   AlertTriangle,
-  Send,
   CheckCircle2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { createReturnRequest, RETURN_REASON_LABELS } from "@/lib/returns";
 import type { ReturnReason, ReturnImage } from "@/lib/returns";
-import type { Order } from "@/lib/types";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { Card, CardBody } from "@/components/ui/Card";
@@ -38,6 +34,13 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
   const [submitted, setSubmitted] = useState(false);
   const [returnId, setReturnId] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const totalRefund = order?.items.reduce((sum, item) => {
+    const qty = returnQty[item.productId] || 0;
+    return sum + qty * item.price;
+  }, 0) || 0;
+
+  const hasAnyReturn = Object.values(returnQty).some((q) => q > 0);
 
   const handleQtyChange = (productId: string, delta: number, maxQty: number) => {
     setReturnQty((prev) => {
@@ -67,13 +70,6 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
     setImages((prev) => prev.filter((img) => img.id !== id));
   };
 
-  const totalRefund = order?.items.reduce((sum, item) => {
-    const qty = returnQty[item.productId] || 0;
-    return sum + qty * item.price;
-  }, 0) || 0;
-
-  const hasAnyReturn = Object.values(returnQty).some((q) => q > 0);
-
   const handleSubmit = useCallback(async () => {
     if (!order || !hasAnyReturn) return;
     setSubmitting(true);
@@ -101,7 +97,6 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
         images,
       });
 
-      // Store in localStorage for demo persistence
       const existing = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
       existing.push(returnReq);
       localStorage.setItem("freshkart_returns", JSON.stringify(existing));
@@ -173,7 +168,6 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
           <p className="text-xs text-fg-subtle">{order.orderNumber} &bull; {order.businessName}</p>
         </div>
 
-        {/* Items to return */}
         <Card>
           <CardBody className="p-4">
             <h2 className="mb-3 text-sm font-bold text-fg">Select items to return</h2>
@@ -209,7 +203,6 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
           </CardBody>
         </Card>
 
-        {/* Reason */}
         <Card>
           <CardBody className="p-4">
             <h2 className="mb-3 text-sm font-bold text-fg">Return reason</h2>
@@ -231,7 +224,6 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
           </CardBody>
         </Card>
 
-        {/* Notes */}
         <Card>
           <CardBody className="p-4">
             <h2 className="mb-2 text-sm font-bold text-fg">Additional notes</h2>
@@ -245,7 +237,6 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
           </CardBody>
         </Card>
 
-        {/* Image Upload */}
         <Card>
           <CardBody className="p-4">
             <h2 className="mb-2 text-sm font-bold text-fg">Upload photos</h2>
@@ -281,7 +272,6 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
           </CardBody>
         </Card>
 
-        {/* Summary */}
         {hasAnyReturn && (
           <Card>
             <CardBody className="p-4">
