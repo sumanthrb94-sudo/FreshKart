@@ -15,6 +15,7 @@ import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
 import { OrderTimeline } from "./OrderTimeline";
+import { InvoiceDownloader } from "@/components/InvoiceDownloader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { OrderStatusBadge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
@@ -91,6 +92,9 @@ export function OrderTrackingScreen({ id }: { id: string }) {
           </div>
           <OrderStatusBadge status={order.status} />
         </div>
+
+        {/* Invoice Download */}
+        <InvoiceDownloader order={order} fullWidth />
 
         {/* Tracking */}
         <Card>
