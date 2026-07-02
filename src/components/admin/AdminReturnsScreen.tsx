@@ -102,7 +102,7 @@ export function AdminReturnsScreen() {
               </div>
 
               {ret.notes && (
-                <p className="mt-1 text-xs text-fg-subtle italic">"{ret.notes}"</p>
+                <p className="mt-1 text-xs text-fg-subtle italic">&quot;{ret.notes}&quot;</p>
               )}
 
               {ret.status === "REQUESTED" && (
