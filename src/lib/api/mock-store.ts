@@ -1,5 +1,5 @@
 import type { Order, Product, User } from "@/lib/types";
-import { DEMO_PASSWORD, ORDERS, PRODUCTS, USERS } from "@/lib/mock-data";
+import { ORDERS, PRODUCTS, USERS } from "@/lib/mock-data";
 
 /**
  * Mutable in-memory store for the mock backend, persisted to localStorage so a
@@ -13,8 +13,6 @@ interface StoreShape {
   products: Product[];
   orders: Order[];
   users: User[];
-  /** email -> password. Internal to the mock; never part of the domain model. */
-  credentials: Record<string, string>;
 }
 
 function seed(): StoreShape {
@@ -22,9 +20,6 @@ function seed(): StoreShape {
     products: structuredClone(PRODUCTS),
     orders: structuredClone(ORDERS),
     users: structuredClone(USERS),
-    credentials: Object.fromEntries(
-      USERS.map((u) => [u.email.toLowerCase(), DEMO_PASSWORD])
-    ),
   };
 }
 

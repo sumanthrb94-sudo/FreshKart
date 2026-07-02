@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --app-max: 480px;
+  --app-max: 1280px;
 }
 
 html {

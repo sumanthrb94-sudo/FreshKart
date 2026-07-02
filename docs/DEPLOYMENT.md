@@ -51,7 +51,7 @@ vercel --prod     # production
 ## 2. Backend → Firebase
 
 See **[FIREBASE.md](./FIREBASE.md)** for the full walkthrough: create the
-project, enable Email/Password auth + Firestore + Storage, set the
+project, enable **Phone** and **Google** sign-in + Firestore + Storage, set the
 `NEXT_PUBLIC_FIREBASE_*` vars, deploy rules/indexes
 (`firebase deploy --only firestore:rules,firestore:indexes,storage`), and seed
 the catalog + demo accounts (`npm run seed:firestore`). No server to deploy —

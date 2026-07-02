@@ -1,13 +1,11 @@
 import type {
   AdminStats,
   CreateOrderInput,
-  Credentials,
   Customer,
   Order,
   OrderStatus,
   Product,
   ProductInput,
-  RegisterInput,
   User,
 } from "@/lib/types";
 import { DataSource, ApiError } from "./datasource";
@@ -50,19 +48,8 @@ export class HttpDataSource implements DataSource {
     return (await res.json()) as T;
   }
 
-  login(creds: Credentials) {
-    return this.request<User>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify(creds),
-    });
-  }
-
-  register(input: RegisterInput) {
-    return this.request<User>("/auth/register", {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-  }
+  // Phone OTP and Google sign-in are handled client-side via Firebase.
+  // This HTTP backend does not expose email/password auth endpoints.
 
   updateProfile(userId: string, patch: Partial<User>) {
     return this.request<User>(`/users/${userId}`, {

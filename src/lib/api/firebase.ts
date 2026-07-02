@@ -1,9 +1,6 @@
 import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  updateProfile as updateAuthProfile,
   GoogleAuthProvider,
   signInWithPopup,
 } from "firebase/auth";
@@ -25,7 +22,6 @@ import {
 import type {
   AdminStats,
   CreateOrderInput,
-  Credentials,
   Customer,
   Order,
   OrderItem,
@@ -33,7 +29,6 @@ import type {
   ProfileSetupInput,
   Product,
   ProductInput,
-  RegisterInput,
   User,
 } from "@/lib/types";
 import { generateOrderNumber } from "@/lib/format";
@@ -100,20 +95,6 @@ async function readDoc(
   throw lastErr;
 }
 
-function friendlyAuthError(e: unknown): never {
-  const code = (e as { code?: string })?.code ?? "";
-  if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) {
-    throw new ApiError("Invalid email or password.", 401);
-  }
-  if (code.includes("email-already-in-use")) {
-    throw new ApiError("An account with this email already exists.", 409);
-  }
-  if (code.includes("weak-password")) {
-    throw new ApiError("Password must be at least 6 characters.", 400);
-  }
-  throw new ApiError(e instanceof Error ? e.message : "Authentication failed.", 400);
-}
-
 /**
  * Firestore + Firebase Auth implementation of the app's DataSource. The browser
  * talks to Firebase directly; integrity (ownership, admin gating) is enforced by
@@ -128,42 +109,9 @@ export class FirebaseDataSource implements DataSource {
   }
 
   // --- Auth ---------------------------------------------------------------
-  async login({ email, password }: Credentials): Promise<User> {
-    const auth = getFirebaseAuth();
-    try {
-      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-      const snap = await readDoc(doc(getDb(), COL.users, cred.user.uid));
-      if (!snap.exists()) {
-        throw new ApiError("No profile found for this account.", 404);
-      }
-      return snapToUser(snap);
-    } catch (e) {
-      if (e instanceof ApiError) throw e;
-      friendlyAuthError(e);
-    }
-  }
-
-  async register(input: RegisterInput): Promise<User> {
-    const auth = getFirebaseAuth();
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, input.email.trim(), input.password);
-      await updateAuthProfile(cred.user, { displayName: input.name }).catch(() => {});
-      const profile: Omit<User, "id"> = {
-        name: input.name,
-        email: input.email.trim(),
-        phone: input.phone,
-        role: "BUYER",
-        businessName: input.businessName,
-        city: input.city,
-        createdAt: new Date().toISOString(),
-      };
-      await setDoc(doc(getDb(), COL.users, cred.user.uid), profile);
-      return { ...profile, id: cred.user.uid };
-    } catch (e) {
-      if (e instanceof ApiError) throw e;
-      friendlyAuthError(e);
-    }
-  }
+  // Phone OTP is handled directly by firebase/auth in the onboarding screen.
+  // Google sign-in is the other supported method (see signInWithGoogle below).
+  // Email/password sign-in is intentionally not implemented.
 
   async updateProfile(userId: string, patch: Partial<User>): Promise<User> {
     const db = getDb();

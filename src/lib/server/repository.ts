@@ -1,17 +1,15 @@
 import type {
   AdminStats,
   CreateOrderInput,
-  Credentials,
   Customer,
   Order,
   OrderItem,
   OrderStatus,
   Product,
-  RegisterInput,
   User,
 } from "@/lib/types";
 import { generateOrderNumber } from "@/lib/format";
-import { DEMO_PASSWORD, ORDERS, PRODUCTS, USERS } from "@/lib/mock-data";
+import { ORDERS, PRODUCTS, USERS } from "@/lib/mock-data";
 
 /**
  * Server-side, in-memory reference backend used by the Next.js route handlers
@@ -34,40 +32,11 @@ export { RepoError };
 const products: Product[] = structuredClone(PRODUCTS);
 const orders: Order[] = structuredClone(ORDERS);
 const users: User[] = structuredClone(USERS);
-const credentials: Record<string, string> = Object.fromEntries(
-  USERS.map((u) => [u.email.toLowerCase(), DEMO_PASSWORD])
-);
 let seq = 0;
 
 export const repository = {
-  login({ email, password }: Credentials): User {
-    const key = email.trim().toLowerCase();
-    const user = users.find((u) => u.email.toLowerCase() === key);
-    if (!user || credentials[key] !== password) {
-      throw new RepoError("Invalid email or password.", 401);
-    }
-    return user;
-  },
-
-  register(input: RegisterInput): User {
-    const key = input.email.trim().toLowerCase();
-    if (users.some((u) => u.email.toLowerCase() === key)) {
-      throw new RepoError("An account with this email already exists.", 409);
-    }
-    const user: User = {
-      id: `user-${key}-${users.length + 1}`,
-      name: input.name,
-      email: input.email.trim(),
-      phone: input.phone,
-      role: "BUYER",
-      businessName: input.businessName,
-      city: input.city,
-      createdAt: new Date().toISOString(),
-    };
-    users.push(user);
-    credentials[key] = input.password;
-    return user;
-  },
+  // This reference backend does not model authentication. The production app
+  // uses Firebase Phone OTP / Google sign-in directly from the browser.
 
   updateProfile(userId: string, patch: Partial<User>): User {
     const u = users.find((x) => x.id === userId);

@@ -42,11 +42,11 @@ npm run dev
 # open http://localhost:3000
 ```
 
-Sign-in is **phone/OTP** via Firebase Phone Auth. New users walk the onboarding
-flow (mobile number → 6-digit code → set up shop); returning users land straight
-in the shop. **Admins** are phone users whose Firestore profile has
-`role: "ADMIN"` (set once in the console — see
-[docs/FIREBASE.md](./docs/FIREBASE.md)).
+Sign-in is **Phone/OTP** or **Google** via Firebase Auth. New users walk the
+onboarding flow (sign in → set up shop); returning users land straight in the
+shop. **Admins** are users whose Firestore profile has `role: "ADMIN"` (set once
+in the console — see [docs/FIREBASE.md](./docs/FIREBASE.md)). Email/password
+sign-in is not implemented.
 
 > Configure the Firebase env vars (below) to enable sign-in. For local testing
 > without real SMS, add a **test phone number** in Firebase console → Auth →
@@ -57,8 +57,8 @@ in the shop. **Admins** are phone users whose Firestore profile has
 
 ## 🧱 Tech stack
 
-- **Next.js 14** (App Router) + **React 18** + **TypeScript**
-- **Tailwind CSS** with design tokens from the brief (brand green `#16bd5f`)
+- **Next.js 15** (App Router) + **React 19** + **TypeScript**
+- **Tailwind CSS** with design tokens from the brief (brand red `#e23744`)
 - **lucide-react** icons · **Inter** font
 - **Firebase** (Firestore + Auth + Storage) backend, client-SDK direct
 - Zero runtime backend dependency in the default (mock) mode
@@ -71,7 +71,7 @@ in the shop. **Admins** are phone users whose Firestore profile has
 src/
 ├── app/                      # Routes (App Router)
 │   ├── page.tsx              # / — Shop (primary screen)
-│   ├── login, register, onboarding, account
+│   ├── onboarding, account
 │   ├── orders/, orders/[id]/, order-success/[id]/
 │   ├── admin/, admin/orders, admin/products, admin/customers
 │   ├── api/                  # Reference REST backend (see docs/BACKEND.md)
@@ -81,7 +81,7 @@ src/
 │   ├── ui/                   # Atoms/molecules: Button, Field, Badge, Card, Sheet, …
 │   ├── buyer/                # Buyer organisms + screens
 │   ├── admin/                # Admin shell + screens
-│   ├── auth/                 # Login/Register
+│   ├── onboarding/           # Phone / Google onboarding flow
 │   ├── onboarding/           # Onboarding flow
 │   ├── layout/               # AppShell (480px column)
 │   └── providers/            # Auth + Cart React contexts

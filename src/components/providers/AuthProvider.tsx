@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { Credentials, RegisterInput, User } from "@/lib/types";
+import type { User } from "@/lib/types";
 import { api } from "@/lib/api";
 
 const SESSION_KEY = "freshkart.session.v1";
@@ -18,8 +18,6 @@ interface AuthContextValue {
   loading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  login: (creds: Credentials) => Promise<User>;
-  register: (input: RegisterInput) => Promise<User>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<User>) => Promise<User>;
   /** Re-read the signed-in user's profile (after phone OTP / shop setup). */
@@ -72,24 +70,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, [persist]);
 
-  const login = useCallback(
-    async (creds: Credentials) => {
-      const u = await api.login(creds);
-      persist(u);
-      return u;
-    },
-    [persist]
-  );
-
-  const register = useCallback(
-    async (input: RegisterInput) => {
-      const u = await api.register(input);
-      persist(u);
-      return u;
-    },
-    [persist]
-  );
-
   const logout = useCallback(async () => {
     try {
       await api.logout?.();
@@ -126,13 +106,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       isAuthenticated: !!user,
       isAdmin: user?.role === "ADMIN",
-      login,
-      register,
       logout,
       updateProfile,
       refreshUser,
     }),
-    [user, loading, login, register, logout, updateProfile, refreshUser]
+    [user, loading, logout, updateProfile, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

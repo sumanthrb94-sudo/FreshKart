@@ -1,11 +1,11 @@
 import { cn } from "@/lib/utils";
 
 /**
- * The centered mobile column (max 480px) from brief §3.7. On desktop it sits
- * on a gray-100 backdrop with a soft shadow. The column is a full-height flex
+ * Responsive app shell. On mobile it fills the viewport; on desktop it becomes
+ * a centered column up to `max-w-app` (1280px) so the site looks like a proper
+ * web app rather than a phone emulator. The shell is a full-height flex
  * container: a sticky `header`, a scrollable `main`, and an optional sticky
- * `footer` (the cart bar). Overlays/sheets render as `children` and dim the
- * whole viewport while constraining their content to the column width.
+ * `footer` (the cart bar).
  */
 export function AppShell({
   header,
@@ -21,10 +21,10 @@ export function AppShell({
   contentClassName?: string;
 }) {
   return (
-    <div className="flex min-h-[100dvh] justify-center bg-black">
+    <div className="flex min-h-[100dvh] justify-center bg-canvas">
       <div
         className={cn(
-          "relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-canvas shadow-xl",
+          "relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-canvas shadow-2xl md:rounded-xl md:shadow-2xl",
           className
         )}
       >

@@ -74,8 +74,6 @@ export const PRODUCTS: Product[] = RAW.map((p) => ({
   active: p.active ?? true,
 }));
 
-// Demo accounts (brief §9.6 / §9.7). Password for both: "password123".
-export const DEMO_PASSWORD = "password123";
 
 export const USERS: User[] = [
   {

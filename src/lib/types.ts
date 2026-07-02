@@ -164,16 +164,3 @@ export interface CreateOrderInput {
   paid: boolean;
 }
 
-export interface Credentials {
-  email: string;
-  password: string;
-}
-
-export interface RegisterInput {
-  name: string;
-  businessName: string;
-  email: string;
-  phone: string;
-  city: string;
-  password: string;
-}

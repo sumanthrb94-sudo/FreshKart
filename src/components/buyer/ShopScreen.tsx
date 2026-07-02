@@ -174,7 +174,7 @@ export function ShopScreen() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 p-4">
+      <div className="p-4">
         <PromoBanner />
 
         {loading ? (
@@ -186,7 +186,11 @@ export function ShopScreen() {
         ) : visible.length === 0 ? (
           <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
         ) : (
-          visible.map((p) => <ProductListItem key={p.id} product={p} />)
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {visible.map((p) => (
+              <ProductListItem key={p.id} product={p} />
+            ))}
+          </div>
         )}
       </div>
 

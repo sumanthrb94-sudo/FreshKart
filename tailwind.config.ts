@@ -72,7 +72,9 @@ const config: Config = {
         phone: "0 50px 90px -28px rgba(60,12,18,.45), 0 0 0 1px rgba(0,0,0,.04)",
       },
       maxWidth: {
-        app: "480px",
+        // The app shell is mobile-first but no longer constrained to phone-width
+        // on desktop. This token controls the centered max-width on larger screens.
+        app: "1280px",
       },
       keyframes: {
         rise: {

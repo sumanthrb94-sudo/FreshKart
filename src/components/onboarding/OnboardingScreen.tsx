@@ -6,7 +6,12 @@ import type { ConfirmationResult } from "firebase/auth";
 import { Check, Loader2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
-import { sendOtp, toE164, resetRecaptcha } from "@/lib/firebase/phone-auth";
+import {
+  sendOtp,
+  toE164,
+  resetRecaptcha,
+  PhoneAuthError,
+} from "@/lib/firebase/phone-auth";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { AddressPicker, type PickedAddress } from "@/components/address/AddressPicker";
@@ -120,9 +125,13 @@ export function OnboardingScreen() {
       setResendIn(30);
     } catch (e) {
       resetRecaptcha();
-      setError(
-        e instanceof Error ? e.message : "Couldn't send the code. Please try again."
-      );
+      const message =
+        e instanceof PhoneAuthError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : "Couldn't send the code. Please try again.";
+      setError(message);
     } finally {
       setBusy(false);
     }

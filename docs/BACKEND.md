@@ -51,10 +51,10 @@ Base URL = `NEXT_PUBLIC_API_BASE_URL`. All bodies are JSON. Errors return
 `{ "message": string }` with an appropriate 4xx/5xx status.
 
 ### Auth
+> **Authentication is handled by Firebase Auth (Phone OTP / Google) directly in the browser.** The reference HTTP backend therefore does not expose `/auth/login` or `/auth/register` endpoints. The routes below assume the caller is already identified by a Firebase ID token (or by a trusted session managed by your own server).
+
 | Method | Path | Body | Returns |
 |--------|------|------|---------|
-| POST | `/auth/login` | `{ email, password }` | `User` (401 on bad creds) |
-| POST | `/auth/register` | `{ name, businessName, email, phone, city, password }` | `User` (409 on duplicate email) |
 | PATCH | `/users/:id` | `Partial<User>` (email & role ignored) | `User` |
 
 ### Catalog
@@ -88,16 +88,20 @@ Base URL = `NEXT_PUBLIC_API_BASE_URL`. All bodies are JSON. Errors return
 
 ## 3. Auth notes for production
 
-The reference implementation returns the `User` directly and the browser stores
-the session in `localStorage` (fine for a demo). For production:
+The production app uses **Firebase Phone OTP / Google sign-in** directly from the
+browser, not email/password. The reference HTTP backend intentionally does not
+implement `/auth/login` or `/auth/register`.
 
-- Issue an **httpOnly, Secure session cookie** on `/auth/login` and `/auth/register`.
+If you build a custom server-side backend instead of Firebase:
+
+- Use Firebase Auth to **verify the ID token** sent from the browser (or use
+  another OIDC provider) and issue an **httpOnly, Secure session cookie**.
   The `HttpDataSource` already sends `credentials: "include"` on every request.
 - Enforce authorization server-side: buyers may only read/cancel **their own**
   orders; only `ADMIN` may call `/products/:id` (PATCH), `/orders/:id/status`,
   `/customers`, and `/admin/stats`.
-- Hash passwords (e.g. bcrypt/argon2). Never store plaintext (the in-memory
-  reference does, intentionally, for clarity only).
+- Do not implement plaintext password storage. The in-memory reference never
+  stored real credentials.
 
 ---
 

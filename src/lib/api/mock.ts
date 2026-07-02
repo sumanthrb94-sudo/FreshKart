@@ -1,14 +1,12 @@
 import type {
   AdminStats,
   CreateOrderInput,
-  Credentials,
   Customer,
   Order,
   OrderStatus,
   OrderItem,
   Product,
   ProductInput,
-  RegisterInput,
   User,
 } from "@/lib/types";
 import { generateOrderNumber } from "@/lib/format";
@@ -24,42 +22,8 @@ let orderSeq = 0;
 
 export class MockDataSource implements DataSource {
   // --- Auth ---------------------------------------------------------------
-  async login({ email, password }: Credentials): Promise<User> {
-    const s = store.get();
-    const key = email.trim().toLowerCase();
-    const user = s.users.find((u) => u.email.toLowerCase() === key);
-    if (!user || s.credentials[key] !== password) {
-      throw new ApiError("Invalid email or password.", 401);
-    }
-    return delay(structuredClone(user));
-  }
-
-  async register(input: RegisterInput): Promise<User> {
-    const key = input.email.trim().toLowerCase();
-    let created: User | null = null;
-    let conflict = false;
-    store.mutate((s) => {
-      if (s.users.some((u) => u.email.toLowerCase() === key)) {
-        conflict = true;
-        return;
-      }
-      const user: User = {
-        id: `user-${key}-${s.users.length + 1}`,
-        name: input.name,
-        email: input.email.trim(),
-        phone: input.phone,
-        role: "BUYER",
-        businessName: input.businessName,
-        city: input.city,
-        createdAt: new Date().toISOString(),
-      };
-      s.users.push(user);
-      s.credentials[key] = input.password;
-      created = user;
-    });
-    if (conflict) throw new ApiError("An account with this email already exists.", 409);
-    return delay(structuredClone(created!));
-  }
+  // This mock backend is for catalog/order demo data only. It does not model
+  // auth because the production app uses Firebase Phone OTP / Google sign-in.
 
   async updateProfile(userId: string, patch: Partial<User>): Promise<User> {
     let updated: User | null = null;

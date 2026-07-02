@@ -1,14 +1,12 @@
 import type {
   AdminStats,
   CreateOrderInput,
-  Credentials,
   Customer,
   Order,
   OrderStatus,
   ProfileSetupInput,
   Product,
   ProductInput,
-  RegisterInput,
   User,
 } from "@/lib/types";
 
@@ -22,8 +20,8 @@ import type {
  */
 export interface DataSource {
   // --- Auth ---------------------------------------------------------------
-  login(creds: Credentials): Promise<User>;
-  register(input: RegisterInput): Promise<User>;
+  // Phone OTP and Google sign-in are the only supported auth methods.
+  // (Phone is handled directly by firebase/auth; Google via signInWithGoogle.)
   updateProfile(userId: string, patch: Partial<User>): Promise<User>;
   /**
    * Optional: end the backend session (e.g. Firebase signOut). Adapters that

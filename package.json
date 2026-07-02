@@ -2,7 +2,7 @@
   "name": "freshkart",
   "version": "0.1.0",
   "private": true,
-  "description": "FreshKart — B2B wholesale fresh-produce marketplace (buyer app + admin console). Next.js 14 frontend, backend-ready.",
+  "description": "FreshKart — B2B wholesale fresh-produce marketplace (buyer app + admin console). Next.js 15 + React 19 frontend with Firebase Auth/Firestore.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

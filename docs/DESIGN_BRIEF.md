@@ -188,17 +188,17 @@
 
 ### Cycle A — Authentication & session
 ```
-Visitor ──▶ /login ──(one-tap demo OR email+password)──▶ POST login
-   │                                                         │
-   │                                              role = ADMIN? ──▶ /admin (dashboard)
-   │                                                         └─ else ─▶ / (shop) or callbackUrl
-   ├─ "Create account" ──▶ /register ──(name, business, email, phone, city, password)──▶ creates BUYER ──▶ /
-   └─ Already logged in hits /login ──▶ auto-redirect to / or /admin (no loop)
+Visitor ──▶ /onboarding ──(Phone OTP OR Google sign-in)──▶ Firebase Auth
+   │                                                              │
+   │                                                   profile exists? ──▶ role = ADMIN? ──▶ /admin
+   │                                                                              └─ else ──▶ / (shop)
+   └─ "Create account" ──▶ /onboarding (shop setup: name, business, email/phone, address) ──▶ creates BUYER ──▶ /
 
-Logout (header) ──▶ clears session ──▶ full reload to /login  (back button cannot return to a protected page)
-Protected page without session ──▶ /login?callbackUrl=<path>
+Already logged in hits / ──▶ auto-redirect to / or /admin (no loop)
+Logout (header) ──▶ clears session ──▶ full reload to /onboarding
+Protected page without session ──▶ /onboarding?callbackUrl=<path>
 ```
-**Demo accounts (always visible on login as one-tap buttons):** Customer `customer@freshkart.in`, Admin `admin@freshkart.in` (password `password123`).
+**Supported sign-in methods:** Firebase Phone OTP and Google sign-in. Email/password sign-in is not implemented.
 
 ### Cycle B — Buyer ordering loop (core e-commerce)
 ```
@@ -288,21 +288,14 @@ flowchart TD
 
 > Frame width 480 px. Header is present on buyer screens (brand bar); admin screens use the admin header+nav.
 
-### 7.1 Login — `/login`
-- **Header copy:** H1 "Welcome back 👋" (24/bold), subtitle "Log in to order fresh produce in bulk." (14/gray-500).
-- **Optional success banner** (if arriving from register): brand-50 chip + CheckCircle2 "Account created! Please log in to continue."
-- **Demo quick-access card** (brand-50, brand-200 border): header "⚡ Demo — one-tap login" (Zap icon, brand-700, uppercase 11). Two full-width buttons:
-  - **Customer** — "Kirana buyer — browse & order" + green "Login →" pill.
-  - **Admin** — "Dashboard, orders & inventory" + green "Login →" pill.
-- **Divider:** "or enter manually" with hairlines.
-- **Form:** Email field, Password field, **Log in** primary button (lg, full width). Error alert above form on failure.
-- **Footer:** "New to FreshKart? **Create an account**" → `/register`.
+### 7.1 Onboarding — `/onboarding`
+- **Header copy:** H1 "Welcome to FreshKart" (24/bold), subtitle "Wholesale fresh produce for your business." (14/gray-500).
+- **Step 1 — Mobile:** Phone number input (10-digit India mobile), reCAPTCHA verifier, **Send OTP** button.
+- **Step 2 — Verify:** 6-digit OTP input with auto-focus, resend countdown, **Verify** button.
+- **Alternative method:** **Continue with Google** button (brand-accurate "G" icon). Google sign-in is gated by `api.signInWithGoogle` availability.
+- **Step 3 — Shop setup:** Full name, Business name, Business type, Email (if phone was used) / Phone (if Google was used), Address with map picker, City, Pincode.
 - **Redirecting state:** full-screen loader overlay "Loading your shop…" / "Loading dashboard…".
-
-### 7.2 Register — `/register`
-- H1 + subtitle (create account context).
-- **Form (2-col where noted):** Full name + Business name (row), Email (full), Phone + City (row), Password (full, min 6, helper "At least 6 characters"). **Create account** primary button (lg, full). Error alert on top.
-- Footer: "Already have an account? **Log in**".
+- Email/password login and `/login`, `/register` routes are not implemented.
 
 ### 7.3 Shop / Home — `/` (UnifiedOrderScreen) — **primary screen**
 - **Sticky sub-header (white):** search input (gray-50 field, Search icon) placeholder "Search produce…"; below it a horizontal **chip rail** — "All" + one chip per category (Vegetables, Leafy Greens). Active chip brand-500.
@@ -478,7 +471,7 @@ COD = "Cash on delivery" · CREDIT = "Business credit" / "Credit (pay later)" ·
 ### 9.6 Demo accounts
 - Customer (BUYER): `customer@freshkart.in` — *Suresh Kirana Store*, Bengaluru.
 - Admin: `admin@freshkart.in` — *FreshKart*, Bengaluru.
-- Password (demo): `password123`.
+- **No password-based demo sign-in.** Use a Firebase test phone number or a Google account with the admin allowlist for local testing.
 
 ### 9.7 Sample buyer profile (for Account screen mock)
 Name *FreshKart Customer*, Business *Suresh Kirana Store*, Phone *9812345678*, City *Bengaluru*, Address *12, Gandhi Bazaar, Basavanagudi*, Pincode *560004*, GSTIN *29BUYER1234A1Z9*.
