@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, CheckCircle2, AlertTriangle, AlertCircle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { subscribeToasts, dismissToast, playNotificationSound } from "@/lib/toast";
@@ -54,13 +54,15 @@ function ToastItem({ toast: t }: { toast: Toast }) {
 
 export function ToastContainer() {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const prevLengthRef = useRef(0);
 
   useEffect(() => {
     return subscribeToasts((newToasts) => {
-      if (newToasts.length > toasts.length) {
+      if (newToasts.length > prevLengthRef.current) {
         const latest = newToasts[newToasts.length - 1];
         if (latest) playNotificationSound(latest.type);
       }
+      prevLengthRef.current = newToasts.length;
       setToasts(newToasts);
     });
   }, []);
