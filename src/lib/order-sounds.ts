@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { getOrders } from "@/lib/api";
+import { api } from "@/lib/api";
 
 /** Admin Order Notification Sound System
  *  Polls for new orders and plays a sound when a new order arrives.
@@ -69,7 +69,8 @@ export function useOrderNotificationSound(enabled: boolean = true, intervalMs: n
   const checkForNewOrders = useCallback(async () => {
     if (!enabled) return;
     try {
-      const orders = await getOrders();
+      // Use api.listOrders() - the correct DataSource method
+      const orders = await api.listOrders();
       const currentCount = orders.length;
       if (lastOrderCount > 0 && currentCount > lastOrderCount) {
         const newCount = currentCount - lastOrderCount;
@@ -93,7 +94,7 @@ export function useOrderNotificationSound(enabled: boolean = true, intervalMs: n
     if (!enabled) return;
 
     // Initial count
-    getOrders().then((orders) => {
+    api.listOrders().then((orders) => {
       lastOrderCount = orders.length;
     }).catch(() => {});
 
