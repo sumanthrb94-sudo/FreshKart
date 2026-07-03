@@ -1,5 +1,18 @@
-import { OrderSuccessScreen } from "@/components/buyer/OrderSuccessScreen";
+"use client";
+
+import { useSearchParams } from "next/navigation";
+import { OrderSuccessAdScreen } from "@/components/buyer/OrderSuccessAdScreen";
 
 export default function OrderSuccessPage({ params }: { params: { id: string } }) {
-  return <OrderSuccessScreen id={params.id} />;
+  const searchParams = useSearchParams();
+  const orderNumber = searchParams.get("on") || "ORD-UNKNOWN";
+  const total = Number(searchParams.get("total") || "0");
+
+  return (
+    <OrderSuccessAdScreen
+      orderId={params.id}
+      orderNumber={orderNumber}
+      total={total}
+    />
+  );
 }

@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, MapPin, Wallet } from "lucide-react";
+import {
+  ArrowLeft,
+  MapPin,
+  Wallet,
+  RotateCcw,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import {
   canBuyerCancel,
@@ -15,6 +20,7 @@ import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
 import { OrderTimeline } from "./OrderTimeline";
+import { InvoiceDownloader } from "@/components/InvoiceDownloader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { OrderStatusBadge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
@@ -56,7 +62,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
           <EmptyState
             icon={PackageX}
             title="Order not found"
-            subtitle="We couldn't find that order."
+            subtitle="We could not find that order."
             action={
               <Link href="/orders">
                 <Button size="lg">Your orders</Button>
@@ -67,6 +73,8 @@ export function OrderTrackingScreen({ id }: { id: string }) {
       </AppShell>
     );
   }
+
+  const isDelivered = order.status === "DELIVERED";
 
   return (
     <AppShell header={<BuyerHeader />}>
@@ -91,6 +99,18 @@ export function OrderTrackingScreen({ id }: { id: string }) {
           </div>
           <OrderStatusBadge status={order.status} />
         </div>
+
+        {/* Invoice Download */}
+        <InvoiceDownloader order={order} fullWidth />
+
+        {/* Return Request Button - only for delivered orders */}
+        {isDelivered && (
+          <Link href={`/orders/${order.id}/return`}>
+            <Button variant="outline" fullWidth leadingIcon={<RotateCcw className="h-4 w-4" />}>
+              Request Return / Refund
+            </Button>
+          </Link>
+        )}
 
         {/* Tracking */}
         <Card>
@@ -117,7 +137,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-fg">{item.name}</p>
                     <p className="text-xs text-fg-subtle">
-                      {formatCurrency(item.price)}/{item.unit} × {item.qty}
+                      {formatCurrency(item.price)}/{item.unit} x {item.qty}
                     </p>
                   </div>
                   <span className="text-sm font-bold text-fg">
@@ -142,7 +162,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
             <div className="text-sm">
               <p className="font-semibold text-fg">{order.delivery.name}</p>
               <p className="text-fg-muted">
-                {order.delivery.address}, {order.delivery.city} — {order.delivery.pincode}
+                {order.delivery.address}, {order.delivery.city} - {order.delivery.pincode}
               </p>
               <p className="text-fg-muted">{order.delivery.phone}</p>
             </div>

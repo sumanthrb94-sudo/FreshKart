@@ -5,9 +5,10 @@ import { initAnalytics } from "@/lib/firebase/client";
 import { LanguageProvider } from "@/lib/i18n";
 import { AuthProvider } from "./AuthProvider";
 import { CartProvider } from "./CartProvider";
+import { AiChatAgent } from "@/components/AiChatAgent";
+import { ToastContainer } from "@/components/ToastContainer";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
-  // Initialize Firebase Analytics on the client when configured (no-op otherwise).
   useEffect(() => {
     initAnalytics();
   }, []);
@@ -15,7 +16,11 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <LanguageProvider>
       <AuthProvider>
-        <CartProvider>{children}</CartProvider>
+        <CartProvider>
+          {children}
+          <AiChatAgent />
+          <ToastContainer />
+        </CartProvider>
       </AuthProvider>
     </LanguageProvider>
   );

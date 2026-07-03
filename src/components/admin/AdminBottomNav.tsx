@@ -4,54 +4,54 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  ScanLine,
-  Boxes,
+  Calculator,
+  Package,
+  Tag,
   ClipboardList,
+  RotateCcw,
+  FileText,
   Users,
-  type LucideIcon,
+  Ticket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOrderNotificationSound } from "@/lib/order-sounds";
 
-type Tab = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  isActive: (p: string) => boolean;
-};
-
-const TABS: Tab[] = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, isActive: (p) => p === "/admin" },
-  { href: "/admin/pos", label: "POS", icon: ScanLine, isActive: (p) => p.startsWith("/admin/pos") },
-  { href: "/admin/products", label: "Inventory", icon: Boxes, isActive: (p) => p.startsWith("/admin/products") },
-  { href: "/admin/orders", label: "Orders", icon: ClipboardList, isActive: (p) => p.startsWith("/admin/orders") },
-  { href: "/admin/customers", label: "Customers", icon: Users, isActive: (p) => p.startsWith("/admin/customers") },
+const tabs = [
+  { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
+  { icon: Calculator, label: "POS", path: "/admin/pos" },
+  { icon: Package, label: "Inventory", path: "/admin/inventory" },
+  { icon: Tag, label: "Prices", path: "/admin/prices" },
+  { icon: ClipboardList, label: "Orders", path: "/admin/orders" },
+  { icon: RotateCcw, label: "Returns", path: "/admin/returns" },
+  { icon: FileText, label: "Reports", path: "/admin/reports" },
+  { icon: Ticket, label: "Coupons", path: "/admin/coupons" },
+  { icon: Users, label: "Buyers", path: "/admin/buyers" },
 ];
 
-/** Admin bottom tab bar — Dashboard · POS · Inventory · Orders · Customers. */
 export function AdminBottomNav() {
-  const pathname = usePathname() || "/admin";
+  const pathname = usePathname();
+
+  // Play sound when new orders arrive (admin only)
+  useOrderNotificationSound(true, 20000);
 
   return (
-    <nav className="shrink-0 border-t border-line bg-surface pb-[max(0.25rem,env(safe-area-inset-bottom))]">
-      <div className="flex items-stretch justify-around">
-        {TABS.map((tab) => {
-          const active = tab.isActive(pathname);
-          const Icon = tab.icon;
+    <nav className="shrink-0 border-t border-line bg-surface">
+      <div className="flex items-center justify-around overflow-x-auto px-2 py-1">
+        {tabs.map(({ icon: Icon, label, path }) => {
+          const isActive = pathname === path;
           return (
             <Link
-              key={tab.href}
-              href={tab.href}
-              aria-current={active ? "page" : undefined}
+              key={path}
+              href={path}
               className={cn(
-                "relative flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-bold transition-colors",
-                active ? "text-brand-500" : "text-fg-subtle hover:text-fg-muted"
+                "flex shrink-0 flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-[10px] font-medium transition-colors",
+                isActive
+                  ? "text-brand-500"
+                  : "text-fg-subtle hover:text-fg-muted"
               )}
             >
-              {active && (
-                <span className="absolute top-0 h-0.5 w-8 rounded-full bg-brand-500" />
-              )}
-              <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 2} />
-              {tab.label}
+              <Icon className="h-[18px] w-[18px]" strokeWidth={isActive ? 2.5 : 1.5} />
+              <span>{label}</span>
             </Link>
           );
         })}

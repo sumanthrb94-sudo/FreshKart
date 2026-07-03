@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Ban,
   ClipboardList,
+  FileText,
   MapPin,
   Phone,
   Search,
@@ -24,6 +25,7 @@ import {
 import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { AdminShell } from "./AdminShell";
+import { InvoiceDownloader } from "@/components/InvoiceDownloader";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
@@ -153,6 +155,9 @@ function OrderDetail({
   return (
     <div className="flex flex-col">
       <div className="flex flex-col gap-5 p-5">
+        {/* Invoice download */}
+        <InvoiceDownloader order={order} fullWidth />
+
         {/* Business + meta */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
