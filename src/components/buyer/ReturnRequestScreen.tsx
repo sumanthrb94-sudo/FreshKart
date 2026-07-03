@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -21,6 +21,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { formatCurrency } from "@/lib/format";
+import { toast } from "@/lib/toast";
 
 export function ReturnRequestScreen({ orderId }: { orderId: string }) {
   const { ready } = useRequireAuth({ callbackUrl: `/orders/${orderId}/return` });
@@ -35,17 +36,16 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
   const [returnId, setReturnId] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const totalRefund = order?.items.reduce((sum, item) => {
-    const qty = returnQty[item.productId] || 0;
-    return sum + qty * item.price;
-  }, 0) || 0;
-
-  const hasAnyReturn = Object.values(returnQty).some((q) => q > 0);
-
+  // STRICT VALIDATION: return qty cannot exceed ordered qty
   const handleQtyChange = (productId: string, delta: number, maxQty: number) => {
     setReturnQty((prev) => {
       const current = prev[productId] || 0;
-      const next = Math.max(0, Math.min(maxQty, current + delta));
+      const next = current + delta;
+      if (next < 0) return prev; // Can't go below 0
+      if (next > maxQty) {
+        toast.warning("Maximum quantity reached", `You ordered ${maxQty} ${order?.items.find(i => i.productId === productId)?.unit || "kg"}. Cannot return more than ordered.`);
+        return { ...prev, [productId]: maxQty };
+      }
       return { ...prev, [productId]: next };
     });
   };
@@ -70,8 +70,32 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
     setImages((prev) => prev.filter((img) => img.id !== id));
   };
 
+  const totalRefund = order?.items.reduce((sum, item) => {
+    const qty = returnQty[item.productId] || 0;
+    return sum + qty * item.price;
+  }, 0) || 0;
+
+  const hasAnyReturn = Object.values(returnQty).some((q) => q > 0);
+
+  // Validate all return quantities against ordered quantities before submit
+  const validateQuantities = useCallback((): boolean => {
+    if (!order) return false;
+    for (const item of order.items) {
+      const rq = returnQty[item.productId] || 0;
+      if (rq > item.qty) {
+        toast.error("Invalid quantity", `Cannot return ${rq} ${item.unit} of ${item.name}. You only ordered ${item.qty} ${item.unit}.`);
+        return false;
+      }
+    }
+    return true;
+  }, [order, returnQty]);
+
   const handleSubmit = useCallback(async () => {
     if (!order || !hasAnyReturn) return;
+
+    // STRICT: Validate return qty <= ordered qty
+    if (!validateQuantities()) return;
+
     setSubmitting(true);
     try {
       const returnItems = order.items
@@ -79,7 +103,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
           productId: item.productId,
           productName: item.name,
           originalQty: item.qty,
-          returnQty: returnQty[item.productId] || 0,
+          returnQty: Math.min(returnQty[item.productId] || 0, item.qty), // Clamp to ordered qty
           unitPrice: item.price,
           unit: item.unit,
         }))
@@ -101,12 +125,15 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
       existing.push(returnReq);
       localStorage.setItem("freshkart_returns", JSON.stringify(existing));
 
+      // Increment coupon usage if applicable
+      toast.success("Return request submitted!", `Refund of ${formatCurrency(returnReq.totalRefund)} will be processed in 3-5 days`);
+
       setReturnId(returnReq.id);
       setSubmitted(true);
     } finally {
       setSubmitting(false);
     }
-  }, [order, returnQty, reason, notes, images, hasAnyReturn]);
+  }, [order, returnQty, reason, notes, images, hasAnyReturn, validateQuantities]);
 
   if (!ready || loading) {
     return (
@@ -168,6 +195,12 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
           <p className="text-xs text-fg-subtle">{order.orderNumber} &bull; {order.businessName}</p>
         </div>
 
+        {/* Qty validation info */}
+        <div className="rounded-lg bg-blue-500/5 px-3 py-2 text-xs text-blue-600">
+          You can return up to the quantity you ordered for each item.
+        </div>
+
+        {/* Items to return */}
         <Card>
           <CardBody className="p-4">
             <h2 className="mb-3 text-sm font-bold text-fg">Select items to return</h2>
@@ -203,6 +236,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
           </CardBody>
         </Card>
 
+        {/* Reason */}
         <Card>
           <CardBody className="p-4">
             <h2 className="mb-3 text-sm font-bold text-fg">Return reason</h2>
@@ -224,6 +258,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
           </CardBody>
         </Card>
 
+        {/* Notes */}
         <Card>
           <CardBody className="p-4">
             <h2 className="mb-2 text-sm font-bold text-fg">Additional notes</h2>
@@ -237,6 +272,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
           </CardBody>
         </Card>
 
+        {/* Image Upload */}
         <Card>
           <CardBody className="p-4">
             <h2 className="mb-2 text-sm font-bold text-fg">Upload photos</h2>
