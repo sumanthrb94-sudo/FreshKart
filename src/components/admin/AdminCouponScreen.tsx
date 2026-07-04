@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Tag, Percent, IndianRupee, Copy, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -17,16 +17,31 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
 function useCoupons() {
-  const [coupons, setCoupons] = useState<Coupon[]>(() => {
-    const existing = getCoupons();
-    if (existing.length === 0) {
-      DEMO_COUPONS.forEach(saveCoupon);
-      return DEMO_COUPONS;
-    }
-    return existing;
-  });
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
 
-  const refresh = useCallback(() => setCoupons(getCoupons()), []);
+  useEffect(() => {
+    // Safe client-side only initialization
+    try {
+      const existing = getCoupons();
+      if (existing.length === 0) {
+        DEMO_COUPONS.forEach(saveCoupon);
+        setCoupons(DEMO_COUPONS);
+      } else {
+        setCoupons(existing);
+      }
+    } catch {
+      // Fallback if localStorage is unavailable
+      setCoupons(DEMO_COUPONS);
+    }
+  }, []);
+
+  const refresh = useCallback(() => {
+    try {
+      setCoupons(getCoupons());
+    } catch {
+      setCoupons(DEMO_COUPONS);
+    }
+  }, []);
 
   return { coupons, refresh };
 }
