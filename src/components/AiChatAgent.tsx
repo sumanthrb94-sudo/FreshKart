@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { MessageCircle, X, Send, Bot, User, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { createChatSession, processUserMessage } from "@/lib/ai-chat";
 import type { ChatSession, ChatMessage } from "@/lib/ai-chat";
 
@@ -16,6 +17,7 @@ export function AiChatAgent() {
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const { isAuthenticated, isAdmin, user } = useAuth();
 
   // Close chat when clicking outside
   useEffect(() => {
@@ -40,6 +42,24 @@ export function AiChatAgent() {
   useEffect(() => {
     if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
+
+  // Personalize welcome message with user's name when authenticated
+  useEffect(() => {
+    if (user?.name && session.messages.length === 1 && session.messages[0].role === "assistant") {
+      const welcomeMsg = session.messages[0];
+      if (!welcomeMsg.text.includes(user.name)) {
+        setSession((prev) => ({
+          ...prev,
+          messages: [
+            {
+              ...welcomeMsg,
+              text: `Hello ${user.name}! I am FreshKart Assistant. I can help you with orders, returns, delivery, payments, and store policies. What can I help you with today?`,
+            },
+          ],
+        }));
+      }
+    }
+  }, [user?.name]);
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -69,16 +89,20 @@ export function AiChatAgent() {
     }
   };
 
-  // Hide chat on login page and all admin pages - MUST be after all hooks
+  // Only show chat for authenticated buyers. Hide for:
+  // - Guests (not logged in)
+  // - Admins
+  // - Login page (double safety)
+  // - Admin pages (double safety)
   const isLoginPage = pathname === "/" || pathname === "";
   const isAdminPage = pathname?.startsWith("/admin");
-  const shouldShowChat = !isLoginPage && !isAdminPage;
+  const shouldShowChat = isAuthenticated && !isAdmin && !isLoginPage && !isAdminPage;
 
   if (!shouldShowChat) return null;
 
   return (
     <>
-      {/* Floating Chat Button - always shows MessageCircle, never X */}
+      {/* Floating Chat Button - always shows MessageCircle */}
       <button
         data-chat-button
         onClick={() => setIsOpen(!isOpen)}
@@ -93,13 +117,13 @@ export function AiChatAgent() {
         <MessageCircle className="h-5 w-5" />
       </button>
 
-      {/* Chat Panel - positioned bottom-right */}
+      {/* Chat Panel */}
       {isOpen && (
         <div
           ref={panelRef}
           className="fixed bottom-36 right-4 z-50 flex h-[480px] w-[calc(100vw-2rem)] max-w-[360px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl md:bottom-24"
         >
-          {/* Header - single close button here */}
+          {/* Header - single close button in top-right */}
           <div className="flex items-center gap-3 border-b border-line bg-brand-500 px-4 py-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
               <Bot className="h-4 w-4 text-white" />
@@ -184,7 +208,7 @@ export function AiChatAgent() {
               </button>
             </div>
             <p className="mt-1.5 text-center text-[9px] text-fg-subtle">
-              Powered by FreshKart AI &bull; Tap X to close
+              Powered by FreshKart AI
             </p>
           </div>
         </div>
