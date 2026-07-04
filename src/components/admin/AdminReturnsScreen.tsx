@@ -39,18 +39,28 @@ const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: 
 };
 
 export function AdminReturnsScreen() {
-  const [returns, setReturns] = useState<ReturnRequest[]>(() => {
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-    return [...demoReturnRequests, ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id))];
-  });
+  const [returns, setReturns] = useState<ReturnRequest[]>(demoReturnRequests);
   const [filter, setFilter] = useState<ReturnStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [threadVersion, setThreadVersion] = useState(0); // FIX: Force re-render on thread change
+  const [threadVersion, setThreadVersion] = useState(0);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      setReturns([...demoReturnRequests, ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id))]);
+    } catch {
+      setReturns(demoReturnRequests);
+    }
+  }, []);
 
   const refresh = () => {
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-    setReturns([...demoReturnRequests, ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id))]);
+    try {
+      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      setReturns([...demoReturnRequests, ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id))]);
+    } catch {
+      setReturns(demoReturnRequests);
+    }
   };
 
   const filtered = returns.filter((r) => {
@@ -64,20 +74,20 @@ export function AdminReturnsScreen() {
     setReturns((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status: newStatus, resolvedAt: new Date().toISOString() } : r))
     );
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-    const idx = stored.findIndex((r: ReturnRequest) => r.id === id);
-    if (idx !== -1) {
-      stored[idx].status = newStatus;
-      stored[idx].resolvedAt = new Date().toISOString();
-      localStorage.setItem("freshkart_returns", JSON.stringify(stored));
-    }
+    try {
+      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      const idx = stored.findIndex((r: ReturnRequest) => r.id === id);
+      if (idx !== -1) {
+        stored[idx].status = newStatus;
+        stored[idx].resolvedAt = new Date().toISOString();
+        localStorage.setItem("freshkart_returns", JSON.stringify(stored));
+      }
+    } catch { /* noop */ }
   };
 
-  // FIX: Create a fresh copy of the return with thread updates (Critical Bug #2)
   const handleSendReply = (returnId: string, text: string) => {
     if (!text.trim()) return;
 
-    // Update in React state first (create new object for re-render)
     setReturns((prev) =>
       prev.map((r) => {
         if (r.id !== returnId) return r;
@@ -92,13 +102,14 @@ export function AdminReturnsScreen() {
     );
     setThreadVersion((v) => v + 1);
 
-    // Update localStorage
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-    const idx = stored.findIndex((r: ReturnRequest) => r.id === returnId);
-    if (idx !== -1) {
-      addThreadMessage(stored[idx], "admin", text.trim());
-      localStorage.setItem("freshkart_returns", JSON.stringify(stored));
-    }
+    try {
+      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      const idx = stored.findIndex((r: ReturnRequest) => r.id === returnId);
+      if (idx !== -1) {
+        addThreadMessage(stored[idx], "admin", text.trim());
+        localStorage.setItem("freshkart_returns", JSON.stringify(stored));
+      }
+    } catch { /* noop */ }
   };
 
   const activeReturn = detailId ? returns.find((r) => r.id === detailId) || null : null;
@@ -149,7 +160,7 @@ export function AdminReturnsScreen() {
         </>
       ) : (
         <ReturnDetail
-          key={activeReturn.id + threadVersion} // Force re-render on thread change
+          key={activeReturn.id + threadVersion}
           returnReq={activeReturn}
           onBack={() => setDetailId(null)}
           onStatusChange={handleStatusChange}
@@ -226,13 +237,15 @@ function ReturnDetail({
   };
 
   const handleSaveNotes = () => {
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-    const idx = stored.findIndex((r: ReturnRequest) => r.id === returnReq.id);
-    if (idx !== -1) {
-      stored[idx].adminNotes = notes;
-      localStorage.setItem("freshkart_returns", JSON.stringify(stored));
-    }
-    returnReq.adminNotes = notes;
+    try {
+      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      const idx = stored.findIndex((r: ReturnRequest) => r.id === returnReq.id);
+      if (idx !== -1) {
+        stored[idx].adminNotes = notes;
+        localStorage.setItem("freshkart_returns", JSON.stringify(stored));
+      }
+      returnReq.adminNotes = notes;
+    } catch { /* noop */ }
   };
 
   return (
