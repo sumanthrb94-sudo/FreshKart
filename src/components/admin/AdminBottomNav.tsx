@@ -11,7 +11,7 @@ import {
   RotateCcw,
   FileText,
   Users,
-  Ticket,
+  BadgePercent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOrderNotificationSound } from "@/lib/order-sounds";
@@ -24,7 +24,7 @@ const tabs = [
   { icon: ClipboardList, label: "Orders", path: "/admin/orders" },
   { icon: RotateCcw, label: "Returns", path: "/admin/returns" },
   { icon: FileText, label: "Reports", path: "/admin/reports" },
-  { icon: Ticket, label: "Coupons", path: "/admin/coupons" },
+  { icon: BadgePercent, label: "Coupons", path: "/admin/coupons" },
   { icon: Users, label: "Buyers", path: "/admin/buyers" },
 ];
 
