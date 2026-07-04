@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Copy, Tag, Percent, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -64,10 +64,14 @@ const demoCoupons: Coupon[] = [
 ];
 
 function getSavedCoupons(): Coupon[] {
-  const stored = localStorage.getItem("freshkart_coupons");
-  if (stored) return JSON.parse(stored);
-  localStorage.setItem("freshkart_coupons", JSON.stringify(demoCoupons));
-  return demoCoupons;
+  try {
+    const stored = localStorage.getItem("freshkart_coupons");
+    if (stored) return JSON.parse(stored);
+    localStorage.setItem("freshkart_coupons", JSON.stringify(demoCoupons));
+    return demoCoupons;
+  } catch {
+    return demoCoupons;
+  }
 }
 
 export function OrderSuccessAdScreen({
@@ -80,9 +84,13 @@ export function OrderSuccessAdScreen({
   total: number;
 }) {
   const router = useRouter();
-  const [coupons] = useState<Coupon[]>(getSavedCoupons);
+  const [coupons, setCoupons] = useState<Coupon[]>(demoCoupons);
   const [copiedCode, setCopiedCode] = useState("");
   const [showAds] = useState(true);
+
+  useEffect(() => {
+    setCoupons(getSavedCoupons());
+  }, []);
 
   const activeCoupons = coupons.filter((c) => c.isActive && new Date(c.validUntil) > new Date());
 
