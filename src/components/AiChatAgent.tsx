@@ -17,11 +17,6 @@ export function AiChatAgent() {
   const panelRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
-  // Hide chat on login page and all admin pages
-  const isLoginPage = pathname === "/" || pathname === "";
-  const isAdminPage = pathname?.startsWith("/admin");
-  if (isLoginPage || isAdminPage) return null;
-
   // Close chat when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -73,6 +68,13 @@ export function AiChatAgent() {
       handleSend();
     }
   };
+
+  // Hide chat on login page and all admin pages - MUST be after all hooks
+  const isLoginPage = pathname === "/" || pathname === "";
+  const isAdminPage = pathname?.startsWith("/admin");
+  const shouldShowChat = !isLoginPage && !isAdminPage;
+
+  if (!shouldShowChat) return null;
 
   return (
     <>
