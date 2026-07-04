@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Phone, Bot, User, Sparkles } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { MessageCircle, X, Send, Bot, User, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createChatSession, processUserMessage } from "@/lib/ai-chat";
 import type { ChatSession, ChatMessage } from "@/lib/ai-chat";
@@ -14,6 +15,12 @@ export function AiChatAgent() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  // Hide chat on login page and all admin pages
+  const isLoginPage = pathname === "/" || pathname === "";
+  const isAdminPage = pathname?.startsWith("/admin");
+  if (isLoginPage || isAdminPage) return null;
 
   // Close chat when clicking outside
   useEffect(() => {
@@ -69,28 +76,28 @@ export function AiChatAgent() {
 
   return (
     <>
-      {/* Floating Chat Button */}
+      {/* Floating Chat Button - always shows MessageCircle, never X */}
       <button
         data-chat-button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "fixed bottom-20 left-4 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-300 md:bottom-8",
+          "fixed bottom-20 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-300 md:bottom-8 hover:scale-105",
           isOpen
-            ? "bg-fg text-surface rotate-90 scale-90"
-            : "bg-brand-500 text-white hover:bg-brand-600 hover:scale-105"
+            ? "bg-brand-600 text-white"
+            : "bg-brand-500 text-white hover:bg-brand-600"
         )}
-        aria-label={isOpen ? "Close chat" : "Open chat"}
+        aria-label="Open chat"
       >
-        {isOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
+        <MessageCircle className="h-5 w-5" />
       </button>
 
-      {/* Chat Panel - positioned bottom-left */}
+      {/* Chat Panel - positioned bottom-right */}
       {isOpen && (
         <div
           ref={panelRef}
-          className="fixed bottom-36 left-4 z-50 flex h-[480px] w-[calc(100vw-2rem)] max-w-[360px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl md:bottom-24"
+          className="fixed bottom-36 right-4 z-50 flex h-[480px] w-[calc(100vw-2rem)] max-w-[360px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl md:bottom-24"
         >
-          {/* Header */}
+          {/* Header - single close button here */}
           <div className="flex items-center gap-3 border-b border-line bg-brand-500 px-4 py-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
               <Bot className="h-4 w-4 text-white" />
@@ -175,7 +182,7 @@ export function AiChatAgent() {
               </button>
             </div>
             <p className="mt-1.5 text-center text-[9px] text-fg-subtle">
-              Powered by FreshKart AI &bull; Tap X or click outside to close
+              Powered by FreshKart AI &bull; Tap X to close
             </p>
           </div>
         </div>
