@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult } from "firebase/auth";
-import { Check, Loader2, ShieldCheck, Store } from "lucide-react";
+import { Check, Loader2, ShieldCheck, Store, Sun, Moon } from "lucide-react";
 import { api, ApiError, usingMockBackend } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { sendOtp, toE164, resetRecaptcha } from "@/lib/firebase/phone-auth";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
 import { AddressPicker, type PickedAddress } from "@/components/address/AddressPicker";
 
@@ -46,6 +47,7 @@ const FLOATERS = [
 export function OnboardingScreen() {
   const router = useRouter();
   const { login, refreshUser } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const [step, setStep] = useState<Step>("mobile");
   const [phone, setPhone] = useState("");
@@ -269,6 +271,17 @@ export function OnboardingScreen() {
           {/* Decorative orbs */}
           <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-white/10" />
           <div className="pointer-events-none absolute -left-12 top-28 h-44 w-44 rounded-full bg-brand-300/20 blur-2xl" />
+
+          {/* Theme toggle — top right corner */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-colors hover:bg-white/25"
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
 
           {/* Brand hero: a cart of produce, with fruit & veg floating around it */}
           <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-7 text-center text-white">
