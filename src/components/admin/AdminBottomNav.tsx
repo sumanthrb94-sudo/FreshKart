@@ -19,7 +19,7 @@ import { useOrderNotificationSound } from "@/lib/order-sounds";
 const tabs = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
   { icon: Calculator, label: "POS", path: "/admin/pos" },
-  { icon: Package, label: "Inventory", path: "/admin/inventory" },
+  { icon: Package, label: "Inventory", path: "/admin/products" },
   { icon: Tag, label: "Prices", path: "/admin/prices" },
   { icon: ClipboardList, label: "Orders", path: "/admin/orders" },
   { icon: RotateCcw, label: "Returns", path: "/admin/returns" },
