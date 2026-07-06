@@ -6,6 +6,7 @@ import { LayoutDashboard, LogOut, ShoppingCart, Sprout, Sun, Moon } from "lucide
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import { NotificationBell } from "@/components/NotificationDrawer";
 import { cn } from "@/lib/utils";
 
 const ICON_BTN =
@@ -19,7 +20,6 @@ export function BuyerHeader() {
 
   async function handleLogout() {
     await logout();
-    // Full navigation so the back button can't return to a protected page.
     window.location.assign("/");
   }
 
@@ -39,7 +39,6 @@ export function BuyerHeader() {
             </span>
           </Link>
 
-          {/* Light / Dark mode toggle */}
           <button
             type="button"
             onClick={toggleTheme}
@@ -63,7 +62,9 @@ export function BuyerHeader() {
                   Admin
                 </Link>
               )}
-              {/* Cart with a live count badge — always-visible "memory" */}
+              {/* Notification bell */}
+              <NotificationBell />
+              {/* Cart */}
               <button
                 type="button"
                 aria-label={`Your cart (${itemCount})`}
