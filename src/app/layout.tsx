@@ -36,6 +36,22 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem("freshkart-theme");
+                  if (theme === "light") {
+                    document.documentElement.classList.add("light");
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="font-sans text-fg antialiased">
         <AppProviders>{children}</AppProviders>
         <PwaRegistrar />
