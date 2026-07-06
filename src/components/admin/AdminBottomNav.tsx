@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Calculator,
   Package,
   Tag,
   ClipboardList,
@@ -14,11 +13,9 @@ import {
   BadgePercent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useOrderNotificationSound } from "@/lib/order-sounds";
 
 const tabs = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
-  { icon: Calculator, label: "POS", path: "/admin/pos" },
   { icon: Package, label: "Inventory", path: "/admin/products" },
   { icon: Tag, label: "Prices", path: "/admin/prices" },
   { icon: ClipboardList, label: "Orders", path: "/admin/orders" },
@@ -30,9 +27,6 @@ const tabs = [
 
 export function AdminBottomNav() {
   const pathname = usePathname();
-
-  // Play sound when new orders arrive (admin only)
-  useOrderNotificationSound(true, 20000);
 
   return (
     <nav className="shrink-0 border-t border-line bg-surface">
