@@ -10,6 +10,8 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { formatCurrency } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { useOrderTracker } from "@/components/providers/OrderTrackerProvider";
+import type { Order } from "@/lib/types";
 
 interface Coupon {
   id: string;
@@ -84,13 +86,57 @@ export function OrderSuccessAdScreen({
   total: number;
 }) {
   const router = useRouter();
+  const { startTracking } = useOrderTracker();
   const [coupons, setCoupons] = useState<Coupon[]>(demoCoupons);
   const [copiedCode, setCopiedCode] = useState("");
   const [showAds] = useState(true);
 
+  // Start tracking this order on mount
   useEffect(() => {
     setCoupons(getSavedCoupons());
-  }, []);
+
+    // Build a mock Order object and start real-time tracking
+    const mockOrder: Order = {
+      id: orderId,
+      orderNumber,
+      buyerId: "demo-buyer",
+      businessName: "Demo Business",
+      items: [
+        {
+          productId: "p1",
+          name: "Tomato",
+          unit: "kg",
+          price: 25,
+          qty: 10,
+          lineTotal: 250,
+        },
+        {
+          productId: "p2",
+          name: "Onion",
+          unit: "kg",
+          price: 30,
+          qty: 5,
+          lineTotal: 150,
+        },
+      ],
+      status: "PENDING",
+      paymentMethod: "COD",
+      paymentStatus: "UNPAID",
+      subtotal: total,
+      deliveryFee: 0,
+      total,
+      delivery: {
+        name: "Demo Buyer",
+        phone: "+919876543210",
+        city: "Bangalore",
+        address: "123 Main Street",
+        pincode: "560001",
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    startTracking(mockOrder);
+  }, [orderId, orderNumber, total, startTracking]);
 
   const activeCoupons = coupons.filter((c) => c.isActive && new Date(c.validUntil) > new Date());
 
@@ -114,7 +160,7 @@ export function OrderSuccessAdScreen({
             {orderNumber} &bull; {formatCurrency(total)}
           </p>
           <p className="mt-1 text-xs text-fg-subtle">
-            Your order will be delivered tomorrow. Track it in the Orders section.
+            Your order will be delivered tomorrow. Track it below.
           </p>
         </div>
 
@@ -157,7 +203,7 @@ export function OrderSuccessAdScreen({
           </Card>
         )}
 
-        {/* Coupon Cards - Zepto/Zomato Style */}
+        {/* Coupon Cards */}
         <h2 className="text-sm font-bold text-fg">Available Coupons</h2>
         <div className="flex flex-col gap-2.5">
           {activeCoupons.map((coupon) => (
