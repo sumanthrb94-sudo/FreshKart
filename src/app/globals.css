@@ -13,6 +13,9 @@
   --color-fg: #f5f6f8;
   --color-fg-muted: #a6abb5;
   --color-fg-subtle: #74787f;
+
+  /* Smooth theme transition duration */
+  --theme-duration: 250ms;
 }
 
 /* Light mode */
@@ -35,7 +38,40 @@ html {
 body {
   background: theme("colors.canvas");
   color: theme("colors.fg.DEFAULT");
-  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Smooth theme transitions on all color-aware elements */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: var(--theme-duration);
+  transition-timing-function: ease-in-out;
+}
+
+/* Disable transition on transform and opacity (used for animations) */
+html:not(.light) *,
+html:not(.light) *::before,
+html:not(.light) *::after {
+  transition-delay: 0ms;
+}
+
+/* Allow instant state changes for interactive feedback */
+button:active,
+a:active {
+  transition-duration: 50ms !important;
+}
+
+/* No transition on progress bars, spinners, and animation elements */
+.animate-spin,
+.animate-bounce,
+.animate-pulse,
+.animate-float,
+.animate-float-slow,
+.animate-pop,
+.animate-rise,
+.animate-fade {
+  transition-property: none !important;
 }
 
 /* Hide scrollbars inside the app column / sheets for an app-like feel */
