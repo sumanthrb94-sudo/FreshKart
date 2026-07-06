@@ -66,14 +66,16 @@ export interface DataSource {
   listOrders(buyerId?: string): Promise<Order[]>;
   getOrder(id: string): Promise<Order | null>;
   updateOrderStatus(id: string, status: OrderStatus): Promise<Order>;
+  /** Bulk update status for multiple orders at once (morning delivery batch processing). */
+  bulkUpdateOrderStatus(ids: string[], status: OrderStatus): Promise<Order[]>;
   cancelOrder(id: string): Promise<Order>;
-  /** Admin: mark an order paid / unpaid (COD / credit settlement, POS). */
+  /** Admin: mark an order paid / unpaid (COD / credit settlement). */
   setOrderPaid(id: string, paid: boolean): Promise<Order>;
 
   // --- Admin --------------------------------------------------------------
   listCustomers(): Promise<Customer[]>;
   getAdminStats(): Promise<AdminStats>;
-  /** Admin: read any user's full profile (e.g. POS customer lookup). */
+  /** Admin: read any user's full profile. */
   getUser(id: string): Promise<User | null>;
 }
 
