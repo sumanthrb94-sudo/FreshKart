@@ -18,6 +18,7 @@ import {
   where,
   orderBy,
   runTransaction,
+  writeBatch,
   type DocumentData,
   type DocumentReference,
   type DocumentSnapshot,
@@ -397,7 +398,7 @@ export class FirebaseDataSource implements DataSource {
         buyerId,
         businessName: input.delivery.name || buyer.businessName || buyer.name,
         items,
-        status: "PENDING",
+        status: "CONFIRMED", // Auto-confirmed — morning delivery model
         paymentMethod: input.paymentMethod,
         paymentStatus: input.paid ? "PAID" : "UNPAID",
         subtotal,
@@ -463,6 +464,43 @@ export class FirebaseDataSource implements DataSource {
     });
 
     return updated!;
+  }
+
+  /** Bulk update status for multiple orders at once (morning delivery batch processing). */
+  async bulkUpdateOrderStatus(ids: string[], status: OrderStatus): Promise<Order[]> {
+    await this.ready();
+    const db = getDb();
+    const updated: Order[] = [];
+    const batch = writeBatch(db);
+
+    for (const id of ids) {
+      const oRef = doc(db, COL.orders, id);
+      const oSnap = await getDoc(oRef);
+      if (!oSnap.exists()) continue;
+      const order = { ...(oSnap.data() as Omit<Order, "id">), id: oRef.id } as Order;
+
+      if (status === "CANCELLED" && order.status !== "CANCELLED") {
+        for (const i of order.items) {
+          const pRef = doc(db, COL.products, i.productId);
+          const pSnap = await getDoc(pRef);
+          if (pSnap.exists()) {
+            const p = pSnap.data() as Product;
+            batch.update(pRef, { stock: p.stock + i.qty });
+          }
+        }
+        batch.update(oRef, {
+          status,
+          notes: "Order cancelled — stock was released.",
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        batch.update(oRef, { status, updatedAt: new Date().toISOString() });
+      }
+      updated.push({ ...order, status });
+    }
+
+    await batch.commit();
+    return updated;
   }
 
   async cancelOrder(id: string): Promise<Order> {
