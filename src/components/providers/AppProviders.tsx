@@ -6,8 +6,10 @@ import { LanguageProvider } from "@/lib/i18n";
 import { AuthProvider } from "./AuthProvider";
 import { CartProvider } from "./CartProvider";
 import { ThemeProvider } from "./ThemeProvider";
+import { OrderTrackerProvider } from "./OrderTrackerProvider";
 import { AiChatAgent } from "@/components/AiChatAgent";
 import { ToastContainer } from "@/components/ToastContainer";
+import { OrderTracker } from "@/components/OrderTracker";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -19,9 +21,12 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <LanguageProvider>
         <AuthProvider>
           <CartProvider>
-            {children}
-            <AiChatAgent />
-            <ToastContainer />
+            <OrderTrackerProvider>
+              {children}
+              <AiChatAgent />
+              <ToastContainer />
+              <OrderTracker />
+            </OrderTrackerProvider>
           </CartProvider>
         </AuthProvider>
       </LanguageProvider>
