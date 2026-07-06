@@ -15,18 +15,39 @@ export const metadata: Metadata = {
   description:
     "B2B wholesale fresh-produce marketplace. Live B2B rates · order in bulk · pay COD, credit or online · 1–2 day delivery.",
   applicationName: "FreshKart",
+  manifest: "/manifest.json",
   // Installable-app (PWA) metadata.
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "FreshKart",
+    statusBarStyle: "black-translucent",
+    title: "FreshKart B2B",
+    startupImage: [
+      {
+        url: "/splash-dark.png",
+        media: "(prefers-color-scheme: dark)",
+      },
+      {
+        url: "/splash-light.png",
+        media: "(prefers-color-scheme: light)",
+      },
+    ],
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icon-192x192.png", sizes: "192x192" }],
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#e23744",
   width: "device-width",
   initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0d0d0f" },
+    { media: "(prefers-color-scheme: light)", color: "#f2f2f5" },
+  ],
 };
 
 export default function RootLayout({
@@ -37,6 +58,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <head>
+        {/* Anti-flash theme script — runs before any paint */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
