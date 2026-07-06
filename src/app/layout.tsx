@@ -16,28 +16,31 @@ export const metadata: Metadata = {
     "B2B wholesale fresh-produce marketplace. Live B2B rates · order in bulk · pay COD, credit or online · 1–2 day delivery.",
   applicationName: "FreshKart",
   manifest: "/manifest.json",
-  // Installable-app (PWA) metadata.
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "FreshKart B2B",
     startupImage: [
       {
-        url: "/splash-dark.png",
+        url: "/splash-dark.svg",
         media: "(prefers-color-scheme: dark)",
       },
       {
-        url: "/splash-light.png",
+        url: "/splash-light.svg",
         media: "(prefers-color-scheme: light)",
       },
     ],
   },
   icons: {
     icon: [
-      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icon-512x512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon-192x192.svg", sizes: "192x192", type: "image/svg+xml" },
+      { url: "/icon-512x512.svg", sizes: "512x512", type: "image/svg+xml" },
     ],
-    apple: [{ url: "/icon-192x192.png", sizes: "192x192" }],
+    apple: [{ url: "/icon-192x192.svg", sizes: "192x192" }],
+  },
+  other: {
+    "msapplication-TileColor": "#e23744",
+    "msapplication-config": "none",
   },
 };
 
@@ -58,7 +61,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <head>
-        {/* Anti-flash theme script — runs before any paint */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
