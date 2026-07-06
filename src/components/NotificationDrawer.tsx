@@ -217,7 +217,7 @@ export function NotificationBell() {
               <Bell className="h-12 w-12 text-fg-subtle" />
               <p className="mt-3 text-sm font-bold text-fg">No notifications yet</p>
               <p className="text-xs text-fg-subtle">
-                We'll notify you about order updates here.
+                We will notify you about order updates here.
               </p>
             </div>
           ) : (
