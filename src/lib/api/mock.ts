@@ -156,7 +156,7 @@ export class MockDataSource implements DataSource {
         buyerId,
         businessName: input.delivery.name || buyer.businessName || buyer.name,
         items,
-        status: "PENDING",
+        status: "CONFIRMED", // Orders are auto-confirmed — pre-order for next-day delivery
         paymentMethod: input.paymentMethod,
         paymentStatus: input.paid ? "PAID" : "UNPAID",
         subtotal,
@@ -206,6 +206,27 @@ export class MockDataSource implements DataSource {
     });
     if (!updated) throw new ApiError("Order not found.", 404);
     return delay(structuredClone(updated));
+  }
+
+  /** Bulk update status for multiple orders */
+  async bulkUpdateOrderStatus(ids: string[], status: OrderStatus): Promise<Order[]> {
+    const updated: Order[] = [];
+    store.mutate((s) => {
+      for (const id of ids) {
+        const o = s.orders.find((x) => x.id === id);
+        if (!o) continue;
+        if (status === "CANCELLED" && o.status !== "CANCELLED") {
+          for (const i of o.items) {
+            const p = s.products.find((x) => x.id === i.productId);
+            if (p) p.stock += i.qty;
+          }
+        }
+        o.status = status;
+        o.updatedAt = new Date().toISOString();
+        updated.push(structuredClone(o));
+      }
+    });
+    return delay(updated, 400);
   }
 
   async cancelOrder(id: string): Promise<Order> {
