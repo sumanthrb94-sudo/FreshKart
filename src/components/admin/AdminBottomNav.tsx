@@ -25,7 +25,7 @@ const tabs = [
   { icon: RotateCcw, label: "Returns", path: "/admin/returns" },
   { icon: FileText, label: "Reports", path: "/admin/reports" },
   { icon: BadgePercent, label: "Coupons", path: "/admin/coupons" },
-  { icon: Users, label: "Buyers", path: "/admin/buyers" },
+  { icon: Users, label: "Buyers", path: "/admin/customers" },
 ];
 
 export function AdminBottomNav() {
