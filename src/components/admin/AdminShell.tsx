@@ -1,15 +1,94 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, ShieldCheck, Store } from "lucide-react";
+import { LogOut, ShieldCheck, Store, Radio, Bell } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { AdminBottomNav } from "./AdminBottomNav";
+import { api, backendKind } from "@/lib/api";
+import { useEffect, useState, useRef } from "react";
+import type { Order } from "@/lib/types";
+import { formatCurrency } from "@/lib/format";
+import { toast } from "@/lib/toast";
+
+/** Web Audio API new-order chime — no external files needed. */
+function playNewOrderSound() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    // Pleasant ascending chime (C5 → E5 → G5)
+    [523.25, 659.25, 783.99].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.12);
+      gain.gain.setValueAtTime(0.12, now + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.12);
+      osc.stop(now + i * 0.12 + 0.4);
+    });
+  } catch {
+    // Audio not supported — silently ignore
+  }
+}
+
+/** Hook for real-time order count + new-order alerts in admin header */
+function useAdminOrderAlerts() {
+  const [confirmedCount, setConfirmedCount] = useState(0);
+  const [isLive, setIsLive] = useState(false);
+  const previousIds = useRef<Set<string>>(new Set());
+  const hasInit = useRef(false);
+
+  useEffect(() => {
+    if (typeof api.subscribeOrders !== "function") {
+      // HTTP backend — not live
+      api.listOrders()
+        .then((orders) => {
+          setConfirmedCount(orders.filter((o) => o.status === "CONFIRMED").length);
+        })
+        .catch(() => {});
+      return;
+    }
+
+    setIsLive(true);
+    const unsubscribe = api.subscribeOrders(undefined, (orders) => {
+      setConfirmedCount(orders.filter((o) => o.status === "CONFIRMED").length);
+
+      if (hasInit.current) {
+        const currentIds = new Set(orders.map((o) => o.id));
+        const newOrders = orders.filter((o) => !previousIds.current.has(o.id));
+        if (newOrders.length > 0) {
+          playNewOrderSound();
+          newOrders.forEach((o) => {
+            toast.success(
+              "New order received!",
+              `${o.businessName} — ${formatCurrency(o.total)}`,
+              5000
+            );
+          });
+        }
+        previousIds.current = currentIds;
+      } else {
+        previousIds.current = new Set(orders.map((o) => o.id));
+        hasInit.current = true;
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return { confirmedCount, isLive };
+}
 
 function AdminHeader() {
   const { logout } = useAuth();
+  const { confirmedCount, isLive } = useAdminOrderAlerts();
 
   async function handleLogout() {
     await logout();
@@ -31,6 +110,25 @@ function AdminHeader() {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Live indicator */}
+          {isLive && (
+            <span className="mr-1 flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              </span>
+              Live
+            </span>
+          )}
+
+          {/* New orders badge */}
+          {confirmedCount > 0 && (
+            <span className="mr-1 flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+              <Bell className="h-3 w-3" />
+              {confirmedCount} new
+            </span>
+          )}
+
           <Link
             href="/"
             className="flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-fg-muted hover:bg-raised"
