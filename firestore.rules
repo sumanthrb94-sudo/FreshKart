@@ -25,10 +25,51 @@ service cloud.firestore {
       return isAdminEmail() || (isSignedIn() && userRole() == 'ADMIN');
     }
 
-    // Only the `stock` field is being changed (used by buyer order / cancel
-    // transactions to reserve/release stock without editing price or status).
+    // Only the `stock` field is being changed.
     function onlyStockChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock']);
+    }
+
+    // Stock must only be decremented (not incremented or set arbitrarily)
+    // and by at most 500 units at a time.
+    function isStockDecrementValid() {
+      return request.resource.data.stock < resource.data.stock
+             && resource.data.stock - request.resource.data.stock <= 500;
+    }
+
+    // Helper to validate a single order item's price and line total integrity
+    function validateItem(item) {
+      return item.price == get(/databases/$(database)/documents/products/$(item.productId)).data.price
+             && item.lineTotal == item.price * item.qty;
+    }
+
+    // Helper to validate order items array up to length of 10
+    function validateOrderItems(items) {
+      return items.size() > 0 && items.size() <= 10
+             && (items.size() < 1 || validateItem(items[0]))
+             && (items.size() < 2 || validateItem(items[1]))
+             && (items.size() < 3 || validateItem(items[2]))
+             && (items.size() < 4 || validateItem(items[3]))
+             && (items.size() < 5 || validateItem(items[4]))
+             && (items.size() < 6 || validateItem(items[5]))
+             && (items.size() < 7 || validateItem(items[6]))
+             && (items.size() < 8 || validateItem(items[7]))
+             && (items.size() < 9 || validateItem(items[8]))
+             && (items.size() < 10 || validateItem(items[9]));
+    }
+
+    // Helper to compute expected subtotal from order items
+    function getExpectedSubtotal(items) {
+      return items.size() == 1 ? items[0].lineTotal :
+             items.size() == 2 ? items[0].lineTotal + items[1].lineTotal :
+             items.size() == 3 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal :
+             items.size() == 4 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal :
+             items.size() == 5 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal :
+             items.size() == 6 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal :
+             items.size() == 7 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal :
+             items.size() == 8 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal :
+             items.size() == 9 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal :
+             items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal + items[9].lineTotal;
     }
 
     // --- Products: public catalog. Admins manage; signed-in users may only
@@ -36,7 +77,7 @@ service cloud.firestore {
     match /products/{productId} {
       allow read: if true;
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (isSignedIn() && onlyStockChanged());
+      allow update: if isAdmin() || (isSignedIn() && onlyStockChanged() && isStockDecrementValid());
     }
 
     // --- Users: a user reads/edits their own profile; admins read all.
@@ -61,7 +102,10 @@ service cloud.firestore {
       allow create: if isAdmin()
                     || (isSignedIn()
                         && request.resource.data.buyerId == request.auth.uid
-                        && request.resource.data.status == 'PENDING');
+                        && request.resource.data.status == 'PENDING'
+                        && validateOrderItems(request.resource.data.items)
+                        && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items)
+                        && request.resource.data.total == request.resource.data.subtotal);
       // Admin can advance to any status; a buyer may only cancel while the
       // order is still PENDING or CONFIRMED.
       allow update: if isAdmin()

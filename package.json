@@ -10,7 +10,9 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "seed:firestore": "tsx scripts/seed-firestore.ts",
-    "seed:firestore:client": "tsx scripts/seed-products-client.ts"
+    "seed:firestore:client": "tsx scripts/seed-products-client.ts",
+    "test:e2e": "npx playwright test e2e/freshkart-ceo.spec.ts --headed --timeout=300000 --project=chrome-desktop",
+    "test:e2e:report": "npx playwright show-report e2e/report"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
@@ -23,6 +25,7 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/leaflet": "^1.9.12",
     "@types/node": "^20.16.11",
     "@types/react": "^19.2.17",
