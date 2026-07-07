@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import {
   ArrowRight,
   Ban,
@@ -16,10 +16,9 @@ import {
   SquareCheck,
   Truck,
   PackageCheck,
-  Bell,
 } from "lucide-react";
 import type { Order, OrderStatus } from "@/lib/types";
-import { api, backendKind } from "@/lib/api";
+import { api } from "@/lib/api";
 import {
   formatCurrency,
   formatDate,
@@ -76,32 +75,6 @@ function PaymentBadge({ paid }: { paid: boolean }) {
       {paid ? "Paid" : "Unpaid"}
     </span>
   );
-}
-
-/** Web Audio API new-order chime — no external files needed. */
-function playNewOrderSound() {
-  try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const now = ctx.currentTime;
-
-    // Pleasant ascending chime (C5 → E5 → G5)
-    [523.25, 659.25, 783.99].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, now + i * 0.12);
-      gain.gain.setValueAtTime(0.12, now + i * 0.12);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.4);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + i * 0.12);
-      osc.stop(now + i * 0.12 + 0.4);
-    });
-  } catch {
-    // Audio not supported — silently ignore
-  }
 }
 
 function OrderCard({
@@ -367,8 +340,6 @@ export function useAdminOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const previousOrderIds = useRef<Set<string>>(new Set());
-  const hasInitialized = useRef(false);
 
   useEffect(() => {
     // Check if the backend supports real-time subscriptions
@@ -391,31 +362,6 @@ export function useAdminOrders() {
       setOrders(freshOrders);
       setLoading(false);
       setError(null);
-
-      // Detect NEW orders (not seen before) and alert admin
-      if (hasInitialized.current) {
-        const currentIds = new Set(freshOrders.map((o) => o.id));
-        const newOrders = freshOrders.filter(
-          (o) => !previousOrderIds.current.has(o.id)
-        );
-        if (newOrders.length > 0) {
-          // Play sound for each new order (debounced by browser audio policy)
-          playNewOrderSound();
-          // Show toast notification
-          newOrders.forEach((o) => {
-            toast.success(
-              "New order received!",
-              `${o.businessName} — ${formatCurrency(o.total)} · ${o.orderNumber}`,
-              5000
-            );
-          });
-        }
-        previousOrderIds.current = currentIds;
-      } else {
-        // First load — just record the IDs, don't alert
-        previousOrderIds.current = new Set(freshOrders.map((o) => o.id));
-        hasInitialized.current = true;
-      }
     });
 
     return () => unsubscribe();
