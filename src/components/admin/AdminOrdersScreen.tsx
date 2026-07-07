@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
   ArrowRight,
   Ban,
@@ -16,9 +16,10 @@ import {
   SquareCheck,
   Truck,
   PackageCheck,
+  Bell,
 } from "lucide-react";
 import type { Order, OrderStatus } from "@/lib/types";
-import { api } from "@/lib/api";
+import { api, backendKind } from "@/lib/api";
 import {
   formatCurrency,
   formatDate,
@@ -27,7 +28,6 @@ import {
   STATUS_FLOW,
   unitLabel,
 } from "@/lib/format";
-import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { AdminShell } from "./AdminShell";
 import { InvoiceDownloader } from "@/components/InvoiceDownloader";
@@ -76,6 +76,32 @@ function PaymentBadge({ paid }: { paid: boolean }) {
       {paid ? "Paid" : "Unpaid"}
     </span>
   );
+}
+
+/** Web Audio API new-order chime — no external files needed. */
+function playNewOrderSound() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    // Pleasant ascending chime (C5 → E5 → G5)
+    [523.25, 659.25, 783.99].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.12);
+      gain.gain.setValueAtTime(0.12, now + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.12);
+      osc.stop(now + i * 0.12 + 0.4);
+    });
+  } catch {
+    // Audio not supported — silently ignore
+  }
 }
 
 function OrderCard({
@@ -337,15 +363,74 @@ function OrderDetail({
   );
 }
 
+export function useAdminOrders() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const previousOrderIds = useRef<Set<string>>(new Set());
+  const hasInitialized = useRef(false);
+
+  useEffect(() => {
+    // Check if the backend supports real-time subscriptions
+    if (typeof api.subscribeOrders !== "function") {
+      // Fallback to one-time fetch for HTTP backend
+      api.listOrders()
+        .then((data) => {
+          setOrders(data);
+          setLoading(false);
+        })
+        .catch((e) => {
+          setError(e instanceof Error ? e.message : "Failed to load orders.");
+          setLoading(false);
+        });
+      return;
+    }
+
+    // Use real-time subscription (Firebase or Mock)
+    const unsubscribe = api.subscribeOrders(undefined, (freshOrders) => {
+      setOrders(freshOrders);
+      setLoading(false);
+      setError(null);
+
+      // Detect NEW orders (not seen before) and alert admin
+      if (hasInitialized.current) {
+        const currentIds = new Set(freshOrders.map((o) => o.id));
+        const newOrders = freshOrders.filter(
+          (o) => !previousOrderIds.current.has(o.id)
+        );
+        if (newOrders.length > 0) {
+          // Play sound for each new order (debounced by browser audio policy)
+          playNewOrderSound();
+          // Show toast notification
+          newOrders.forEach((o) => {
+            toast.success(
+              "New order received!",
+              `${o.businessName} — ${formatCurrency(o.total)} · ${o.orderNumber}`,
+              5000
+            );
+          });
+        }
+        previousOrderIds.current = currentIds;
+      } else {
+        // First load — just record the IDs, don't alert
+        previousOrderIds.current = new Set(freshOrders.map((o) => o.id));
+        hasInitialized.current = true;
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return { orders, loading, error };
+}
+
 export function AdminOrdersScreen() {
-  const { data, loading, error, refetch } = useAsync(() => api.listOrders(), []);
+  const { orders, loading, error } = useAdminOrders();
   const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
-
-  const orders = useMemo(() => data ?? [], [data]);
 
   // Per-status counts for the filter chips.
   const counts = useMemo(() => {
@@ -374,14 +459,14 @@ export function AdminOrdersScreen() {
   }, [orders, filter, query]);
 
   // The order shown in the sheet, re-read from the freshest list each render so
-  // it stays in sync after refetch.
+  // it stays in sync after updates.
   const active = openId ? orders.find((o) => o.id === openId) ?? null : null;
 
   // Select all visible
   const allVisibleSelected = visible.length > 0 && visible.every((o) => selectedIds.has(o.id));
 
   function handleMutated(updated: Order) {
-    refetch();
+    // Real-time subscription will update the list automatically
     setOpenId(updated.id);
   }
 
@@ -412,7 +497,6 @@ export function AdminOrdersScreen() {
     if (selectedIds.size === 0) return;
     setBulkBusy(true);
     try {
-      // Group by current status and advance each group
       const toUpdate: string[] = [];
       for (const order of orders) {
         if (selectedIds.has(order.id) && !isTerminal(order.status)) {
@@ -423,7 +507,6 @@ export function AdminOrdersScreen() {
         toast.info("No actionable orders", "Selected orders are already terminal.");
         return;
       }
-      // Advance all selected to the next status in their flow
       const results = await api.bulkUpdateOrderStatus(toUpdate, "PACKED");
       toast.success(
         "Bulk update complete",
@@ -431,7 +514,7 @@ export function AdminOrdersScreen() {
         3000
       );
       setSelectedIds(new Set());
-      refetch();
+      // Real-time subscription will refresh the list
     } catch (e) {
       toast.error("Bulk update failed", e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -457,7 +540,6 @@ export function AdminOrdersScreen() {
         3000
       );
       setSelectedIds(new Set());
-      refetch();
     } catch (e) {
       toast.error("Delivery failed", e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -478,7 +560,6 @@ export function AdminOrdersScreen() {
         3000
       );
       setSelectedIds(new Set());
-      refetch();
     } catch (e) {
       toast.error("Bulk cancel failed", e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -502,8 +583,8 @@ export function AdminOrdersScreen() {
           title="Couldn't load orders"
           subtitle={error}
           action={
-            <Button variant="outline" onClick={refetch}>
-              Try again
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Refresh page
             </Button>
           }
         />
@@ -601,7 +682,7 @@ export function AdminOrdersScreen() {
 
         {/* List */}
         {orders.length === 0 ? (
-          <EmptyState icon={ClipboardList} title="No orders yet" subtitle="New orders will appear here." />
+          <EmptyState icon={ClipboardList} title="No orders yet" subtitle="New orders will appear here in real-time." />
         ) : visible.length === 0 ? (
           <EmptyState
             icon={SearchX}
