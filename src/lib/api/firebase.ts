@@ -19,6 +19,7 @@ import {
   orderBy,
   runTransaction,
   writeBatch,
+  onSnapshot,
   type DocumentData,
   type DocumentReference,
   type DocumentSnapshot,
@@ -202,11 +203,6 @@ export class FirebaseDataSource implements DataSource {
     const fb = auth.currentUser;
     if (!fb) return null;
     const snap = await readDoc(doc(getDb(), COL.users, fb.uid));
-    return snap.exists() ? snapToUser(snap) : null;
-  }
-
-  async getUser(id: string): Promise<User | null> {
-    const snap = await readDoc(doc(getDb(), COL.users, id));
     return snap.exists() ? snapToUser(snap) : null;
   }
 
@@ -412,6 +408,42 @@ export class FirebaseDataSource implements DataSource {
     });
 
     return built!;
+  }
+
+  /**
+   * Real-time order subscription using Firestore onSnapshot.
+   * Delivers updates in ~100ms — no page refresh needed.
+   */
+  subscribeOrders(buyerId?: string, cb?: (orders: Order[]) => void): () => void {
+    const db = getDb();
+    const base = collection(db, COL.orders);
+    // For admin (no buyerId): order by createdAt desc for newest-first.
+    // For buyer: filter by buyerId only (avoids composite index requirement).
+    const q = buyerId
+      ? query(base, where("buyerId", "==", buyerId))
+      : query(base, orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const orders = snap.docs.map((d) => ({
+          ...(d.data() as Omit<Order, "id">),
+          id: d.id,
+        }));
+        // Sort in memory for buyer view (since we can't use orderBy with where)
+        const sorted = orders.sort(
+          (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+        );
+        cb?.(sorted);
+      },
+      (err) => {
+        // Silently ignore permission errors — the UI will show empty state
+        // and the user can refresh. This prevents crash loops.
+        console.warn("Order subscription error:", err.message);
+      }
+    );
+
+    return unsubscribe;
   }
 
   async listOrders(buyerId?: string): Promise<Order[]> {
