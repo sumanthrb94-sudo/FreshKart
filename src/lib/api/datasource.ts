@@ -64,6 +64,12 @@ export interface DataSource {
   createOrder(buyerId: string, input: CreateOrderInput): Promise<Order>;
   /** buyerId omitted → all orders (admin). */
   listOrders(buyerId?: string): Promise<Order[]>;
+  /**
+   * Real-time subscription to order changes. Fires immediately with current
+   * data, then on every create/update/delete. Used by admin dashboard for
+   * instant new-order notifications without page refresh.
+   */
+  subscribeOrders?(buyerId?: string, cb?: (orders: Order[]) => void): () => void;
   getOrder(id: string): Promise<Order | null>;
   updateOrderStatus(id: string, status: OrderStatus): Promise<Order>;
   /** Bulk update status for multiple orders at once (morning delivery batch processing). */
