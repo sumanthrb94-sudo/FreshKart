@@ -15,8 +15,8 @@ import { generateOrderNumber } from "@/lib/format";
 import { DataSource, ApiError } from "./datasource";
 import { store } from "./mock-store";
 
-/** Simulate network latency so loading states are exercised in the demo. */
-function delay<T>(value: T, ms = 320): Promise<T> {
+/** Minimal delay for UI loading state realism in demo mode. */
+function delay<T>(value: T, ms = 120): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
 }
 
@@ -104,7 +104,7 @@ export class MockDataSource implements DataSource {
       s.products.push(product);
       created = product;
     });
-    return delay(structuredClone(created!), 400);
+    return delay(structuredClone(created!), 200);
   }
 
   // --- Orders -------------------------------------------------------------
@@ -170,7 +170,27 @@ export class MockDataSource implements DataSource {
       created = order;
     });
     if (error) throw new ApiError(error, 400);
-    return delay(structuredClone(created!), 600);
+    // Fast return — no artificial delay for order creation (was 600ms)
+    return structuredClone(created!);
+  }
+
+  /**
+   * Real-time subscription to mock order changes.
+   * Fires immediately and on every mutation.
+   */
+  subscribeOrders(buyerId?: string, cb?: (orders: Order[]) => void): () => void {
+    const deliver = () => {
+      const all = store.get().orders;
+      const list = buyerId ? all.filter((o) => o.buyerId === buyerId) : all;
+      const sorted = [...list].sort(
+        (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+      );
+      cb?.(structuredClone(sorted));
+    };
+    // Fire immediately with current data
+    deliver();
+    // Subscribe to store mutations
+    return store.subscribe(deliver);
   }
 
   async listOrders(buyerId?: string): Promise<Order[]> {
@@ -226,7 +246,7 @@ export class MockDataSource implements DataSource {
         updated.push(structuredClone(o));
       }
     });
-    return delay(updated, 400);
+    return delay(updated, 200);
   }
 
   async cancelOrder(id: string): Promise<Order> {
