@@ -1,5 +1,5 @@
 import type { Order, Product, User } from "@/lib/types";
-import { inventoryProducts } from "@/lib/produce";
+import { PRODUCTS, USERS, DEMO_PASSWORD } from "@/lib/mock-data";
 
 interface MockStore {
   products: Product[];
@@ -12,41 +12,14 @@ const LS_KEY = "freshkart_mock_store_v1";
 
 function seed(): MockStore {
   return {
-    products: inventoryProducts.map((p, i) => ({
-      ...p,
-      id: `prod-${i + 1}`,
-      stock: 500,
-      minOrderQty: 10,
-    })),
-    users: [
-      {
-        id: "admin-1",
-        name: "FreshKart Admin",
-        email: "sumanthbolla97@gmail.com",
-        phone: "9876543210",
-        role: "ADMIN",
-        businessName: "FreshKart Admin",
-        city: "Bangalore",
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: "buyer-1",
-        name: "Demo Buyer",
-        email: "demo@freshkart.in",
-        phone: "9876543211",
-        role: "BUYER",
-        businessName: "Shree Sai Restaurant",
-        businessType: "Restaurant",
-        address: "12th Main, Koramangala",
-        city: "Bangalore",
-        pincode: "560034",
-        createdAt: new Date().toISOString(),
-      },
-    ],
+    products: PRODUCTS.map((p) => ({ ...p })),
+    users: USERS.map((u) => ({ ...u })),
     orders: [],
     credentials: {
-      "sumanthbolla97@gmail.com": "admin123",
-      "demo@freshkart.in": "demo123",
+      "customer@freshkart.in": DEMO_PASSWORD,
+      "admin@freshkart.in": DEMO_PASSWORD,
+      "anita@spiceleaf.in": DEMO_PASSWORD,
+      "mohan@dailyfresh.in": DEMO_PASSWORD,
     },
   };
 }
@@ -60,6 +33,8 @@ function load(): MockStore {
     // Ensure all required fields exist (migration from older store versions)
     if (!parsed.orders) parsed.orders = [];
     if (!parsed.credentials) parsed.credentials = seed().credentials;
+    if (!parsed.products || parsed.products.length === 0) parsed.products = seed().products;
+    if (!parsed.users || parsed.users.length === 0) parsed.users = seed().users;
     return parsed;
   } catch {
     return seed();
