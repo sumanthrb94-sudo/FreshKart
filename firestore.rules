@@ -72,6 +72,23 @@ service cloud.firestore {
              items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal + items[9].lineTotal;
     }
 
+    // Allowed top-level fields on a new order document. Prevents buyers from
+    // injecting arbitrary keys (e.g. `isAdmin`, `discount`, `refundAmount`)
+    // into the order document.
+    function hasOnlyOrderFields() {
+      return request.resource.data.keys().hasOnly([
+        'buyerId', 'businessName', 'items', 'status', 'paymentMethod',
+        'paymentStatus', 'subtotal', 'deliveryFee', 'total', 'delivery',
+        'createdAt', 'updatedAt', 'orderNumber'
+      ]);
+    }
+
+    // Buyer cancel: only the `status` and `updatedAt` fields may change.
+    function onlyStatusChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'updatedAt']);
+    }
+
     // --- Products: public catalog. Admins manage; signed-in users may only
     //     adjust stock (order/cancel transactions). ---
     match /products/{productId} {
@@ -98,20 +115,24 @@ service cloud.firestore {
       allow read: if isSignedIn()
                   && (resource.data.buyerId == request.auth.uid || isAdmin());
       // Buyers create their own PENDING orders; admins (POS / phone desk) may
-      // place an order on behalf of any buyer.
+      // place an order on behalf of any buyer. Field whitelist prevents
+      // injection of arbitrary keys (e.g. `discount`, `isAdmin`).
       allow create: if isAdmin()
                     || (isSignedIn()
+                        && hasOnlyOrderFields()
                         && request.resource.data.buyerId == request.auth.uid
                         && request.resource.data.status == 'PENDING'
                         && validateOrderItems(request.resource.data.items)
                         && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items)
                         && request.resource.data.total == request.resource.data.subtotal);
       // Admin can advance to any status; a buyer may only cancel while the
-      // order is still PENDING or CONFIRMED.
+      // order is still PENDING or CONFIRMED and may ONLY change `status` +
+      // `updatedAt` (cannot tamper with items, totals, or other fields).
       allow update: if isAdmin()
                     || (resource.data.buyerId == request.auth.uid
                         && resource.data.status in ['PENDING', 'CONFIRMED']
-                        && request.resource.data.status == 'CANCELLED');
+                        && request.resource.data.status == 'CANCELLED'
+                        && onlyStatusChanged());
       allow delete: if isAdmin();
     }
   }
