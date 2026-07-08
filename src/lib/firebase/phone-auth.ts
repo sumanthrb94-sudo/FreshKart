@@ -58,6 +58,16 @@ function normalizeFirebaseError(e: unknown): PhoneAuthError {
         code,
         "SMS quota exceeded for today. Try Google sign-in or contact support."
       );
+    case code.includes("billing-not-enabled"):
+      return new PhoneAuthError(
+        code,
+        "Phone sign-in is temporarily unavailable. Please use Google sign-in, or contact support."
+      );
+    case code.includes("operation-not-allowed"):
+      return new PhoneAuthError(
+        code,
+        "Phone sign-in is not enabled for this app. Please use Google sign-in instead."
+      );
     case code.includes("app-not-authorized"):
     case code.includes("unauthorized-domain"):
       return new PhoneAuthError(
@@ -83,6 +93,10 @@ function normalizeFirebaseError(e: unknown): PhoneAuthError {
         code,
         "App Check validation failed. Ensure NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY is correct, or turn off App Check enforcement in the Firebase Console until the key is configured."
       );
+    case code.includes("code-expired"):
+      return new PhoneAuthError(code, "The verification code has expired. Please request a new one.");
+    case code.includes("invalid-verification-code"):
+      return new PhoneAuthError(code, "Invalid code. Please check and try again.");
     default:
       return new PhoneAuthError(code, `${message} (code: ${code})`);
   }
