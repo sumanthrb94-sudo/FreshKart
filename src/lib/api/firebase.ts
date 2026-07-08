@@ -206,6 +206,11 @@ export class FirebaseDataSource implements DataSource {
     return snap.exists() ? snapToUser(snap) : null;
   }
 
+  async getUser(id: string): Promise<User | null> {
+    const snap = await readDoc(doc(getDb(), COL.users, id));
+    return snap.exists() ? snapToUser(snap) : null;
+  }
+
   async completeProfile(input: ProfileSetupInput): Promise<User> {
     const auth = getFirebaseAuth();
     const fb = auth.currentUser;
