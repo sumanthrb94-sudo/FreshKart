@@ -15,8 +15,8 @@ import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { DataSource, ApiError } from "./datasource";
 import { store } from "./mock-store";
 
-/** Simulate network latency so loading states are exercised in the demo. */
-function delay<T>(value: T, ms = 320): Promise<T> {
+/** Minimal delay for UI loading state realism in demo mode. */
+function delay<T>(value: T, ms = 120): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
 }
 
@@ -26,6 +26,16 @@ export class MockDataSource implements DataSource {
   // --- Auth ---------------------------------------------------------------
   // This mock backend is for catalog/order demo data only. It does not model
   // auth because the production app uses Firebase Phone OTP / Google sign-in.
+
+  async login({ email, password }: { email: string; password: string }): Promise<User> {
+    const expected = store.get().credentials[email];
+    if (!expected || expected !== password) {
+      throw new ApiError("Invalid email or password.", 401);
+    }
+    const user = store.get().users.find((u) => u.email === email);
+    if (!user) throw new ApiError("User not found.", 404);
+    return delay(structuredClone(user));
+  }
 
   async updateProfile(userId: string, patch: Partial<User>): Promise<User> {
     let updated: User | null = null;
@@ -70,7 +80,7 @@ export class MockDataSource implements DataSource {
       s.products.push(product);
       created = product;
     });
-    return delay(structuredClone(created!), 400);
+    return delay(structuredClone(created!), 200);
   }
 
   // --- Orders -------------------------------------------------------------
@@ -130,7 +140,7 @@ export class MockDataSource implements DataSource {
         buyerId,
         businessName: input.delivery.name || buyer.businessName || buyer.name,
         items,
-        status: "PENDING",
+        status: "CONFIRMED", // Orders are auto-confirmed — pre-order for next-day delivery
         paymentMethod: input.paymentMethod,
         paymentStatus: input.paid ? "PAID" : "UNPAID",
         subtotal,
@@ -144,7 +154,27 @@ export class MockDataSource implements DataSource {
       created = order;
     });
     if (error) throw new ApiError(error, 400);
-    return delay(structuredClone(created!), 600);
+    // Fast return — no artificial delay for order creation (was 600ms)
+    return structuredClone(created!);
+  }
+
+  /**
+   * Real-time subscription to mock order changes.
+   * Fires immediately and on every mutation.
+   */
+  subscribeOrders(buyerId?: string, cb?: (orders: Order[]) => void): () => void {
+    const deliver = () => {
+      const all = store.get().orders;
+      const list = buyerId ? all.filter((o) => o.buyerId === buyerId) : all;
+      const sorted = [...list].sort(
+        (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+      );
+      cb?.(structuredClone(sorted));
+    };
+    // Fire immediately with current data
+    deliver();
+    // Subscribe to store mutations
+    return store.subscribe(deliver);
   }
 
   async listOrders(buyerId?: string): Promise<Order[]> {
@@ -180,6 +210,27 @@ export class MockDataSource implements DataSource {
     });
     if (!updated) throw new ApiError("Order not found.", 404);
     return delay(structuredClone(updated));
+  }
+
+  /** Bulk update status for multiple orders */
+  async bulkUpdateOrderStatus(ids: string[], status: OrderStatus): Promise<Order[]> {
+    const updated: Order[] = [];
+    store.mutate((s) => {
+      for (const id of ids) {
+        const o = s.orders.find((x) => x.id === id);
+        if (!o) continue;
+        if (status === "CANCELLED" && o.status !== "CANCELLED") {
+          for (const i of o.items) {
+            const p = s.products.find((x) => x.id === i.productId);
+            if (p) p.stock += i.qty;
+          }
+        }
+        o.status = status;
+        o.updatedAt = new Date().toISOString();
+        updated.push(structuredClone(o));
+      }
+    });
+    return delay(updated, 200);
   }
 
   async cancelOrder(id: string): Promise<Order> {

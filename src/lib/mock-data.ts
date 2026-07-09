@@ -75,6 +75,8 @@ export const PRODUCTS: Product[] = RAW.map((p) => ({
 }));
 
 
+export const DEMO_PASSWORD = "password123";
+
 export const USERS: User[] = [
   {
     id: "user-buyer-1",

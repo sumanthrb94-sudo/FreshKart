@@ -17,7 +17,6 @@ import { getFirebaseAuth } from "./client";
  * Firebase console → Authentication → Sign-in method → Phone → "Phone numbers
  * for testing" (e.g. +91 98765 43210 → 123456).
  */
-let verifier: RecaptchaVerifier | null = null;
 
 function getContainer(containerId: string): HTMLElement {
   const el = document.getElementById(containerId);
@@ -88,6 +87,8 @@ function normalizeFirebaseError(e: unknown): PhoneAuthError {
   }
 }
 
+let verifier: RecaptchaVerifier | null = null;
+
 /** Normalize a 10-digit Indian number (or any input) to E.164 (+91…). */
 export function toE164(input: string, countryCode = "+91"): string {
   const digits = input.replace(/\D/g, "");
@@ -130,7 +131,7 @@ export async function renderRecaptcha(
 /** Send an OTP; returns a confirmation handle used to verify the code. */
 export async function sendOtp(
   phoneE164: string,
-  recaptchaContainerId: string
+  _recaptchaContainerId: string
 ): Promise<ConfirmationResult> {
   try {
     const auth = getFirebaseAuth();

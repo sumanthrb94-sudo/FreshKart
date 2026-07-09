@@ -3,6 +3,7 @@ import type { Config } from "tailwindcss";
 /**
  * FreshKart design tokens — mirrors Section 3 of the Figma design brief.
  * Brand red (#e23744, Zomato-style) primary, orange accent, Tailwind grays.
+ * Semantic colors use CSS variables for light/dark mode support.
  */
 const config: Config = {
   content: [
@@ -10,6 +11,7 @@ const config: Config = {
     "./src/components/**/*.{ts,tsx}",
     "./src/lib/**/*.{ts,tsx}",
   ],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
@@ -44,16 +46,15 @@ const config: Config = {
           800: "#1f2024",
           700: "#2b2c31",
         },
-        // Semantic dark-theme tokens — the single source of truth applied on
-        // every screen so the whole app shares one cohesive palette.
-        canvas: "#0d0d0f", // page / app background
-        surface: "#18181b", // cards, headers, sheets
-        raised: "#222227", // inputs, raised chips
-        line: "#2c2d33", // borders & dividers
+        // Semantic tokens — CSS variables enable light/dark mode switching
+        canvas: "var(--color-canvas)",
+        surface: "var(--color-surface)",
+        raised: "var(--color-raised)",
+        line: "var(--color-line)",
         fg: {
-          DEFAULT: "#f5f6f8", // primary text
-          muted: "#a6abb5", // secondary text
-          subtle: "#74787f", // tertiary / placeholder
+          DEFAULT: "var(--color-fg)",
+          muted: "var(--color-fg-muted)",
+          subtle: "var(--color-fg-subtle)",
         },
       },
       fontFamily: {

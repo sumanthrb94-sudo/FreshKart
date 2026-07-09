@@ -15,6 +15,8 @@ import {
   where,
   orderBy,
   runTransaction,
+  writeBatch,
+  onSnapshot,
   type DocumentData,
   type DocumentReference,
   type DocumentSnapshot,
@@ -360,7 +362,7 @@ export class FirebaseDataSource implements DataSource {
         buyerId,
         businessName: input.delivery.name || buyer.businessName || buyer.name,
         items,
-        status: "PENDING",
+        status: "CONFIRMED", // Auto-confirmed — morning delivery model
         paymentMethod: input.paymentMethod,
         paymentStatus: input.paid ? "PAID" : "UNPAID",
         subtotal,
@@ -374,6 +376,42 @@ export class FirebaseDataSource implements DataSource {
     });
 
     return built!;
+  }
+
+  /**
+   * Real-time order subscription using Firestore onSnapshot.
+   * Delivers updates in ~100ms — no page refresh needed.
+   */
+  subscribeOrders(buyerId?: string, cb?: (orders: Order[]) => void): () => void {
+    const db = getDb();
+    const base = collection(db, COL.orders);
+    // For admin (no buyerId): order by createdAt desc for newest-first.
+    // For buyer: filter by buyerId only (avoids composite index requirement).
+    const q = buyerId
+      ? query(base, where("buyerId", "==", buyerId))
+      : query(base, orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const orders = snap.docs.map((d) => ({
+          ...(d.data() as Omit<Order, "id">),
+          id: d.id,
+        }));
+        // Sort in memory for buyer view (since we can't use orderBy with where)
+        const sorted = orders.sort(
+          (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+        );
+        cb?.(sorted);
+      },
+      (err) => {
+        // Silently ignore permission errors — the UI will show empty state
+        // and the user can refresh. This prevents crash loops.
+        console.warn("Order subscription error:", err.message);
+      }
+    );
+
+    return unsubscribe;
   }
 
   async listOrders(buyerId?: string): Promise<Order[]> {
@@ -426,6 +464,43 @@ export class FirebaseDataSource implements DataSource {
     });
 
     return updated!;
+  }
+
+  /** Bulk update status for multiple orders at once (morning delivery batch processing). */
+  async bulkUpdateOrderStatus(ids: string[], status: OrderStatus): Promise<Order[]> {
+    await this.ready();
+    const db = getDb();
+    const updated: Order[] = [];
+    const batch = writeBatch(db);
+
+    for (const id of ids) {
+      const oRef = doc(db, COL.orders, id);
+      const oSnap = await getDoc(oRef);
+      if (!oSnap.exists()) continue;
+      const order = { ...(oSnap.data() as Omit<Order, "id">), id: oRef.id } as Order;
+
+      if (status === "CANCELLED" && order.status !== "CANCELLED") {
+        for (const i of order.items) {
+          const pRef = doc(db, COL.products, i.productId);
+          const pSnap = await getDoc(pRef);
+          if (pSnap.exists()) {
+            const p = pSnap.data() as Product;
+            batch.update(pRef, { stock: p.stock + i.qty });
+          }
+        }
+        batch.update(oRef, {
+          status,
+          notes: "Order cancelled — stock was released.",
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        batch.update(oRef, { status, updatedAt: new Date().toISOString() });
+      }
+      updated.push({ ...order, status });
+    }
+
+    await batch.commit();
+    return updated;
   }
 
   async cancelOrder(id: string): Promise<Order> {

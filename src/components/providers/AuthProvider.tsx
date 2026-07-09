@@ -18,6 +18,8 @@ interface AuthContextValue {
   loading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  /** Email/password sign-in (mock/demo mode). */
+  login: (credentials: { email: string; password: string }) => Promise<User>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<User>) => Promise<User>;
   /** Re-read the signed-in user's profile (after phone OTP / shop setup). */
@@ -70,6 +72,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, [persist]);
 
+  const login = useCallback(
+    async (credentials: { email: string; password: string }) => {
+      if (api.login) {
+        const u = await api.login(credentials);
+        persist(u);
+        return u;
+      }
+      throw new Error("Email/password sign-in is not available on this backend.");
+    },
+    [persist]
+  );
+
   const logout = useCallback(async () => {
     try {
       await api.logout?.();
@@ -106,11 +120,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       isAuthenticated: !!user,
       isAdmin: user?.role === "ADMIN",
+      login,
       logout,
       updateProfile,
       refreshUser,
     }),
-    [user, loading, logout, updateProfile, refreshUser]
+    [user, loading, login, logout, updateProfile, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

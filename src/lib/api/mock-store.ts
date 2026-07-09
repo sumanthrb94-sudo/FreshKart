@@ -1,73 +1,89 @@
 import type { DailyPricesSettings, Order, Product, User } from "@/lib/types";
-import { ORDERS, PRODUCTS, USERS } from "@/lib/mock-data";
+import { ORDERS, PRODUCTS, USERS, DEMO_PASSWORD } from "@/lib/mock-data";
 
-/**
- * Mutable in-memory store for the mock backend, persisted to localStorage so a
- * demo session survives reloads. On the server (no `window`) it falls back to
- * fresh seed data each call — fine for the mock, and irrelevant once a real
- * backend is wired in.
- */
-const KEY = "freshkart.store.v1";
-
-interface StoreShape {
+interface MockStore {
   products: Product[];
-  orders: Order[];
   users: User[];
+  orders: Order[];
   dailyPrices: DailyPricesSettings | null;
+  credentials: Record<string, string>;
 }
 
-function seed(): StoreShape {
+const LS_KEY = "freshkart_mock_store_v1";
+
+function seed(): MockStore {
   return {
     products: structuredClone(PRODUCTS),
-    orders: structuredClone(ORDERS),
     users: structuredClone(USERS),
+    orders: structuredClone(ORDERS),
     dailyPrices: null,
+    credentials: {
+      "customer@freshkart.in": DEMO_PASSWORD,
+      "admin@freshkart.in": DEMO_PASSWORD,
+      "anita@spiceleaf.in": DEMO_PASSWORD,
+      "mohan@dailyfresh.in": DEMO_PASSWORD,
+    },
   };
 }
 
-let memory: StoreShape | null = null;
-
-function load(): StoreShape {
-  if (memory) return memory;
-  if (typeof window === "undefined") {
-    memory = seed();
-    return memory;
-  }
+function load(): MockStore {
+  if (typeof window === "undefined") return seed();
   try {
-    const raw = window.localStorage.getItem(KEY);
-    if (raw) {
-      memory = JSON.parse(raw) as StoreShape;
-      return memory;
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return seed();
+    const parsed = JSON.parse(raw) as MockStore;
+    // Ensure all required fields exist (migration from older store versions)
+    if (!parsed.orders) parsed.orders = [];
+    if (!parsed.credentials) parsed.credentials = seed().credentials;
+    if (!parsed.products || parsed.products.length === 0) parsed.products = seed().products;
+    if (!parsed.users || parsed.users.length === 0) parsed.users = seed().users;
+    if (parsed.dailyPrices === undefined) parsed.dailyPrices = null;
+    return parsed;
+  } catch {
+    return seed();
+  }
+}
+
+function persist(s: MockStore) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(LS_KEY, JSON.stringify(s));
+  }
+}
+
+/** Simple pub/sub for real-time mock subscriptions */
+type Listener = () => void;
+const listeners = new Set<Listener>();
+
+function notify() {
+  listeners.forEach((cb) => {
+    try {
+      cb();
+    } catch {
+      // ignore listener errors
     }
-  } catch {
-    // ignore corrupt storage and reseed
-  }
-  memory = seed();
-  persist();
-  return memory;
+  });
 }
 
-function persist() {
-  if (typeof window === "undefined" || !memory) return;
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(memory));
-  } catch {
-    // storage full / unavailable — keep working from memory
-  }
-}
+let _state = load();
 
 export const store = {
-  get(): StoreShape {
-    return load();
+  get(): MockStore {
+    return _state;
   },
-  mutate(fn: (s: StoreShape) => void) {
-    const s = load();
-    fn(s);
-    persist();
+  mutate(fn: (s: MockStore) => void) {
+    fn(_state);
+    persist(_state);
+    notify();
   },
-  /** Wipe persisted demo state (used by a "reset demo" affordance if needed). */
+  /** Subscribe to any store mutation. Used by mock real-time subscriptions. */
+  subscribe(cb: Listener): () => void {
+    listeners.add(cb);
+    return () => listeners.delete(cb);
+  },
+  /** Reset everything (useful for testing). */
   reset() {
-    memory = seed();
-    persist();
+    _state = seed();
+    persist(_state);
+    notify();
   },
 };

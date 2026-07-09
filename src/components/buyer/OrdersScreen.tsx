@@ -12,6 +12,7 @@ import { OrderCard } from "./OrderCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
+import { CallNowInline } from "@/components/CallNowInline";
 
 export function OrdersScreen() {
   const { ready, user } = useRequireAuth({ callbackUrl: "/orders" });
@@ -74,6 +75,9 @@ export function OrdersScreen() {
         ) : (
           orders.map((o) => <OrderCard key={o.id} order={o} />)
         )}
+
+        {/* Call Now support banner - placed in orders section */}
+        <CallNowInline />
       </div>
     </AppShell>
   );
