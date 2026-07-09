@@ -44,6 +44,61 @@ const FLOATERS = [
   { e: "🥕", s: "text-2xl", dx: "8s", dy: "7.5s", ox: "-3.5s", oy: "-7s" },
 ];
 
+/** Translate Firebase error codes to user-friendly messages. */
+function friendlyPhoneError(e: unknown): string {
+  const code = (e as { code?: string })?.code ?? "";
+  const msg = e instanceof Error ? e.message : "";
+
+  if (code.includes("invalid-phone-number")) {
+    return "Invalid phone number. Please enter a valid 10-digit Indian mobile number.";
+  }
+  if (code.includes("missing-phone-number")) {
+    return "Phone number is required.";
+  }
+  if (code.includes("quota-exceeded")) {
+    return "SMS quota exceeded. Try again later or use Google sign-in.";
+  }
+  if (code.includes("user-disabled")) {
+    return "This phone number has been disabled. Contact support.";
+  }
+  if (code.includes("operation-not-allowed")) {
+    return "Phone sign-in is not enabled. Please enable it in Firebase Console → Authentication → Sign-in method → Phone.";
+  }
+  if (code.includes("captcha-check-failed")) {
+    return "reCAPTCHA verification failed. Please refresh the page and try again.";
+  }
+  if (code.includes("app-not-authorized")) {
+    return "This app is not authorized for phone authentication. Add your domain to Firebase Console → Authentication → Authorized domains.";
+  }
+  if (code.includes("invalid-app-credential")) {
+    return "Invalid app configuration. Check your Firebase API key and app ID.";
+  }
+  if (code.includes("network-request-failed")) {
+    return "Network error. Check your internet connection and try again.";
+  }
+  if (code.includes("too-many-requests")) {
+    return "Too many attempts. Please wait a few minutes before trying again.";
+  }
+  if (code.includes("argument-error")) {
+    return "Authentication setup error. The reCAPTCHA verifier may not be configured correctly.";
+  }
+  if (code.includes("timeout")) {
+    return "Request timed out. Check your connection and try again.";
+  }
+  // OTP verification errors
+  if (code.includes("invalid-verification-code")) {
+    return "Invalid code. Please check and try again.";
+  }
+  if (code.includes("invalid-verification-id")) {
+    return "Session expired. Please request a new code.";
+  }
+  if (code.includes("session-expired")) {
+    return "Code expired. Please request a new one.";
+  }
+
+  return msg || "Something went wrong. Please try again.";
+}
+
 export function OnboardingScreen() {
   const router = useRouter();
   const { login, refreshUser } = useAuth();
@@ -137,9 +192,7 @@ export function OnboardingScreen() {
       setResendIn(30);
     } catch (e) {
       resetRecaptcha();
-      setError(
-        e instanceof Error ? e.message : "Couldn't send the code. Please try again."
-      );
+      setError(friendlyPhoneError(e));
     } finally {
       setBusy(false);
     }
@@ -162,8 +215,8 @@ export function OnboardingScreen() {
         setMethod("phone"); // phone is verified — we'll ask the email
         setStep("shop");
       }
-    } catch {
-      setError("Invalid or expired code. Please try again.");
+    } catch (e) {
+      setError(friendlyPhoneError(e));
     } finally {
       setBusy(false);
     }
