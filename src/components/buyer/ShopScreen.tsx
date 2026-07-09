@@ -7,6 +7,7 @@ import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
+import { getStoreStatus } from "@/lib/store-hours";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
@@ -63,6 +64,16 @@ export function ShopScreen() {
   }, [params, lines.length, router]);
 
   const pricesPublished = isDailyPriceUpdatePublished(settings?.publishedAt);
+
+  // Re-evaluate store open/closed status every minute so the catalog hides
+  // automatically after 11:45 PM IST and reappears at 8:00 AM IST.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const storeStatus = useMemo(() => getStoreStatus(now), [now]);
+  const canOrder = pricesPublished && storeStatus.isOpen;
 
   const visible = useMemo(() => {
     const list = (products ?? []).filter((p) => p.active);
@@ -133,7 +144,7 @@ export function ShopScreen() {
       header={<BuyerHeader />}
       footer={
         <>
-          <StickyCartBar onReview={handleReview} disabled={!pricesPublished} />
+          <StickyCartBar onReview={handleReview} disabled={!canOrder} />
           <BuyerBottomNav />
         </>
       }
@@ -142,13 +153,24 @@ export function ShopScreen() {
       {/* Sticky language + search + category rail */}
       <div className="sticky top-0 z-20 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur">
         {/* Daily price-update banner */}
-        {!settingsLoading && !pricesPublished && (
+        {!settingsLoading && !pricesPublished && storeStatus.isOpen && (
           <div className="mb-3 -mt-1 rounded-lg border border-amber-500/30 bg-amber-500/15 px-3 py-2 text-center">
             <p className="flex items-center justify-center gap-2 text-sm font-bold text-amber-100">
               <Clock className="h-4 w-4 text-amber-400" aria-hidden />
               Getting best live prices for you
             </p>
             <p className="text-xs text-amber-200/80">Orders open after 7 AM daily price update</p>
+          </div>
+        )}
+
+        {/* Store closed banner — catalog hidden between 11:45 PM and 8:00 AM IST */}
+        {!storeStatus.isOpen && (
+          <div className="mb-3 -mt-1 rounded-lg border border-brand-500/30 bg-brand-500/15 px-3 py-3 text-center">
+            <p className="flex items-center justify-center gap-2 text-sm font-bold text-brand-100">
+              <Clock className="h-4 w-4 text-brand-400" aria-hidden />
+              Gathering best prices across Hyderabad
+            </p>
+            <p className="text-xs text-brand-200/80">Will be online at 8 AM everyday</p>
           </div>
         )}
 
@@ -203,6 +225,12 @@ export function ShopScreen() {
           </div>
         ) : error ? (
           <EmptyState icon={SearchX} title={t("couldntLoad")} subtitle={error} />
+        ) : !storeStatus.isOpen ? (
+          <EmptyState
+            icon={Clock}
+            title="Gathering best prices across Hyderabad"
+            subtitle="Will be online at 8 AM everyday. Come back tomorrow!"
+          />
         ) : visible.length === 0 ? (
           <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
         ) : (
@@ -236,7 +264,7 @@ export function ShopScreen() {
         defaultDelivery={defaultDelivery}
         busy={busy}
         error={orderError}
-        disabled={!pricesPublished}
+        disabled={!canOrder}
         onContinue={handleContinue}
       />
       <PaymentSheet

@@ -4,7 +4,7 @@ import { Clock, Phone } from "lucide-react";
 import { getStoreStatus, formatRemainingMinutes } from "@/lib/store-hours";
 import { CallNowButton } from "./CallNowButton";
 
-/** Overlay shown when the store is closed (before 9AM or after 10PM IST).
+/** Overlay shown when the store is closed (before 8AM or after 11:45PM IST).
  *  Blocks ordering but shows catalog for browsing.
  */
 export function StoreClosedOverlay() {
@@ -20,7 +20,7 @@ export function StoreClosedOverlay() {
         </div>
         <h2 className="mt-4 text-xl font-extrabold text-fg">Store Closed</h2>
         <p className="mt-1 text-sm text-fg-subtle">
-          We open at 9:00 AM IST
+          We open at 8:00 AM IST
         </p>
         <p className="mt-1 text-xs text-fg-muted">
           Opens in {formatRemainingMinutes(status.minutesUntilOpen)}
@@ -31,7 +31,7 @@ export function StoreClosedOverlay() {
             <strong className="text-fg">Store Hours</strong>
           </p>
           <p className="mt-1 text-sm text-fg-muted">
-            Mon – Sat: 9:00 AM – 10:00 PM IST
+            Mon – Sat: 8:00 AM – 11:45 PM IST
           </p>
           <p className="text-sm text-fg-muted">
             Price update: 7:00 AM IST
@@ -43,7 +43,7 @@ export function StoreClosedOverlay() {
         </div>
 
         <p className="mt-3 text-2xs text-fg-subtle">
-          You can still browse the catalogue. Ordering resumes at 9 AM.
+          You can still browse the catalogue. Ordering resumes at 8 AM.
         </p>
       </div>
     </div>
