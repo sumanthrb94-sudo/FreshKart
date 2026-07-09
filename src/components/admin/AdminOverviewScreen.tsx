@@ -95,8 +95,49 @@ export function AdminOverviewScreen() {
     }
   }
 
+  const needsPublishGate = !settingsLoading && !settingsError && !publishedToday;
+
   return (
     <AdminShell>
+      {/* Publish gate: block the admin dashboard until today's prices are published */}
+      {needsPublishGate && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-surface p-6 text-center shadow-2xl">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-500/10">
+              <Sparkles className="h-8 w-8 text-brand-500" aria-hidden />
+            </div>
+            <h2 className="mt-4 text-xl font-extrabold text-fg">Publish today&apos;s prices</h2>
+            <p className="mt-1 text-sm text-fg-subtle">
+              The store can&apos;t go live until today&apos;s prices are published.
+            </p>
+            <p className="mt-1 text-xs text-fg-muted">
+              Buyers will see &quot;Gathering best prices across Hyderabad&quot; until you publish.
+            </p>
+
+            <div className="mt-5 flex flex-col gap-3">
+              <Button
+                size="lg"
+                onClick={publishToday}
+                loading={publishing}
+                disabled={publishing || !user}
+                fullWidth
+              >
+                Publish today&apos;s prices
+              </Button>
+            </div>
+
+            <div className="mt-4 rounded-lg bg-raised p-3">
+              <p className="text-xs text-fg-subtle">
+                <strong className="text-fg">Store opens at 8:00 AM IST</strong>
+              </p>
+              <p className="mt-1 text-xs text-fg-muted">
+                Daily price update window: 7:00 AM IST
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-3 p-4">
         {/* Quick actions */}
         <div className="grid grid-cols-2 gap-3">
