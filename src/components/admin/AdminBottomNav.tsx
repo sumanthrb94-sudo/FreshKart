@@ -12,14 +12,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Tab = {
+export type AdminTab = {
   href: string;
   label: string;
   icon: LucideIcon;
   isActive: (p: string) => boolean;
 };
 
-const TABS: Tab[] = [
+export const ADMIN_TABS: AdminTab[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, isActive: (p) => p === "/admin" },
   { href: "/admin/pos", label: "POS", icon: ScanLine, isActive: (p) => p.startsWith("/admin/pos") },
   { href: "/admin/products", label: "Inventory", icon: Boxes, isActive: (p) => p.startsWith("/admin/products") },
@@ -34,7 +34,7 @@ export function AdminBottomNav() {
   return (
     <nav className="shrink-0 border-t border-line bg-surface pb-[max(0.25rem,env(safe-area-inset-bottom))]">
       <div className="flex items-stretch justify-around">
-        {TABS.map((tab) => {
+        {ADMIN_TABS.map((tab) => {
           const active = tab.isActive(pathname);
           const Icon = tab.icon;
           return (

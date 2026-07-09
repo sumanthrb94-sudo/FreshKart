@@ -2,6 +2,7 @@ import type {
   AdminStats,
   CreateOrderInput,
   Customer,
+  DailyPricesSettings,
   Order,
   OrderStatus,
   OrderItem,
@@ -10,6 +11,7 @@ import type {
   User,
 } from "@/lib/types";
 import { generateOrderNumber } from "@/lib/format";
+import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { DataSource, ApiError } from "./datasource";
 import { store } from "./mock-store";
 
@@ -73,6 +75,14 @@ export class MockDataSource implements DataSource {
 
   // --- Orders -------------------------------------------------------------
   async createOrder(buyerId: string, input: CreateOrderInput): Promise<Order> {
+    if (input.paymentMethod === "CREDIT") {
+      throw new ApiError("Business credit is not available.");
+    }
+    if (!isDailyPriceUpdatePublished(store.get().dailyPrices?.publishedAt)) {
+      throw new ApiError(
+        "Getting best live prices for you. Orders open after today's prices are published."
+      );
+    }
     let created: Order | null = null;
     let error: string | null = null;
     store.mutate((s) => {
@@ -239,5 +249,21 @@ export class MockDataSource implements DataSource {
   async getUser(id: string): Promise<User | null> {
     const u = store.get().users.find((x) => x.id === id) ?? null;
     return delay(u ? structuredClone(u) : null);
+  }
+
+  // --- Settings -------------------------------------------------------------
+  async getDailyPricesSettings(): Promise<DailyPricesSettings | null> {
+    return delay(structuredClone(store.get().dailyPrices) ?? null);
+  }
+
+  async publishDailyPrices(userId: string): Promise<DailyPricesSettings> {
+    const settings: DailyPricesSettings = {
+      publishedAt: new Date().toISOString(),
+      publishedBy: userId,
+    };
+    store.mutate((s) => {
+      s.dailyPrices = settings;
+    });
+    return delay(structuredClone(settings));
   }
 }

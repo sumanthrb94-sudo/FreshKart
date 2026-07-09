@@ -22,6 +22,13 @@ export type PaymentMethod = "COD" | "CREDIT" | "ONLINE";
 
 export type PaymentStatus = "UNPAID" | "PAID";
 
+export interface DailyPricesSettings {
+  /** ISO 8601 timestamp of the latest daily price update. */
+  publishedAt: string;
+  /** User id of the admin who published the update. */
+  publishedBy?: string;
+}
+
 export interface Category {
   /** slug, e.g. "vegetables" */
   id: string;

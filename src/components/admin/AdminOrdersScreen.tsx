@@ -70,6 +70,63 @@ function PaymentBadge({ paid }: { paid: boolean }) {
   );
 }
 
+function OrderTable({
+  orders,
+  onOpen,
+}: {
+  orders: Order[];
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="fc-scroll overflow-x-auto">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="bg-raised text-xs font-bold uppercase tracking-wide text-fg-subtle">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Order #</th>
+              <th className="px-4 py-3 font-semibold">Business</th>
+              <th className="px-4 py-3 font-semibold">Items</th>
+              <th className="px-4 py-3 font-semibold">Total</th>
+              <th className="px-4 py-3 font-semibold">Status</th>
+              <th className="px-4 py-3 font-semibold">Payment</th>
+              <th className="px-4 py-3 font-semibold">Date</th>
+              <th className="px-4 py-3 text-right font-semibold">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {orders.map((o) => (
+              <tr key={o.id}>
+                <td className="px-4 py-3 text-xs font-semibold text-fg-muted">{o.orderNumber}</td>
+                <td className="px-4 py-3">
+                  <p className="font-semibold text-fg">{o.businessName}</p>
+                  <p className="text-xs text-fg-subtle">{o.delivery.phone}</p>
+                </td>
+                <td className="px-4 py-3 text-sm text-fg-muted">{itemSummary(o)}</td>
+                <td className="px-4 py-3 text-sm font-bold text-fg">{formatCurrency(o.total)}</td>
+                <td className="px-4 py-3">
+                  <OrderStatusBadge status={o.status} />
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-fg-muted">{PAYMENT_LABELS[o.paymentMethod]}</span>
+                    <PaymentBadge paid={o.paymentStatus === "PAID"} />
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-xs text-fg-subtle">{formatDate(o.createdAt)}</td>
+                <td className="px-4 py-3 text-right">
+                  <Button size="sm" variant="ghost" onClick={() => onOpen(o.id)}>
+                    Open
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
 function OrderCard({ order, onOpen }: { order: Order; onOpen: () => void }) {
   return (
     <Card>
@@ -403,11 +460,16 @@ export function AdminOrdersScreen() {
             subtitle="Try a different status or search term."
           />
         ) : (
-          <div className="flex flex-col gap-3">
-            {visible.map((o) => (
-              <OrderCard key={o.id} order={o} onOpen={() => setOpenId(o.id)} />
-            ))}
-          </div>
+          <>
+            <div className="flex flex-col gap-3 lg:hidden">
+              {visible.map((o) => (
+                <OrderCard key={o.id} order={o} onOpen={() => setOpenId(o.id)} />
+              ))}
+            </div>
+            <div className="hidden lg:block">
+              <OrderTable orders={visible} onOpen={setOpenId} />
+            </div>
+          </>
         )}
       </div>
 

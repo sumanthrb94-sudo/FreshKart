@@ -2,6 +2,7 @@ import type {
   AdminStats,
   CreateOrderInput,
   Customer,
+  DailyPricesSettings,
   Order,
   OrderStatus,
   ProfileSetupInput,
@@ -73,6 +74,12 @@ export interface DataSource {
   getAdminStats(): Promise<AdminStats>;
   /** Admin: read any user's full profile (e.g. POS customer lookup). */
   getUser(id: string): Promise<User | null>;
+
+  // --- Settings -------------------------------------------------------------
+  /** Read the daily price-update gate status (world-readable). */
+  getDailyPricesSettings(): Promise<DailyPricesSettings | null>;
+  /** Admin: mark today's prices as published. */
+  publishDailyPrices(userId: string): Promise<DailyPricesSettings>;
 }
 
 /** Thrown for expected, user-facing failures (bad creds, validation, etc.). */

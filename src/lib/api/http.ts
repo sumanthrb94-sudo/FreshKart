@@ -2,6 +2,7 @@ import type {
   AdminStats,
   CreateOrderInput,
   Customer,
+  DailyPricesSettings,
   Order,
   OrderStatus,
   Product,
@@ -124,5 +125,16 @@ export class HttpDataSource implements DataSource {
 
   getUser(id: string) {
     return this.request<User | null>(`/users/${id}`);
+  }
+
+  getDailyPricesSettings() {
+    return this.request<DailyPricesSettings | null>("/settings/dailyPrices");
+  }
+
+  publishDailyPrices(userId: string) {
+    return this.request<DailyPricesSettings>("/settings/dailyPrices/publish", {
+      method: "POST",
+      body: JSON.stringify({ publishedBy: userId }),
+    });
   }
 }

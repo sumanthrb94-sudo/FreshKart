@@ -23,6 +23,7 @@ import type {
   AdminStats,
   CreateOrderInput,
   Customer,
+  DailyPricesSettings,
   Order,
   OrderItem,
   OrderStatus,
@@ -32,10 +33,11 @@ import type {
   User,
 } from "@/lib/types";
 import { generateOrderNumber } from "@/lib/format";
+import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
 import { DataSource, ApiError } from "./datasource";
 
-const COL = { users: "users", products: "products", orders: "orders" } as const;
+const COL = { users: "users", products: "products", orders: "orders", settings: "settings" } as const;
 
 // Emails auto-granted ADMIN on Google sign-in. Keep this in sync with the
 // `isAdminEmail()` allowlist in firestore.rules (rules can't import from here).
@@ -301,6 +303,19 @@ export class FirebaseDataSource implements DataSource {
     await this.ready();
     const db = getDb();
     if (!input.items.length) throw new ApiError("Your cart is empty.");
+    if (input.paymentMethod === "CREDIT") {
+      throw new ApiError("Business credit is not available.");
+    }
+
+    const settingsSnap = await readDoc(doc(db, COL.settings, "dailyPrices"));
+    const settings = settingsSnap.exists()
+      ? (settingsSnap.data() as DailyPricesSettings)
+      : null;
+    if (!isDailyPriceUpdatePublished(settings?.publishedAt)) {
+      throw new ApiError(
+        "Getting best live prices for you. Orders open after today's prices are published."
+      );
+    }
 
     const buyerSnap = await getDoc(doc(db, COL.users, buyerId));
     if (!buyerSnap.exists()) throw new ApiError("Buyer not found.", 404);
@@ -460,6 +475,7 @@ export class FirebaseDataSource implements DataSource {
       getDocs(collection(db, COL.orders)),
       getDocs(query(collection(db, COL.users), where("role", "==", "BUYER"))),
     ]);
+
     const products = productsSnap.docs.map((d) => d.data() as Product);
     const orders = ordersSnap.docs.map((d) => d.data() as Order);
 
@@ -483,5 +499,23 @@ export class FirebaseDataSource implements DataSource {
       lowStockCount: products.filter((p) => p.active && p.stock <= p.minOrderQty * 2).length,
       ordersByStatus,
     };
+  }
+
+  // --- Settings -------------------------------------------------------------
+  async getDailyPricesSettings(): Promise<DailyPricesSettings | null> {
+    await this.ready();
+    const snap = await readDoc(doc(getDb(), COL.settings, "dailyPrices"));
+    return snap.exists() ? (snap.data() as DailyPricesSettings) : null;
+  }
+
+  async publishDailyPrices(userId: string): Promise<DailyPricesSettings> {
+    await this.ready();
+    const db = getDb();
+    const settings: DailyPricesSettings = {
+      publishedAt: new Date().toISOString(),
+      publishedBy: userId,
+    };
+    await setDoc(doc(db, COL.settings, "dailyPrices"), settings, { merge: true });
+    return settings;
   }
 }

@@ -31,6 +31,13 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock']);
     }
 
+    // --- Settings: daily price-update gate. World-readable; admin-writable. ---
+    match /settings/dailyPrices {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
     // --- Products: public catalog. Admins manage; signed-in users may only
     //     adjust stock (order/cancel transactions). ---
     match /products/{productId} {

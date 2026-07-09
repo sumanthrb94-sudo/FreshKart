@@ -244,8 +244,8 @@ export function OnboardingScreen() {
   // ---- Done: full-bleed brand celebration ----
   if (step === "done") {
     return (
-      <div className="flex min-h-[100dvh] justify-center bg-canvas">
-        <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-gradient-to-b from-brand-600 via-brand-700 to-brand-800 px-7 text-white shadow-xl">
+      <div className="flex min-h-[100dvh] justify-center bg-canvas lg:items-center lg:p-6">
+        <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-gradient-to-b from-brand-600 via-brand-700 to-brand-800 px-7 text-white shadow-xl lg:h-auto lg:max-h-[90vh] lg:max-w-2xl lg:rounded-3xl">
           <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10" />
           <div className="pointer-events-none absolute bottom-40 -left-20 h-48 w-48 rounded-full bg-brand-400/30 blur-2xl" />
 
@@ -284,8 +284,8 @@ export function OnboardingScreen() {
   // ---- Sign in (landing): branded animated hero + auth card ----
   if (step === "mobile") {
     return (
-      <div className="flex min-h-[100dvh] justify-center bg-canvas">
-        <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-gradient-to-b from-brand-500 via-brand-600 to-brand-700 shadow-xl">
+      <div className="flex min-h-[100dvh] justify-center bg-canvas lg:items-center lg:p-6">
+        <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-gradient-to-b from-brand-500 via-brand-600 to-brand-700 shadow-xl lg:h-auto lg:max-h-[90vh] lg:max-w-2xl lg:rounded-3xl">
           {/* Decorative orbs */}
           <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-white/10" />
           <div className="pointer-events-none absolute -left-12 top-28 h-44 w-44 rounded-full bg-brand-300/20 blur-2xl" />
@@ -404,8 +404,8 @@ export function OnboardingScreen() {
 
   // ---- Form steps (verify / shop): light background ----
   return (
-    <div className="flex min-h-[100dvh] justify-center bg-canvas">
-      <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-canvas px-7 pt-14 shadow-xl">
+    <div className="flex min-h-[100dvh] justify-center bg-canvas lg:items-center lg:p-6">
+      <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-canvas px-7 pt-14 shadow-xl lg:h-auto lg:max-h-[90vh] lg:max-w-2xl lg:rounded-3xl lg:pt-7">
         <Progress />
 
         {step === "verify" && (

@@ -2,16 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Globe, Phone, Search, SearchX } from "lucide-react";
+import { Clock, Globe, Phone, Search, SearchX } from "lucide-react";
 import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
+import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { useLang, LANGS } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/layout/AppShell";
+import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Chip } from "@/components/ui/Chip";
 import { Input } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -36,6 +38,10 @@ export function ShopScreen() {
   const { lines, subtotal, clear } = useCart();
   const { t, tCategory, lang, setLang } = useLang();
   const { data: products, loading, error } = useAsync(() => api.listProducts(), []);
+  const { data: settings, loading: settingsLoading } = useAsync(
+    () => api.getDailyPricesSettings(),
+    []
+  );
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
@@ -55,6 +61,8 @@ export function ShopScreen() {
       router.replace("/");
     }
   }, [params, lines.length, router]);
+
+  const pricesPublished = isDailyPriceUpdatePublished(settings?.publishedAt);
 
   const visible = useMemo(() => {
     const list = (products ?? []).filter((p) => p.active);
@@ -125,13 +133,25 @@ export function ShopScreen() {
       header={<BuyerHeader />}
       footer={
         <>
-          <StickyCartBar onReview={handleReview} />
+          <StickyCartBar onReview={handleReview} disabled={!pricesPublished} />
           <BuyerBottomNav />
         </>
       }
+      sidebar={<BuyerSidebar />}
     >
       {/* Sticky language + search + category rail */}
       <div className="sticky top-0 z-20 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur">
+        {/* Daily price-update banner */}
+        {!settingsLoading && !pricesPublished && (
+          <div className="mb-3 -mt-1 rounded-lg border border-amber-500/30 bg-amber-500/15 px-3 py-2 text-center">
+            <p className="flex items-center justify-center gap-2 text-sm font-bold text-amber-100">
+              <Clock className="h-4 w-4 text-amber-400" aria-hidden />
+              Getting best live prices for you
+            </p>
+            <p className="text-xs text-amber-200/80">Orders open after 7 AM daily price update</p>
+          </div>
+        )}
+
         {/* Language scroller — scroll & tap to switch */}
         <div className="fc-scroll -mx-4 mb-3 flex items-center gap-2 overflow-x-auto px-4">
           <Globe className="h-4 w-4 shrink-0 text-brand-500" />
@@ -186,7 +206,7 @@ export function ShopScreen() {
         ) : visible.length === 0 ? (
           <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
         ) : (
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
             {visible.map((p) => (
               <ProductListItem key={p.id} product={p} />
             ))}
@@ -195,7 +215,7 @@ export function ShopScreen() {
       </div>
 
       {/* Call support — floating 3D dialer button (opens the phone dialer) */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-app">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-app lg:left-[var(--sidebar-width)] lg:right-0 lg:mx-0 lg:max-w-none">
         <a
           href={`tel:${SUPPORT_PHONE}`}
           aria-label={t("callSupport")}
@@ -216,6 +236,7 @@ export function ShopScreen() {
         defaultDelivery={defaultDelivery}
         busy={busy}
         error={orderError}
+        disabled={!pricesPublished}
         onContinue={handleContinue}
       />
       <PaymentSheet
@@ -228,7 +249,7 @@ export function ShopScreen() {
         onPaid={() => pending && placeOrder(pending.delivery, pending.method, true)}
       />
       {busy && !checkoutOpen && !paymentOpen && (
-        <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app items-center justify-center bg-canvas/95 backdrop-blur">
+        <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app items-center justify-center bg-canvas/95 backdrop-blur lg:left-[var(--sidebar-width)] lg:mx-0 lg:max-w-none">
           <FullScreenLoader label="Placing order…" />
         </div>
       )}

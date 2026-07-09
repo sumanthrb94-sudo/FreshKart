@@ -3,8 +3,9 @@
 import { ArrowRight, ShoppingCart } from "lucide-react";
 import { useCart } from "@/components/providers/CartProvider";
 import { formatCurrency } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
-export function StickyCartBar({ onReview }: { onReview: () => void }) {
+export function StickyCartBar({ onReview, disabled }: { onReview: () => void; disabled?: boolean }) {
   const { itemCount, subtotal } = useCart();
   if (itemCount === 0) return null;
 
@@ -13,7 +14,13 @@ export function StickyCartBar({ onReview }: { onReview: () => void }) {
       <button
         type="button"
         onClick={onReview}
-        className="flex w-full items-center justify-between gap-3 rounded-2xl bg-brand-600 px-4 py-3 text-white shadow-cart-bar transition-colors hover:bg-brand-700"
+        disabled={disabled}
+        className={cn(
+          "flex w-full items-center justify-between gap-3 rounded-2xl bg-brand-600 px-4 py-3 text-white shadow-cart-bar transition-colors",
+          disabled
+            ? "cursor-not-allowed opacity-60"
+            : "hover:bg-brand-700"
+        )}
       >
         <span className="flex items-center gap-2.5">
           <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
@@ -29,7 +36,7 @@ export function StickyCartBar({ onReview }: { onReview: () => void }) {
           </span>
         </span>
         <span className="flex items-center gap-1 text-sm font-bold">
-          Review &amp; Order
+          {disabled ? "Prices updating…" : "Review & Order"}
           <ArrowRight className="h-4 w-4" />
         </span>
       </button>

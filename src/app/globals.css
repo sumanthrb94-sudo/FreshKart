@@ -4,6 +4,7 @@
 
 :root {
   --app-max: 1280px;
+  --sidebar-width: 16rem;
 }
 
 html {

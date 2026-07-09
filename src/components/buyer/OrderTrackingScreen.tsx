@@ -14,6 +14,7 @@ import {
 import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
+import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { OrderTimeline } from "./OrderTimeline";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { OrderStatusBadge } from "@/components/ui/Badge";
@@ -43,7 +44,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
 
   if (!ready || loading) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
         <FullScreenLoader />
       </AppShell>
     );
@@ -51,7 +52,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
 
   if (!order) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
         <div className="flex h-full items-center justify-center">
           <EmptyState
             icon={PackageX}
@@ -69,8 +70,8 @@ export function OrderTrackingScreen({ id }: { id: string }) {
   }
 
   return (
-    <AppShell header={<BuyerHeader />}>
-      <div className="flex flex-col gap-3 p-4">
+    <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4">
         <Link
           href="/orders"
           className="flex w-fit items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg-muted"

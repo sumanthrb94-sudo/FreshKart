@@ -7,6 +7,7 @@ import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { AdminBottomNav } from "./AdminBottomNav";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
 function AdminHeader() {
   const { logout } = useAuth();
@@ -65,7 +66,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AppShell header={<AdminHeader />} footer={<AdminBottomNav />}>
+    <AppShell
+      header={<AdminHeader />}
+      footer={<AdminBottomNav />}
+      sidebar={<AdminSidebar />}
+    >
       {children}
     </AppShell>
   );

@@ -71,8 +71,9 @@ export function PwaRegistrar() {
   if (!visible) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] mx-auto w-full max-w-app p-3">
-      <div className="animate-rise pointer-events-auto flex items-center gap-3 rounded-2xl border border-brand-500/30 bg-surface p-3 shadow-cart-bar">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] mx-auto w-full max-w-app p-3 lg:left-[var(--sidebar-width)] lg:mx-0 lg:max-w-none">
+      <div className="animate-rise pointer-events-none flex items-center justify-center gap-3">
+        <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-brand-500/30 bg-surface p-3 shadow-cart-bar">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white">
           <Download className="h-5 w-5" />
         </span>
@@ -97,6 +98,7 @@ export function PwaRegistrar() {
         >
           <X className="h-4 w-4" />
         </button>
+        </div>
       </div>
     </div>
   );

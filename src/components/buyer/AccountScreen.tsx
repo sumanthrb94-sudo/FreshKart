@@ -8,6 +8,7 @@ import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
 import { BuyerBottomNav } from "./BuyerBottomNav";
+import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Field, Input } from "@/components/ui/Field";
@@ -94,15 +95,19 @@ export function AccountScreen() {
 
   if (!ready || !user) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
         <FullScreenLoader />
       </AppShell>
     );
   }
 
   return (
-    <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />}>
-      <div className="flex flex-col gap-3 p-4">
+    <AppShell
+      header={<BuyerHeader />}
+      footer={<BuyerBottomNav />}
+      sidebar={<BuyerSidebar />}
+    >
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-fg">Your account</h1>
           <Badge className="bg-brand-500/20 text-brand-300">{user.role}</Badge>

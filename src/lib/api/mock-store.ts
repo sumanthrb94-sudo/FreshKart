@@ -1,4 +1,4 @@
-import type { Order, Product, User } from "@/lib/types";
+import type { DailyPricesSettings, Order, Product, User } from "@/lib/types";
 import { ORDERS, PRODUCTS, USERS } from "@/lib/mock-data";
 
 /**
@@ -13,6 +13,7 @@ interface StoreShape {
   products: Product[];
   orders: Order[];
   users: User[];
+  dailyPrices: DailyPricesSettings | null;
 }
 
 function seed(): StoreShape {
@@ -20,6 +21,7 @@ function seed(): StoreShape {
     products: structuredClone(PRODUCTS),
     orders: structuredClone(ORDERS),
     users: structuredClone(USERS),
+    dailyPrices: null,
   };
 }
 

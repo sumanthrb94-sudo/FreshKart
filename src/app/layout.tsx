@@ -23,6 +23,9 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "FreshKart",
   },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
