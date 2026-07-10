@@ -14,7 +14,7 @@ service cloud.firestore {
     // ADMIN_EMAILS in src/lib/api/firebase.ts.
     function isAdminEmail() {
       return isSignedIn()
-             && request.auth.token.email in ['sumanthbolla97@gmail.com'];
+             && request.auth.token.email in ['sumanthbolla97@gmail.com', 'sivakishore43@gmail.com'];
     }
 
     function userRole() {

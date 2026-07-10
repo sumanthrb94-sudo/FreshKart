@@ -44,7 +44,7 @@ const COL = { users: "users", products: "products", orders: "orders", settings: 
 
 // Emails auto-granted ADMIN on Google sign-in. Keep this in sync with the
 // `isAdminEmail()` allowlist in firestore.rules (rules can't import from here).
-const ADMIN_EMAILS = ["sumanthbolla97@gmail.com"];
+const ADMIN_EMAILS = ["sumanthbolla97@gmail.com", "sivakishore43@gmail.com"];
 function isAdminEmail(email?: string | null): boolean {
   return !!email && ADMIN_EMAILS.includes(email.trim().toLowerCase());
 }
