@@ -9,7 +9,7 @@ interface MockStore {
   credentials: Record<string, string>;
 }
 
-const LS_KEY = "freshkart_mock_store_v1";
+const LS_KEY = "green_basket_mock_store_v1";
 
 function seed(): MockStore {
   return {
@@ -18,8 +18,8 @@ function seed(): MockStore {
     orders: structuredClone(ORDERS),
     dailyPrices: null,
     credentials: {
-      "customer@freshkart.in": DEMO_PASSWORD,
-      "admin@freshkart.in": DEMO_PASSWORD,
+      "customer@green-basket.in": DEMO_PASSWORD,
+      "admin@green-basket.in": DEMO_PASSWORD,
       "anita@spiceleaf.in": DEMO_PASSWORD,
       "mohan@dailyfresh.in": DEMO_PASSWORD,
     },

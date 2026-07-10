@@ -105,7 +105,7 @@ function AdminHeader() {
           <span className="leading-tight">
             <span className="block text-base font-extrabold text-fg">Admin</span>
             <span className="block text-2xs font-medium text-fg-subtle">
-              FreshKart operations
+              Green Basket operations
             </span>
           </span>
         </div>

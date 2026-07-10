@@ -23,7 +23,7 @@ export function BuyerSidebar() {
           <Sprout className="h-5 w-5" />
         </span>
         <span className="leading-tight">
-          <span className="block text-base font-extrabold text-fg">FreshKart</span>
+          <span className="block text-base font-extrabold text-fg">Green Basket</span>
           <span className="block text-2xs font-medium text-fg-subtle">Wholesale B2B · per kg</span>
         </span>
       </div>

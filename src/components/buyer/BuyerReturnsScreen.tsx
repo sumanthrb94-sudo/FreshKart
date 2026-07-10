@@ -37,7 +37,7 @@ export function BuyerReturnsScreen() {
 
   useEffect(() => {
     // FIX: Merge demo data with stored data (Critical Bug #3)
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+    const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
     const merged = [
       ...demoReturnRequests,
       ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id)),
@@ -46,7 +46,7 @@ export function BuyerReturnsScreen() {
 
     // Listen for storage changes from other tabs/components
     const handleStorage = () => {
-      const updated = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      const updated = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
       setReturns([
         ...demoReturnRequests,
         ...updated.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id)),

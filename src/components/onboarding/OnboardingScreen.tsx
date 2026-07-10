@@ -164,7 +164,7 @@ export function OnboardingScreen() {
     setDemoBusy(true);
     setError(null);
     try {
-      const email = role === "ADMIN" ? "admin@freshkart.in" : "customer@freshkart.in";
+      const email = role === "ADMIN" ? "admin@green-basket.in" : "customer@green-basket.in";
       const user = await login({ email, password: "password123" });
       router.replace(user.role === "ADMIN" ? "/admin" : "/");
     } catch (e) {
@@ -398,7 +398,7 @@ export function OnboardingScreen() {
             </span>
 
             <h1 className="relative z-10 text-5xl font-extrabold tracking-tight drop-shadow-sm">
-              FreshKart
+              Green Basket
             </h1>
             <p className="relative z-10 mt-2 text-sm font-semibold text-white/90">
               Wholesale B2B · fresh produce, per kg
@@ -503,7 +503,7 @@ export function OnboardingScreen() {
             {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}
 
             <p className="mt-4 text-center text-2xs leading-relaxed text-fg-subtle">
-              By continuing you agree to FreshKart&apos;s Terms &amp; Privacy Policy.
+              By continuing you agree to Green Basket&apos;s Terms &amp; Privacy Policy.
             </p>
           </div>
         </div>

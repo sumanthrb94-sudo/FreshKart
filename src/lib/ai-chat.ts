@@ -1,4 +1,4 @@
-/** AI Chat Agent for FreshKart - Order Help & FAQ
+/** AI Chat Agent for Green Basket - Order Help & FAQ
  *  Provides intelligent responses for order tracking, returns, refunds,
  *  store policies, and basic product inquiries.
  */
@@ -54,7 +54,7 @@ const FAQ_RESPONSES: Record<string, string> = {
   "lang": "The app supports multiple languages. Language selection will be available in your profile settings soon.",
 };
 
-const GREETING = "Hello! I am FreshKart Assistant. I can help you with orders, returns, delivery, payments, and store policies. What can I help you with today?";
+const GREETING = "Hello! I am Green Basket Assistant. I can help you with orders, returns, delivery, payments, and store policies. What can I help you with today?";
 
 const FOLLOW_UP_SUGGESTIONS = [
   "Track my order",
@@ -94,10 +94,10 @@ function matchFAQ(input: string): string | null {
     return "I am here to help! For urgent issues, tap the Call Now button to speak directly with our team. You can also describe your issue here and I will assist you.";
   }
   if (lower.includes("thank")) {
-    return "You are welcome! I am glad I could help. Have a great day and happy shopping with FreshKart!";
+    return "You are welcome! I am glad I could help. Have a great day and happy shopping with Green Basket!";
   }
   if (lower.includes("bye") || lower.includes("goodbye")) {
-    return "Goodbye! Feel free to come back anytime you need assistance. FreshKart is here for you 24/7!";
+    return "Goodbye! Feel free to come back anytime you need assistance. Green Basket is here for you 24/7!";
   }
 
   return null;

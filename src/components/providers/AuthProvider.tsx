@@ -11,7 +11,7 @@ import {
 import type { User } from "@/lib/types";
 import { api } from "@/lib/api";
 
-const SESSION_KEY = "freshkart.session.v1";
+const SESSION_KEY = "green-basket.session.v1";
 
 interface AuthContextValue {
   user: User | null;

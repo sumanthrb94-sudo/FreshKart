@@ -250,7 +250,7 @@ export class FirebaseDataSource implements DataSource {
           email: cred.user.email || "",
           phone: cred.user.phoneNumber || "",
           role: "ADMIN",
-          businessName: "FreshKart Admin",
+          businessName: "Green Basket Admin",
           createdAt: new Date().toISOString(),
         };
         await setDoc(ref, adminProfile as DocumentData);

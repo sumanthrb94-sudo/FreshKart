@@ -127,7 +127,7 @@ const PRODUCT_NAMES: Record<string, Dict> = {
   "Spring Onion": { en: "Spring Onion", hi: "हरा प्याज़", te: "ఉల్లికాడలు", mr: "हिरवा कांदा" },
 };
 
-const KEY = "freshkart.lang.v1";
+const KEY = "green-basket.lang.v1";
 
 interface LangValue {
   lang: Lang;

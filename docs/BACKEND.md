@@ -1,4 +1,4 @@
-# FreshKart — Backend Integration Contract
+# Green Basket — Backend Integration Contract
 
 This front end is **backend-agnostic**. It talks to whatever you point
 `NEXT_PUBLIC_API_BASE_URL` at, through the typed
@@ -116,7 +116,7 @@ If you build a custom server-side backend instead of Firebase:
 
 ```
             ┌──────────────────────┐         ┌───────────────────────────┐
-  Browser ─▶│  Vercel (Next.js FE)  │ ──────▶ │  Cloud Run (FreshKart API) │
+  Browser ─▶│  Vercel (Next.js FE)  │ ──────▶ │  Cloud Run (Green Basket API) │
             └──────────────────────┘  HTTPS   └───────────┬───────────────┘
                 NEXT_PUBLIC_API_BASE_URL                   │
                 = https://…run.app              ┌──────────┴───────────┐

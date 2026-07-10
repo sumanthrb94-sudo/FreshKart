@@ -1,4 +1,4 @@
-# FreshKart — Vercel Production Launch Checklist
+# Green Basket — Vercel Production Launch Checklist
 
 Reviewed against the [Vercel Production Checklist](https://vercel.com/docs/production-checklist).
 

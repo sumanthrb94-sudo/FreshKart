@@ -1,4 +1,4 @@
-/** Returns, Refunds & Invoice Adjustment System for FreshKart.
+/** Returns, Refunds & Invoice Adjustment System for Green Basket.
  *  Handles partial/full returns, refund calculations, image uploads,
  *  threaded conversations, and invoice re-generation.
  */

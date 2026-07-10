@@ -1,4 +1,4 @@
-/** In-App Notification System for FreshKart Customers
+/** In-App Notification System for Green Basket Customers
  *  Generates and manages notifications shown inside the app.
  *  Persists to localStorage. Separate from email/SMS (in notifications.ts).
  */
@@ -25,7 +25,7 @@ export interface InAppNotification {
   createdAt: string;
 }
 
-const STORAGE_KEY = "freshkart_inapp_notifications";
+const STORAGE_KEY = "green_basket_inapp_notifications";
 
 function loadNotifications(): InAppNotification[] {
   if (typeof window === "undefined") return [];

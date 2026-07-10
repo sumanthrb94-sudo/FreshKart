@@ -53,7 +53,7 @@ export function AiChatAgent() {
           messages: [
             {
               ...welcomeMsg,
-              text: `Hello ${user.name}! I am FreshKart Assistant. I can help you with orders, returns, delivery, payments, and store policies. What can I help you with today?`,
+              text: `Hello ${user.name}! I am Green Basket Assistant. I can help you with orders, returns, delivery, payments, and store policies. What can I help you with today?`,
             },
           ],
         }));
@@ -129,7 +129,7 @@ export function AiChatAgent() {
               <Bot className="h-4 w-4 text-white" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-bold text-white">FreshKart Assistant</p>
+              <p className="text-sm font-bold text-white">Green Basket Assistant</p>
               <p className="flex items-center gap-1 text-[10px] text-white/80">
                 <Sparkles className="h-3 w-3" /> AI Powered
               </p>
@@ -208,7 +208,7 @@ export function AiChatAgent() {
               </button>
             </div>
             <p className="mt-1.5 text-center text-[9px] text-fg-subtle">
-              Powered by FreshKart AI
+              Powered by Green Basket AI
             </p>
           </div>
         </div>

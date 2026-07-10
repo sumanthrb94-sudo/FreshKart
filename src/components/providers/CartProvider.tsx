@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { CartLine, Product } from "@/lib/types";
 
-const CART_KEY = "freshkart.cart.v1";
+const CART_KEY = "green-basket.cart.v1";
 
 interface StoredLine {
   product: Product;

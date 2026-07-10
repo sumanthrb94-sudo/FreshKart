@@ -42,7 +42,7 @@ function useReturnRequest(id: string) {
 
   useEffect(() => {
     // Check localStorage first
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+    const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
     const found = stored.find((r: ReturnRequest) => r.id === id);
     if (found) {
       setData(found);
@@ -55,7 +55,7 @@ function useReturnRequest(id: string) {
   }, [id]);
 
   const refresh = () => {
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+    const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
     const found = stored.find((r: ReturnRequest) => r.id === id);
     if (found) {
       setData(found);
@@ -84,18 +84,18 @@ export function ReturnThreadScreen({ id }: { id: string }) {
     setSending(true);
 
     // Update localStorage
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+    const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
     const idx = stored.findIndex((r: ReturnRequest) => r.id === id);
     if (idx !== -1) {
       addThreadMessage(stored[idx], "buyer", reply.trim());
-      localStorage.setItem("freshkart_returns", JSON.stringify(stored));
+      localStorage.setItem("green_basket_returns", JSON.stringify(stored));
       setReply("");
       refresh();
     } else {
       // For demo data, create a localStorage copy
       const demoCopy = { ...returnReq, thread: [...returnReq.thread] };
       addThreadMessage(demoCopy, "buyer", reply.trim());
-      localStorage.setItem("freshkart_returns", JSON.stringify([...stored, demoCopy]));
+      localStorage.setItem("green_basket_returns", JSON.stringify([...stored, demoCopy]));
       setReply("");
       refresh();
     }

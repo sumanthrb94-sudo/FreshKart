@@ -38,7 +38,7 @@ export function AdminReportsHub() {
           ["Product", "Category", "Unit", "Opening", "Sold", "Returned", "Closing", "Price", "Stock Value", "Status"],
           r.lines.map((l) => [l.productName, l.category, l.unit, l.openingStock, l.soldQty, l.returnedQty, l.closingStock, l.unitPrice, l.stockValue, l.status])
         );
-        filename = `freshkart-inventory-${new Date().toISOString().split("T")[0]}.csv`;
+        filename = `green-basket-inventory-${new Date().toISOString().split("T")[0]}.csv`;
         break;
       }
       case "purchase": {
@@ -47,7 +47,7 @@ export function AdminReportsHub() {
           ["Product", "Category", "Qty Sold", "Revenue", "Avg Order", "Orders", "Trend"],
           r.lines.map((l) => [l.productName, l.category, l.totalSoldQty, l.totalRevenue, l.avgOrderQty, l.orderCount, l.trend])
         );
-        filename = `freshkart-purchase-${new Date().toISOString().split("T")[0]}.csv`;
+        filename = `green-basket-purchase-${new Date().toISOString().split("T")[0]}.csv`;
         break;
       }
       case "packaging": {
@@ -56,7 +56,7 @@ export function AdminReportsHub() {
           ["Product", "Unit", "Orders", "Total Qty", "Packaging Type", "Est. Cost"],
           r.lines.map((l) => [l.productName, l.unit, l.orderCount, l.totalQty, l.packagingType, l.estPackagingCost])
         );
-        filename = `freshkart-packaging-${new Date().toISOString().split("T")[0]}.csv`;
+        filename = `green-basket-packaging-${new Date().toISOString().split("T")[0]}.csv`;
         break;
       }
       case "invoices": {
@@ -68,7 +68,7 @@ export function AdminReportsHub() {
           }
         }
         csv = reportToCSV(["Business", "Order #", "Date", "Total", "Payment", "Paid", "Invoice"], rows);
-        filename = `freshkart-invoices-${new Date().toISOString().split("T")[0]}.csv`;
+        filename = `green-basket-invoices-${new Date().toISOString().split("T")[0]}.csv`;
         break;
       }
     }

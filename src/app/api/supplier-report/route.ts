@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
           status: 200,
           headers: {
             "Content-Type": "text/csv; charset=utf-8",
-            "Content-Disposition": `attachment; filename="freshkart-supplier-report-${report.reportDate}.csv"`,
+            "Content-Disposition": `attachment; filename="green-basket-supplier-report-${report.reportDate}.csv"`,
           },
         });
       }
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
           status: 200,
           headers: {
             "Content-Type": "text/plain; charset=utf-8",
-            "Content-Disposition": `attachment; filename="freshkart-supplier-report-${report.reportDate}.txt"`,
+            "Content-Disposition": `attachment; filename="green-basket-supplier-report-${report.reportDate}.txt"`,
           },
         });
       }

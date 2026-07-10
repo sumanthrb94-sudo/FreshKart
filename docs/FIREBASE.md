@@ -1,4 +1,4 @@
-# FreshKart on Firebase (Firestore + Phone Auth + Storage)
+# Green Basket on Firebase (Firestore + Phone Auth + Storage)
 
 The production backend: the Next.js front end (on Vercel) talks to **Firebase
 directly from the browser** — **Firestore** for data, **Firebase Phone Auth**

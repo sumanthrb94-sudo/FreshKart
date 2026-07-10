@@ -67,9 +67,9 @@ const demoCoupons: Coupon[] = [
 
 function getSavedCoupons(): Coupon[] {
   try {
-    const stored = localStorage.getItem("freshkart_coupons");
+    const stored = localStorage.getItem("green_basket_coupons");
     if (stored) return JSON.parse(stored);
-    localStorage.setItem("freshkart_coupons", JSON.stringify(demoCoupons));
+    localStorage.setItem("green_basket_coupons", JSON.stringify(demoCoupons));
     return demoCoupons;
   } catch {
     return demoCoupons;
@@ -251,7 +251,7 @@ export function OrderSuccessAdScreen({
           <CardBody className="p-4 text-center">
             <p className="text-sm font-bold text-amber-800">Refer a Business Friend</p>
             <p className="mt-1 text-xs text-amber-700">
-              Share FreshKart with other businesses and earn rewards on their first order!
+              Share Green Basket with other businesses and earn rewards on their first order!
             </p>
             <Button
               variant="outline"

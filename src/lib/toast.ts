@@ -1,4 +1,4 @@
-/** Persistent Toast Notification System for FreshKart
+/** Persistent Toast Notification System for Green Basket
  *  Provides non-blocking toast messages across the entire app.
  *  Supports success, error, warning, info types with auto-dismiss.
  */

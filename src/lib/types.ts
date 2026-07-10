@@ -1,5 +1,5 @@
 /**
- * FreshKart domain model.
+ * Green Basket domain model.
  *
  * These types are the single source of truth shared by the UI, the mock data
  * layer, and the (future) GCP backend. The REST contract in `docs/BACKEND.md`

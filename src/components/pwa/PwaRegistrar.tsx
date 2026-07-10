@@ -9,7 +9,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-const DISMISS_KEY = "freshkart.pwa.dismissed.v1";
+const DISMISS_KEY = "green-basket.pwa.dismissed.v1";
 
 /**
  * Registers the service worker and surfaces a Chrome-style "Install app"
@@ -78,7 +78,7 @@ export function PwaRegistrar() {
           <Download className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-fg">Install FreshKart</p>
+          <p className="text-sm font-bold text-fg">Install Green Basket</p>
           <p className="truncate text-xs text-fg-subtle">
             Add to your home screen — opens like an app.
           </p>

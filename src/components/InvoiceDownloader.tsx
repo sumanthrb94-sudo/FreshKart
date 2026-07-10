@@ -109,7 +109,7 @@ function buildInvoiceHTML(order: Order): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Invoice ${invoiceNumber} — FreshKart</title>
+  <title>Invoice ${invoiceNumber} — Green Basket</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -274,9 +274,9 @@ function buildInvoiceHTML(order: Order): string {
     <!-- Header -->
     <div class="header">
       <div class="header-left">
-        <h1>FreshKart</h1>
+        <h1>Green Basket</h1>
         <p>Wholesale B2B — Fresh Produce, Per Kg</p>
-        <p style="margin-top:8px;font-size:11px;opacity:0.7;">FreshKart Ops, Whitefield, Bengaluru — 560066</p>
+        <p style="margin-top:8px;font-size:11px;opacity:0.7;">Green Basket Ops, Whitefield, Bengaluru — 560066</p>
         <p style="font-size:11px;opacity:0.7;">GSTIN: ${gstin} · Phone: 9800000000</p>
       </div>
       <div class="header-right">
@@ -361,14 +361,14 @@ function buildInvoiceHTML(order: Order): string {
           <p>1. All prices are in Indian Rupees (Rs.) and are exclusive of GST unless stated.</p>
           <p>2. Goods once sold will not be taken back or exchanged.</p>
           <p>3. Payment is due within 7 days for credit orders.</p>
-          <p>4. For disputes, contact: support@freshkart.in</p>
+          <p>4. For disputes, contact: support@green-basket.in</p>
         </div>
       </div>
     </div>
 
     <!-- Footer -->
     <div class="footer">
-      <p class="brand">FreshKart</p>
+      <p class="brand">Green Basket</p>
       <p style="margin-top:4px;">Thank you for your business!</p>
       <p style="margin-top:4px;">This is a computer-generated invoice and does not require a signature.</p>
     </div>

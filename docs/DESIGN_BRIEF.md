@@ -1,4 +1,4 @@
-# FreshKart — B2B Mandi · End-to-End Figma Design Brief
+# Green Basket — B2B Mandi · End-to-End Figma Design Brief
 
 > **Hand this file to Claude / a design AI to build the entire product in Figma.**
 > It is self-contained: it covers the brand, the design system (tokens + components),
@@ -23,7 +23,7 @@
 
 ## 1. Product overview
 
-**FreshKart** (internal: *B2B Mandi*) is a **Ninjacart-style B2B wholesale fresh-produce marketplace**. It connects **buyers** (kirana stores, retailers, hotels/restaurants/caterers — HoReCa) with fresh fruit & vegetable supply, priced **per kg / per piece** and ordered **in bulk** with minimum-order quantities.
+**Green Basket** (internal: *B2B Mandi*) is a **Ninjacart-style B2B wholesale fresh-produce marketplace**. It connects **buyers** (kirana stores, retailers, hotels/restaurants/caterers — HoReCa) with fresh fruit & vegetable supply, priced **per kg / per piece** and ordered **in bulk** with minimum-order quantities.
 
 - **Tagline:** "Wholesale B2B · per kg"
 - **Core promise:** Live B2B rates · order in bulk · pay COD, credit or online · 1–2 day delivery.
@@ -33,7 +33,7 @@
 | Role | Who | What they do |
 |------|-----|--------------|
 | **BUYER** | Kirana store owner, retailer, hotel/restaurant | Browse catalog, build a bulk cart, checkout, pay, track & reorder |
-| **ADMIN** | FreshKart operations | Dashboard, manage all orders & their status, manage inventory (price/stock/active), view customers |
+| **ADMIN** | Green Basket operations | Dashboard, manage all orders & their status, manage inventory (price/stock/active), view customers |
 | **SELLER** | Farmer/wholesaler (data model only) | Listed as the source of each product; **no dedicated UI to design** (legacy — admin manages everything) |
 
 > Design effort = **Buyer app** + **Admin console**. Seller has no screens.
@@ -171,7 +171,7 @@
 18. **Alert/Inline message** — success (brand-50/brand-200, CheckCircle2) and error (red-50/red-200, AlertCircle).
 
 ### Organisms
-19. **App header (buyer)** — brand-500 bar: logo + "FreshKart / Wholesale B2B · per kg" (left); right actions: optional **Admin** pill (if admin), **Orders** icon button, **Account** icon button, **Logout** icon button. Unauth state: just **Login** pill. All icon buttons are 32 px circles `white/15`.
+19. **App header (buyer)** — brand-500 bar: logo + "Green Basket / Wholesale B2B · per kg" (left); right actions: optional **Admin** pill (if admin), **Orders** icon button, **Account** icon button, **Logout** icon button. Unauth state: just **Login** pill. All icon buttons are 32 px circles `white/15`.
 20. **Admin header + nav** — white header with ShieldCheck mark + "Admin"; sticky sub-nav of tabs (Overview / Orders / Products / Customers), active tab = brand-500 bg white.
 21. **Sticky cart bar** — brand-600 pill button: cart icon + "N items · ₹total" (left), "Review & Order →" (right).
 22. **Checkout bottom sheet** — see 7.4.
@@ -289,7 +289,7 @@ flowchart TD
 > Frame width 480 px. Header is present on buyer screens (brand bar); admin screens use the admin header+nav.
 
 ### 7.1 Onboarding — `/onboarding`
-- **Header copy:** H1 "Welcome to FreshKart" (24/bold), subtitle "Wholesale fresh produce for your business." (14/gray-500).
+- **Header copy:** H1 "Welcome to Green Basket" (24/bold), subtitle "Wholesale fresh produce for your business." (14/gray-500).
 - **Step 1 — Mobile:** Phone number input (10-digit India mobile), reCAPTCHA verifier, **Send OTP** button.
 - **Step 2 — Verify:** 6-digit OTP input with auto-focus, resend countdown, **Verify** button.
 - **Alternative method:** **Continue with Google** button (brand-accurate "G" icon). Google sign-in is gated by `api.signInWithGoogle` availability.
@@ -469,15 +469,15 @@ COD = "Cash on delivery" · CREDIT = "Business credit" / "Credit (pay later)" ·
 `ORD-YYYYMMDD-XXXXXX` (e.g. `ORD-20260622-AB12CD`).
 
 ### 9.6 Demo accounts
-- Customer (BUYER): `customer@freshkart.in` — *Suresh Kirana Store*, Bengaluru.
-- Admin: `admin@freshkart.in` — *FreshKart*, Bengaluru.
+- Customer (BUYER): `customer@green-basket.in` — *Suresh Kirana Store*, Bengaluru.
+- Admin: `admin@green-basket.in` — *Green Basket*, Bengaluru.
 - **No password-based demo sign-in.** Use a Firebase test phone number or a Google account with the admin allowlist for local testing.
 
 ### 9.7 Sample buyer profile (for Account screen mock)
-Name *FreshKart Customer*, Business *Suresh Kirana Store*, Phone *9812345678*, City *Bengaluru*, Address *12, Gandhi Bazaar, Basavanagudi*, Pincode *560004*, GSTIN *29BUYER1234A1Z9*.
+Name *Green Basket Customer*, Business *Suresh Kirana Store*, Phone *9812345678*, City *Bengaluru*, Address *12, Gandhi Bazaar, Basavanagudi*, Pincode *560004*, GSTIN *29BUYER1234A1Z9*.
 
 ### 9.8 Key copy strings (reuse verbatim)
-- Header: "FreshKart" / "Wholesale B2B · per kg".
+- Header: "Green Basket" / "Wholesale B2B · per kg".
 - Banner: "Wholesale fruits & veggies 🥦" / "Live B2B rates · order in bulk · pay COD, credit or online."
 - Trust: "Quality checked · easy returns on bad stock", "Simulated gateway · PCI-safe demo", "Test card pre-filled — no real charge is made."
 - ETA: "Arriving in 1–2 days", "We'll notify you when it's out for delivery."
@@ -513,4 +513,4 @@ Name *FreshKart Customer*, Business *Suresh Kirana Store*, Phone *9812345678*, C
 
 ---
 
-*Built from the live FreshKart / B2B Mandi codebase (Next.js 14 · Tailwind · brand green `#16bd5f`). Mobile-first, 480 px column.*
+*Built from the live Green Basket / B2B Mandi codebase (Next.js 14 · Tailwind · brand green `#16bd5f`). Mobile-first, 480 px column.*

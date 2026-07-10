@@ -80,8 +80,8 @@ export const DEMO_PASSWORD = "password123";
 export const USERS: User[] = [
   {
     id: "user-buyer-1",
-    name: "FreshKart Customer",
-    email: "customer@freshkart.in",
+    name: "Green Basket Customer",
+    email: "customer@green-basket.in",
     phone: "9812345678",
     role: "BUYER",
     businessName: "Suresh Kirana Store",
@@ -93,13 +93,13 @@ export const USERS: User[] = [
   },
   {
     id: "user-admin-1",
-    name: "FreshKart Admin",
-    email: "admin@freshkart.in",
+    name: "Green Basket Admin",
+    email: "admin@green-basket.in",
     phone: "9800000000",
     role: "ADMIN",
-    businessName: "FreshKart",
+    businessName: "Green Basket",
     city: "Bengaluru",
-    address: "FreshKart Ops, Whitefield",
+    address: "Green Basket Ops, Whitefield",
     pincode: "560066",
     gstin: "29FRESH9876B1Z2",
     createdAt: "2026-04-01T09:00:00.000Z",

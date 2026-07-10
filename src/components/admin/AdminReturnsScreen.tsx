@@ -47,7 +47,7 @@ export function AdminReturnsScreen() {
 
   useEffect(() => {
     try {
-      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
       setReturns([...demoReturnRequests, ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id))]);
     } catch {
       setReturns(demoReturnRequests);
@@ -56,7 +56,7 @@ export function AdminReturnsScreen() {
 
   const refresh = () => {
     try {
-      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
       setReturns([...demoReturnRequests, ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id))]);
     } catch {
       setReturns(demoReturnRequests);
@@ -75,12 +75,12 @@ export function AdminReturnsScreen() {
       prev.map((r) => (r.id === id ? { ...r, status: newStatus, resolvedAt: new Date().toISOString() } : r))
     );
     try {
-      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
       const idx = stored.findIndex((r: ReturnRequest) => r.id === id);
       if (idx !== -1) {
         stored[idx].status = newStatus;
         stored[idx].resolvedAt = new Date().toISOString();
-        localStorage.setItem("freshkart_returns", JSON.stringify(stored));
+        localStorage.setItem("green_basket_returns", JSON.stringify(stored));
       }
     } catch { /* noop */ }
   };
@@ -103,11 +103,11 @@ export function AdminReturnsScreen() {
     setThreadVersion((v) => v + 1);
 
     try {
-      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
       const idx = stored.findIndex((r: ReturnRequest) => r.id === returnId);
       if (idx !== -1) {
         addThreadMessage(stored[idx], "admin", text.trim());
-        localStorage.setItem("freshkart_returns", JSON.stringify(stored));
+        localStorage.setItem("green_basket_returns", JSON.stringify(stored));
       }
     } catch { /* noop */ }
   };
@@ -238,11 +238,11 @@ function ReturnDetail({
 
   const handleSaveNotes = () => {
     try {
-      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
       const idx = stored.findIndex((r: ReturnRequest) => r.id === returnReq.id);
       if (idx !== -1) {
         stored[idx].adminNotes = notes;
-        localStorage.setItem("freshkart_returns", JSON.stringify(stored));
+        localStorage.setItem("green_basket_returns", JSON.stringify(stored));
       }
       returnReq.adminNotes = notes;
     } catch { /* noop */ }

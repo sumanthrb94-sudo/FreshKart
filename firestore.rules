@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// FreshKart Firestore Security Rules.
+// Green Basket Firestore Security Rules.
 // The browser talks to Firestore directly, so these rules ARE the backend's
 // authorization layer. See docs/FIREBASE.md.
 service cloud.firestore {

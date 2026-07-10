@@ -1,4 +1,4 @@
-/** FreshKart store operating hours and price update schedule.
+/** Green Basket store operating hours and price update schedule.
  *  All times are in IST (UTC+5:30).
  */
 

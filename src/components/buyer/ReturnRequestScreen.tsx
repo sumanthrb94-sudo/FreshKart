@@ -121,9 +121,9 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
         images,
       });
 
-      const existing = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
+      const existing = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
       existing.push(returnReq);
-      localStorage.setItem("freshkart_returns", JSON.stringify(existing));
+      localStorage.setItem("green_basket_returns", JSON.stringify(existing));
 
       // Increment coupon usage if applicable
       toast.success("Return request submitted!", `Refund of ${formatCurrency(returnReq.totalRefund)} will be processed in 3-5 days`);

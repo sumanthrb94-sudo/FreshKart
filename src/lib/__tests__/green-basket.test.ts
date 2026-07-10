@@ -1,5 +1,5 @@
 /**
- * Unit Tests for FreshKart Business Logic
+ * Unit Tests for Green Basket Business Logic
  * 
  * Test command: npx vitest run src/lib/__tests__
  * 
@@ -274,7 +274,7 @@ describe("createChatSession", () => {
     const session = createChatSession();
     expect(session.messages).toHaveLength(1);
     expect(session.messages[0].role).toBe("assistant");
-    expect(session.messages[0].text).toContain("Hello! I am FreshKart Assistant");
+    expect(session.messages[0].text).toContain("Hello! I am Green Basket Assistant");
     expect(session.context).toBe("general");
   });
 
