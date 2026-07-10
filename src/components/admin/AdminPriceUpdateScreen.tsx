@@ -4,13 +4,16 @@ import { useState, useCallback } from "react";
 import { RefreshCw, TrendingUp, TrendingDown, Save, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 export function AdminPriceUpdateScreen() {
+  const { user } = useAuth();
   const { data: products, loading, error, refetch } = useAsync(() => api.listProducts(), []);
   const [updates, setUpdates] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handlePriceChange = useCallback((productId: string, newPrice: number) => {
     setUpdates((prev) => ({ ...prev, [productId]: newPrice }));
@@ -18,8 +21,9 @@ export function AdminPriceUpdateScreen() {
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!products) return;
+    if (!products || !user) return;
     setSaving(true);
+    setSaveError(null);
     try {
       for (const [productId, newPrice] of Object.entries(updates)) {
         const product = products.find((p) => p.id === productId);
@@ -27,16 +31,19 @@ export function AdminPriceUpdateScreen() {
           await api.updateProduct(productId, { price: newPrice });
         }
       }
+      // Publishing marks prices as live so buyers can add to cart and checkout.
+      await api.publishDailyPrices(user.id);
       setSaved(true);
       setUpdates({});
       refetch();
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Failed to update prices.");
       console.error("Failed to update prices:", e);
     } finally {
       setSaving(false);
     }
-  }, [updates, products, refetch]);
+  }, [updates, products, refetch, user]);
 
   const filtered = (products || []).filter((p) =>
     !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.origin.toLowerCase().includes(search.toLowerCase())
@@ -50,7 +57,7 @@ export function AdminPriceUpdateScreen() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-extrabold text-fg">Daily Price Update</h1>
-            <p className="text-xs text-fg-subtle">Update prices before 7 AM IST</p>
+            <p className="text-xs text-fg-subtle">Update prices any time. Saving publishes them live.</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -97,6 +104,11 @@ export function AdminPriceUpdateScreen() {
           <p className="text-center text-sm text-red-400">{error}</p>
         ) : (
           <div className="space-y-2">
+            {saveError && (
+              <p className="rounded-lg border border-red-500/30 bg-red-500/15 px-3 py-2 text-center text-sm text-red-300">
+                {saveError}
+              </p>
+            )}
             {filtered.map((product) => {
               const newPrice = updates[product.id];
               const displayPrice = newPrice !== undefined ? newPrice : product.price;
