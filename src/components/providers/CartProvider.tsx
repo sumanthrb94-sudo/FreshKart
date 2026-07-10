@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import type { CartLine, Product } from "@/lib/types";
+import { calculateDeliveryFee } from "@/lib/delivery";
 
 const CART_KEY = "green-basket.cart.v1";
 
@@ -22,6 +23,8 @@ interface CartContextValue {
   /** distinct products in the cart */
   itemCount: number;
   subtotal: number;
+  deliveryFee: number;
+  total: number;
   qtyOf: (productId: string) => number;
   /** Adds one minOrderQty step (or first step if not present). */
   add: (product: Product) => void;
@@ -109,12 +112,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     () => lines.reduce((sum, l) => sum + l.product.price * l.qty, 0),
     [lines]
   );
+  const deliveryFee = useMemo(() => calculateDeliveryFee(subtotal), [subtotal]);
+  const total = useMemo(() => subtotal + deliveryFee, [subtotal, deliveryFee]);
 
   const value = useMemo<CartContextValue>(
     () => ({
       lines,
       itemCount: lines.length,
       subtotal,
+      deliveryFee,
+      total,
       qtyOf,
       add,
       increment,
@@ -123,7 +130,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       remove,
       clear,
     }),
-    [lines, subtotal, qtyOf, add, increment, decrement, setProductQty, remove, clear]
+    [lines, subtotal, deliveryFee, total, qtyOf, add, increment, decrement, setProductQty, remove, clear]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

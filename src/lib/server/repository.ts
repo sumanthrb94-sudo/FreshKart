@@ -11,6 +11,7 @@ import type {
 } from "@/lib/types";
 import { generateOrderNumber } from "@/lib/format";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
+import { calculateDeliveryFee } from "@/lib/delivery";
 import { ORDERS, PRODUCTS, USERS } from "@/lib/mock-data";
 
 /**
@@ -110,6 +111,7 @@ export const repository = {
     }
 
     const subtotal = items.reduce((s, i) => s + i.lineTotal, 0);
+    const deliveryFee = calculateDeliveryFee(subtotal);
     const now = new Date();
     const id = `order-${now.getTime()}-${++seq}`;
     const order: Order = {
@@ -122,8 +124,8 @@ export const repository = {
       paymentMethod: input.paymentMethod,
       paymentStatus: input.paid ? "PAID" : "UNPAID",
       subtotal,
-      deliveryFee: 0,
-      total: subtotal,
+      deliveryFee,
+      total: subtotal + deliveryFee,
       delivery: input.delivery,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),

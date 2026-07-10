@@ -40,7 +40,7 @@ export function CheckoutSheet({
   disabled?: boolean;
   onContinue: (delivery: DeliveryDetails, method: PaymentMethod) => void;
 }) {
-  const { lines, subtotal, increment, decrement } = useCart();
+  const { lines, subtotal, deliveryFee, total, increment, decrement } = useCart();
   const { user, updateProfile } = useAuth();
   const [delivery, setDelivery] = useState<DeliveryDetails>(defaultDelivery);
   const [method, setMethod] = useState<PaymentMethod>("COD");
@@ -239,12 +239,14 @@ export function CheckoutSheet({
           </div>
           <div className="mt-2 flex items-center justify-between text-sm">
             <span className="text-fg-muted">Delivery</span>
-            <span className="font-bold text-brand-400">FREE</span>
+            <span className={cn("font-bold", deliveryFee === 0 ? "text-brand-400" : "text-fg")}>
+              {deliveryFee === 0 ? "FREE" : formatCurrency(deliveryFee)}
+            </span>
           </div>
           <div className="my-3 border-t border-dashed border-line" />
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold text-fg">To pay</span>
-            <span className="text-lg font-extrabold text-fg">{formatCurrency(subtotal)}</span>
+            <span className="text-lg font-extrabold text-fg">{formatCurrency(total)}</span>
           </div>
         </section>
 
@@ -264,8 +266,8 @@ export function CheckoutSheet({
             : disabled
             ? "Prices updating…"
             : method === "ONLINE"
-            ? `Pay ${formatCurrency(subtotal)}`
-            : `Place B2B order · ${formatCurrency(subtotal)}`}
+            ? `Pay ${formatCurrency(total)}`
+            : `Place B2B order · ${formatCurrency(total)}`}
         </Button>
       </div>
 

@@ -11,6 +11,7 @@ import type {
   User,
 } from "@/lib/types";
 import { generateOrderNumber } from "@/lib/format";
+import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { DataSource, ApiError } from "./datasource";
 import { store } from "./mock-store";
@@ -146,6 +147,7 @@ export class MockDataSource implements DataSource {
         p.stock -= line.qty;
       }
       const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
+      const deliveryFee = calculateDeliveryFee(subtotal);
       const now = new Date();
       const id = `order-${Date.now()}-${++orderSeq}`;
       const order: Order = {
@@ -158,8 +160,8 @@ export class MockDataSource implements DataSource {
         paymentMethod: input.paymentMethod,
         paymentStatus: input.paid ? "PAID" : "UNPAID",
         subtotal,
-        deliveryFee: 0,
-        total: subtotal,
+        deliveryFee,
+        total: subtotal + deliveryFee,
         delivery: input.delivery,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),

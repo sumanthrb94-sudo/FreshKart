@@ -10,6 +10,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import {
   canBuyerCancel,
   formatCurrency,
@@ -147,11 +148,23 @@ export function OrderTrackingScreen({ id }: { id: string }) {
                 </li>
               ))}
             </ul>
-            <div className="flex items-center justify-between border-t border-line px-5 py-3">
-              <span className="text-sm font-bold text-fg">Total</span>
-              <span className="text-base font-extrabold text-fg">
-                {formatCurrency(order.total)}
-              </span>
+            <div className="border-t border-line px-5 py-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-fg-muted">Subtotal</span>
+                <span className="font-semibold text-fg">{formatCurrency(order.subtotal)}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-sm">
+                <span className="text-fg-muted">Delivery</span>
+                <span className={cn("font-semibold", order.deliveryFee === 0 ? "text-brand-500" : "text-fg")}>
+                  {order.deliveryFee === 0 ? "FREE" : formatCurrency(order.deliveryFee)}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between border-t border-dashed border-line pt-2">
+                <span className="text-sm font-bold text-fg">Total</span>
+                <span className="text-base font-extrabold text-fg">
+                  {formatCurrency(order.total)}
+                </span>
+              </div>
             </div>
           </CardBody>
         </Card>

@@ -35,6 +35,7 @@ import type {
   User,
 } from "@/lib/types";
 import { generateOrderNumber } from "@/lib/format";
+import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
 import { DataSource, ApiError } from "./datasource";
@@ -371,6 +372,7 @@ export class FirebaseDataSource implements DataSource {
       });
 
       const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
+      const deliveryFee = calculateDeliveryFee(subtotal);
       built = {
         id: orderRef.id,
         orderNumber: generateOrderNumber(orderRef.id, now),
@@ -381,8 +383,8 @@ export class FirebaseDataSource implements DataSource {
         paymentMethod: input.paymentMethod,
         paymentStatus: input.paid ? "PAID" : "UNPAID",
         subtotal,
-        deliveryFee: 0,
-        total: subtotal,
+        deliveryFee,
+        total: subtotal + deliveryFee,
         delivery: input.delivery,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),

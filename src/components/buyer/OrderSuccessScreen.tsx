@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CheckCircle2, MapPin, Package, Truck } from "lucide-react";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { formatCurrency, PAYMENT_LABELS } from "@/lib/format";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
@@ -95,6 +96,17 @@ export function OrderSuccessScreen({ id }: { id: string }) {
                 </li>
               ))}
             </ul>
+            <div className="my-3 border-t border-dashed border-line" />
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-fg-muted">Subtotal</span>
+              <span className="font-semibold text-fg">{formatCurrency(order.subtotal)}</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between text-sm">
+              <span className="text-fg-muted">Delivery</span>
+              <span className={cn("font-semibold", order.deliveryFee === 0 ? "text-brand-500" : "text-fg")}>
+                {order.deliveryFee === 0 ? "FREE" : formatCurrency(order.deliveryFee)}
+              </span>
+            </div>
             <div className="my-3 border-t border-dashed border-line" />
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-fg">Total paid</span>
