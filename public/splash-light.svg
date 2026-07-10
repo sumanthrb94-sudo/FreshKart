@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1170 2532">
+  <rect width="1170" height="2532" fill="#f2f2f5"/>
+  <ellipse cx="585" cy="1100" rx="140" ry="130" fill="#e23744"/>
+  <ellipse cx="550" cy="1070" rx="45" ry="40" fill="#ff4d4d" opacity="0.5"/>
+  <path d="M585 990 Q585 970 570 960 Q555 950 565 935 Q580 930 585 945 Q590 930 605 935 Q615 950 600 960 Q585 970 585 990" fill="#2d8a3e"/>
+  <path d="M585 990 Q550 975 530 990 Q520 995 535 998 Q565 992 585 990" fill="#2d8a3e"/>
+  <path d="M585 990 Q620 975 640 990 Q650 995 635 998 Q605 992 585 990" fill="#2d8a3e"/>
+  <path d="M680 1180 Q740 1150 770 1195 Q785 1225 755 1240 Q725 1255 710 1225 Q695 1205 680 1180" fill="#4CAF50"/>
+  <text x="585" y="1350" font-family="system-ui,-apple-system,sans-serif" font-size="72" font-weight="800" fill="#1a1a1e" text-anchor="middle">FreshKart</text>
+  <text x="585" y="1420" font-family="system-ui,-apple-system,sans-serif" font-size="32" font-weight="500" fill="#1a1a1e" text-anchor="middle" opacity="0.7">Wholesale B2B · Fresh Produce</text>
+</svg>

@@ -84,6 +84,9 @@ Auth → Sign-in method → Phone → **Phone numbers for testing** → e.g.
 `+91 98765 43210` → code `123456`. Then on the Vercel/preview domain add it under
 Auth → Settings → **Authorized domains** (localhost is allowed by default).
 
+> **Note:** if you add a real phone number here, it will **not** receive an SMS;
+> sign in with the fixed test code instead.
+
 ## 5. Make yourself an admin
 
 Auth is phone-only, so there are no preset admin accounts. After your **first
@@ -108,7 +111,7 @@ Open the app → onboarding → enter your (test) number → code → set up sho
 | Returning buyer | onboarding: mobile → OTP → shop |
 | Admin | same phone flow; their `users/<uid>` doc has `role: ADMIN` → `/admin` |
 
-Phone Auth uses an **invisible reCAPTCHA** (handled in
+Phone Auth uses a **visible reCAPTCHA v2** checkbox (handled in
 [`src/lib/firebase/phone-auth.ts`](../src/lib/firebase/phone-auth.ts)). Sessions
 persist across reloads; `onAuthStateChanged` is the app's source of truth.
 
@@ -119,6 +122,7 @@ persist across reloads; `onAuthStateChanged` is the app's source of truth.
 | `users` | Firebase Auth `uid` | `User` minus `id` (`role` = `BUYER`/`ADMIN`) |
 | `products` | product slug (e.g. `tomato`) | `Product` minus `id` |
 | `orders` | auto id | `Order` minus `id` (`buyerId` = owner uid) |
+| `settings/dailyPrices` | `dailyPrices` | `DailyPricesSettings` — last daily price-update timestamp |
 
 Shapes are in [`src/lib/types.ts`](../src/lib/types.ts).
 
@@ -132,6 +136,10 @@ Shapes are in [`src/lib/types.ts`](../src/lib/types.ts).
 - **Orders**: a buyer creates/reads only their own and may cancel only while
   `PENDING`/`CONFIRMED`; admins read all and advance status. Stock changes run
   in Firestore **transactions** so concurrent orders can't oversell.
+- **Daily price-update gate**: `/settings/dailyPrices` is world-readable and
+  admin-writable. Orders are rejected until an admin publishes today's prices
+  (IST 07:00 cutoff). Admins see a **"Publish today's prices"** button on the
+  dashboard and inventory screens.
 
 > **Hardening note:** because writes are client-side, a signed-in user could
 > still abuse the `stock`-only allowance. For bank-grade integrity, move

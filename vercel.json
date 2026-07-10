@@ -2,5 +2,15 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "next build",
-  "regions": ["bom1"]
+  "regions": ["bom1"],
+  "crons": [
+    {
+      "path": "/api/supplier-report?format=csv",
+      "schedule": "30 12 * * *"
+    },
+    {
+      "path": "/api/reports?type=inventory&format=csv",
+      "schedule": "30 16 * * *"
+    }
+  ]
 }

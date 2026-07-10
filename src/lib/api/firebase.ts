@@ -16,6 +16,7 @@ import {
   orderBy,
   runTransaction,
   writeBatch,
+  onSnapshot,
   type DocumentData,
   type DocumentReference,
   type DocumentSnapshot,
@@ -24,6 +25,7 @@ import type {
   AdminStats,
   CreateOrderInput,
   Customer,
+  DailyPricesSettings,
   Order,
   OrderItem,
   OrderStatus,
@@ -33,10 +35,11 @@ import type {
   User,
 } from "@/lib/types";
 import { generateOrderNumber } from "@/lib/format";
+import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
 import { DataSource, ApiError } from "./datasource";
 
-const COL = { users: "users", products: "products", orders: "orders" } as const;
+const COL = { users: "users", products: "products", orders: "orders", settings: "settings" } as const;
 
 // Emails auto-granted ADMIN on Google sign-in. Keep this in sync with the
 // `isAdminEmail()` allowlist in firestore.rules (rules can't import from here).
@@ -317,6 +320,19 @@ export class FirebaseDataSource implements DataSource {
     await this.ready();
     const db = getDb();
     if (!input.items.length) throw new ApiError("Your cart is empty.");
+    if (input.paymentMethod === "CREDIT") {
+      throw new ApiError("Business credit is not available.");
+    }
+
+    const settingsSnap = await readDoc(doc(db, COL.settings, "dailyPrices"));
+    const settings = settingsSnap.exists()
+      ? (settingsSnap.data() as DailyPricesSettings)
+      : null;
+    if (!isDailyPriceUpdatePublished(settings?.publishedAt)) {
+      throw new ApiError(
+        "Getting best live prices for you. Orders open after today's prices are published."
+      );
+    }
 
     const buyerSnap = await getDoc(doc(db, COL.users, buyerId));
     if (!buyerSnap.exists()) throw new ApiError("Buyer not found.", 404);
@@ -361,7 +377,7 @@ export class FirebaseDataSource implements DataSource {
         buyerId,
         businessName: input.delivery.name || buyer.businessName || buyer.name,
         items,
-        status: "PENDING",
+        status: "CONFIRMED", // Auto-confirmed — morning delivery model
         paymentMethod: input.paymentMethod,
         paymentStatus: input.paid ? "PAID" : "UNPAID",
         subtotal,
@@ -375,6 +391,42 @@ export class FirebaseDataSource implements DataSource {
     });
 
     return built!;
+  }
+
+  /**
+   * Real-time order subscription using Firestore onSnapshot.
+   * Delivers updates in ~100ms — no page refresh needed.
+   */
+  subscribeOrders(buyerId?: string, cb?: (orders: Order[]) => void): () => void {
+    const db = getDb();
+    const base = collection(db, COL.orders);
+    // For admin (no buyerId): order by createdAt desc for newest-first.
+    // For buyer: filter by buyerId only (avoids composite index requirement).
+    const q = buyerId
+      ? query(base, where("buyerId", "==", buyerId))
+      : query(base, orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const orders = snap.docs.map((d) => ({
+          ...(d.data() as Omit<Order, "id">),
+          id: d.id,
+        }));
+        // Sort in memory for buyer view (since we can't use orderBy with where)
+        const sorted = orders.sort(
+          (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+        );
+        cb?.(sorted);
+      },
+      (err) => {
+        // Silently ignore permission errors — the UI will show empty state
+        // and the user can refresh. This prevents crash loops.
+        console.warn("Order subscription error:", err.message);
+      }
+    );
+
+    return unsubscribe;
   }
 
   async listOrders(buyerId?: string): Promise<Order[]> {
@@ -429,6 +481,43 @@ export class FirebaseDataSource implements DataSource {
     return updated!;
   }
 
+  /** Bulk update status for multiple orders at once (morning delivery batch processing). */
+  async bulkUpdateOrderStatus(ids: string[], status: OrderStatus): Promise<Order[]> {
+    await this.ready();
+    const db = getDb();
+    const updated: Order[] = [];
+    const batch = writeBatch(db);
+
+    for (const id of ids) {
+      const oRef = doc(db, COL.orders, id);
+      const oSnap = await getDoc(oRef);
+      if (!oSnap.exists()) continue;
+      const order = { ...(oSnap.data() as Omit<Order, "id">), id: oRef.id } as Order;
+
+      if (status === "CANCELLED" && order.status !== "CANCELLED") {
+        for (const i of order.items) {
+          const pRef = doc(db, COL.products, i.productId);
+          const pSnap = await getDoc(pRef);
+          if (pSnap.exists()) {
+            const p = pSnap.data() as Product;
+            batch.update(pRef, { stock: p.stock + i.qty });
+          }
+        }
+        batch.update(oRef, {
+          status,
+          notes: "Order cancelled — stock was released.",
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        batch.update(oRef, { status, updatedAt: new Date().toISOString() });
+      }
+      updated.push({ ...order, status });
+    }
+
+    await batch.commit();
+    return updated;
+  }
+
   async cancelOrder(id: string): Promise<Order> {
     return this.updateOrderStatus(id, "CANCELLED");
   }
@@ -476,6 +565,7 @@ export class FirebaseDataSource implements DataSource {
       getDocs(collection(db, COL.orders)),
       getDocs(query(collection(db, COL.users), where("role", "==", "BUYER"))),
     ]);
+
     const products = productsSnap.docs.map((d) => d.data() as Product);
     const orders = ordersSnap.docs.map((d) => d.data() as Order);
 
@@ -499,5 +589,23 @@ export class FirebaseDataSource implements DataSource {
       lowStockCount: products.filter((p) => p.active && p.stock <= p.minOrderQty * 2).length,
       ordersByStatus,
     };
+  }
+
+  // --- Settings -------------------------------------------------------------
+  async getDailyPricesSettings(): Promise<DailyPricesSettings | null> {
+    await this.ready();
+    const snap = await readDoc(doc(getDb(), COL.settings, "dailyPrices"));
+    return snap.exists() ? (snap.data() as DailyPricesSettings) : null;
+  }
+
+  async publishDailyPrices(userId: string): Promise<DailyPricesSettings> {
+    await this.ready();
+    const db = getDb();
+    const settings: DailyPricesSettings = {
+      publishedAt: new Date().toISOString(),
+      publishedBy: userId,
+    };
+    await setDoc(doc(db, COL.settings, "dailyPrices"), settings, { merge: true });
+    return settings;
   }
 }

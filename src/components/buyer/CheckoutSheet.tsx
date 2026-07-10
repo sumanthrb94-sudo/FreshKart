@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils";
 
 const PAYMENT_OPTIONS: { method: PaymentMethod; label: string; sub: string; icon: typeof Wallet }[] = [
   { method: "COD", label: "Cash on delivery", sub: "Pay the rider when produce arrives", icon: Banknote },
-  { method: "CREDIT", label: "Business credit", sub: "Pay later on your credit line", icon: Wallet },
   { method: "ONLINE", label: "Pay online", sub: "Card or UPI · simulated gateway", icon: CreditCard },
 ];
 
@@ -30,6 +29,7 @@ export function CheckoutSheet({
   defaultDelivery,
   busy,
   error,
+  disabled,
   onContinue,
 }: {
   open: boolean;
@@ -37,6 +37,7 @@ export function CheckoutSheet({
   defaultDelivery: DeliveryDetails;
   busy: boolean;
   error: string | null;
+  disabled?: boolean;
   onContinue: (delivery: DeliveryDetails, method: PaymentMethod) => void;
 }) {
   const { lines, subtotal, increment, decrement } = useCart();
@@ -257,9 +258,11 @@ export function CheckoutSheet({
 
       {/* Sticky CTA */}
       <div className="sticky bottom-0 border-t border-line bg-canvas/95 p-4 backdrop-blur">
-        <Button size="lg" fullWidth loading={busy} onClick={handleSubmit}>
+        <Button size="lg" fullWidth loading={busy} disabled={disabled} onClick={handleSubmit}>
           {busy
             ? "Placing order…"
+            : disabled
+            ? "Prices updating…"
             : method === "ONLINE"
             ? `Pay ${formatCurrency(subtotal)}`
             : `Place B2B order · ${formatCurrency(subtotal)}`}

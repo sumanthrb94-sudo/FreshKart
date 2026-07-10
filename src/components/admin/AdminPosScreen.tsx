@@ -5,6 +5,7 @@ import {
   Banknote,
   Check,
   CheckCircle2,
+  Clock,
   CreditCard,
   MapPin,
   Phone,
@@ -26,6 +27,7 @@ import type {
 } from "@/lib/types";
 import { api, ApiError } from "@/lib/api";
 import { formatCurrency, pricePerUnit, unitLabel } from "@/lib/format";
+import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { useAsync } from "@/lib/hooks";
 import { AdminShell } from "./AdminShell";
 import { Card, CardBody } from "@/components/ui/Card";
@@ -45,7 +47,6 @@ const PAYMENT_OPTIONS: {
   icon: typeof Wallet;
 }[] = [
   { method: "COD", label: "Cash (COD)", sub: "Collect cash at the counter", icon: Banknote },
-  { method: "CREDIT", label: "Business credit", sub: "Settle later on credit line", icon: Wallet },
   { method: "ONLINE", label: "Online", sub: "UPI / card · simulated", icon: CreditCard },
 ];
 
@@ -491,6 +492,10 @@ export function AdminPosScreen() {
     () => api.listProducts(),
     []
   );
+  const { data: settings, loading: settingsLoading } = useAsync(
+    () => api.getDailyPricesSettings(),
+    []
+  );
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
@@ -633,7 +638,8 @@ export function AdminPosScreen() {
   }
 
   const loading = customersLoading || productsLoading;
-  const canPlace = !!customer && lines.length > 0 && !busy;
+  const pricesPublished = isDailyPriceUpdatePublished(settings?.publishedAt);
+  const canPlace = !!customer && lines.length > 0 && !busy && pricesPublished;
 
   return (
     <AdminShell>
@@ -649,73 +655,108 @@ export function AdminPosScreen() {
         <SuccessPanel order={placed} onNewSale={resetAll} />
       ) : (
         <>
-          <div className="flex flex-col gap-5 p-4 pb-28">
-            {/* 1 · Customer */}
-            <section>
-              <SectionTitle icon={Store}>Customer</SectionTitle>
-              {customer ? (
-                <SelectedCustomerCard
-                  customer={customer}
-                  profile={profile}
-                  profileLoading={profileLoading}
-                  onChange={changeCustomer}
-                />
-              ) : (
-                <CustomerPicker customers={customers} onSelect={selectCustomer} />
-              )}
-            </section>
-
-            {/* 2 · Products */}
-            <section>
-              <SectionTitle icon={Search}>Add products</SectionTitle>
-              <ProductPicker
-                products={products ?? []}
-                inCart={(id) => lines.some((l) => l.product.id === id)}
-                onAdd={addProduct}
-              />
-            </section>
-
-            {/* 3 · Cart */}
-            <section>
-              <SectionTitle
-                icon={ShoppingCart}
-                trailing={
-                  lines.length > 0 ? (
-                    <span className="text-sm font-bold text-fg">
-                      {formatCurrency(total)}
-                    </span>
-                  ) : undefined
-                }
-              >
-                Order ({lines.length})
-              </SectionTitle>
-              <CartList
-                lines={lines}
-                onIncrement={incrementLine}
-                onDecrement={decrementLine}
-              />
-            </section>
-
-            {/* 4 · Payment */}
-            <section>
-              <SectionTitle icon={Wallet}>Payment</SectionTitle>
-              <PaymentPicker
-                method={method}
-                paid={paid}
-                onMethodChange={chooseMethod}
-                onPaidChange={setPaid}
-              />
-            </section>
-
-            {error && (
-              <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-400">
-                {error}
+          {!settingsLoading && !pricesPublished && (
+            <div className="border-b border-amber-500/30 bg-amber-500/15 px-4 py-2.5 text-center">
+              <p className="flex items-center justify-center gap-2 text-sm font-bold text-amber-100">
+                <Clock className="h-4 w-4 text-amber-400" aria-hidden />
+                Getting best live prices for you
               </p>
-            )}
+              <p className="text-xs text-amber-200/80">
+                Orders open after 7 AM daily price update
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-5 p-4 pb-28 lg:grid lg:grid-cols-2 lg:pb-4">
+            {/* Left column: customer + product picker */}
+            <div className="flex flex-col gap-5">
+              {/* 1 · Customer */}
+              <section>
+                <SectionTitle icon={Store}>Customer</SectionTitle>
+                {customer ? (
+                  <SelectedCustomerCard
+                    customer={customer}
+                    profile={profile}
+                    profileLoading={profileLoading}
+                    onChange={changeCustomer}
+                  />
+                ) : (
+                  <CustomerPicker customers={customers} onSelect={selectCustomer} />
+                )}
+              </section>
+
+              {/* 2 · Products */}
+              <section>
+                <SectionTitle icon={Search}>Add products</SectionTitle>
+                <ProductPicker
+                  products={products ?? []}
+                  inCart={(id) => lines.some((l) => l.product.id === id)}
+                  onAdd={addProduct}
+                />
+              </section>
+            </div>
+
+            {/* Right column: cart + payment + actions */}
+            <div className="flex flex-col gap-5">
+              {/* 3 · Cart */}
+              <section>
+                <SectionTitle
+                  icon={ShoppingCart}
+                  trailing={
+                    lines.length > 0 ? (
+                      <span className="text-sm font-bold text-fg">
+                        {formatCurrency(total)}
+                      </span>
+                    ) : undefined
+                  }
+                >
+                  Order ({lines.length})
+                </SectionTitle>
+                <CartList
+                  lines={lines}
+                  onIncrement={incrementLine}
+                  onDecrement={decrementLine}
+                />
+              </section>
+
+              {/* 4 · Payment */}
+              <section>
+                <SectionTitle icon={Wallet}>Payment</SectionTitle>
+                <PaymentPicker
+                  method={method}
+                  paid={paid}
+                  onMethodChange={chooseMethod}
+                  onPaidChange={setPaid}
+                />
+              </section>
+
+              {error && (
+                <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-400">
+                  {error}
+                </p>
+              )}
+
+              {/* Desktop place-order bar */}
+              <div className="sticky bottom-0 hidden border-t border-line bg-canvas/95 p-4 backdrop-blur lg:block">
+                <Button
+                  size="lg"
+                  fullWidth
+                  loading={busy}
+                  disabled={!canPlace}
+                  onClick={placeOrder}
+                >
+                  {busy
+                    ? "Placing order…"
+                    : !pricesPublished
+                    ? "Prices updating…"
+                    : `Place order · ${formatCurrency(total)}`}
+                </Button>
+              </div>
+            </div>
           </div>
 
-          {/* Sticky place-order bar */}
-          <div className="sticky bottom-0 border-t border-line bg-canvas/95 p-4 backdrop-blur">
+          {/* Sticky place-order bar (mobile) */}
+          <div className="sticky bottom-0 border-t border-line bg-canvas/95 p-4 backdrop-blur lg:hidden">
             <Button
               size="lg"
               fullWidth
@@ -723,7 +764,11 @@ export function AdminPosScreen() {
               disabled={!canPlace}
               onClick={placeOrder}
             >
-              {busy ? "Placing order…" : `Place order · ${formatCurrency(total)}`}
+              {busy
+                ? "Placing order…"
+                : !pricesPublished
+                ? "Prices updating…"
+                : `Place order · ${formatCurrency(total)}`}
             </Button>
           </div>
         </>

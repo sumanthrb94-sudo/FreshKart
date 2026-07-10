@@ -34,13 +34,13 @@ export function Sheet({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-center">
+    <div className="fixed inset-0 z-50 flex justify-center lg:left-[var(--sidebar-width)]">
       <div
         className={cn("absolute inset-0 animate-fade bg-black/40", scrimClassName)}
         onClick={onClose}
         aria-hidden
       />
-      <div className="relative mt-auto flex max-h-[88vh] w-full max-w-app animate-rise flex-col rounded-t-2xl bg-canvas shadow-xl">
+      <div className="relative mt-auto flex max-h-[88vh] w-full max-w-app animate-rise flex-col rounded-t-2xl bg-canvas shadow-xl lg:max-w-none">
         <div className="flex shrink-0 items-center justify-between gap-2 rounded-t-2xl border-b border-line bg-surface px-5 py-4">
           <div className="flex items-center gap-2 text-lg font-bold text-fg">
             {title}

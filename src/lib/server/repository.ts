@@ -2,6 +2,7 @@ import type {
   AdminStats,
   CreateOrderInput,
   Customer,
+  DailyPricesSettings,
   Order,
   OrderItem,
   OrderStatus,
@@ -9,6 +10,7 @@ import type {
   User,
 } from "@/lib/types";
 import { generateOrderNumber } from "@/lib/format";
+import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { ORDERS, PRODUCTS, USERS } from "@/lib/mock-data";
 
 /**
@@ -32,6 +34,7 @@ export { RepoError };
 const products: Product[] = structuredClone(PRODUCTS);
 const orders: Order[] = structuredClone(ORDERS);
 const users: User[] = structuredClone(USERS);
+let dailyPrices: DailyPricesSettings | null = null;
 let seq = 0;
 
 export const repository = {
@@ -74,6 +77,14 @@ export const repository = {
   },
 
   createOrder(buyerId: string, input: CreateOrderInput): Order {
+    if (input.paymentMethod === "CREDIT") {
+      throw new RepoError("Business credit is not available.");
+    }
+    if (!isDailyPriceUpdatePublished(dailyPrices?.publishedAt)) {
+      throw new RepoError(
+        "Getting best live prices for you. Orders open after today's prices are published."
+      );
+    }
     const buyer = users.find((u) => u.id === buyerId);
     if (!buyer) throw new RepoError("Buyer not found.", 404);
     if (!input.items?.length) throw new RepoError("Your cart is empty.");
@@ -160,6 +171,18 @@ export const repository = {
           totalSpent: os.reduce((s, o) => s + o.total, 0),
         };
       });
+  },
+
+  getDailyPricesSettings(): DailyPricesSettings | null {
+    return dailyPrices;
+  },
+
+  publishDailyPrices(userId: string): DailyPricesSettings {
+    dailyPrices = {
+      publishedAt: new Date().toISOString(),
+      publishedBy: userId,
+    };
+    return dailyPrices;
   },
 
   getAdminStats(): AdminStats {

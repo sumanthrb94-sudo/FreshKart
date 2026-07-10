@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Minus, Package, Pencil, Plus, Search } from "lucide-react";
+import { CheckCircle2, Clock, Minus, Package, Pencil, Plus, Search, Sparkles } from "lucide-react";
 import type { Product, ProductInput, Unit } from "@/lib/types";
 import { api, ApiError } from "@/lib/api";
 import { formatCurrency, unitLabel } from "@/lib/format";
+import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { useAsync } from "@/lib/hooks";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { CATEGORIES } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { AdminShell } from "./AdminShell";
@@ -404,11 +406,171 @@ function ProductRow({
 }
 
 // ---------------------------------------------------------------------------
+// Product table (desktop)
+// ---------------------------------------------------------------------------
+
+function ProductTableRow({
+  product,
+  onPatched,
+  onEdit,
+}: {
+  product: Product;
+  onPatched: (p: Product) => void;
+  onEdit: (p: Product) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const low = isLowStock(product);
+  const u = unitLabel(product.unit);
+
+  async function patch(patchData: Partial<Product>, optimistic: Product) {
+    setBusy(true);
+    onPatched(optimistic);
+    try {
+      const updated = await api.updateProduct(product.id, patchData);
+      onPatched(updated);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function adjustStock(direction: 1 | -1) {
+    const step = Number.isFinite(product.minOrderQty) && product.minOrderQty > 0 ? product.minOrderQty : 1;
+    const next = Math.max(0, product.stock + direction * step);
+    if (next === product.stock) return;
+    void patch({ stock: next }, { ...product, stock: next });
+  }
+
+  function toggleActive() {
+    void patch({ active: !product.active }, { ...product, active: !product.active });
+  }
+
+  return (
+    <tr className={cn(!product.active && "opacity-70")}>
+      <td className="px-4 py-3">
+        <ProductThumb name={product.name} imageUrl={product.imageUrl} size={40} />
+      </td>
+      <td className="px-4 py-3">
+        <p className="font-semibold text-fg">{product.name}</p>
+        <p className="text-xs text-fg-subtle">{product.origin}</p>
+      </td>
+      <td className="px-4 py-3 text-sm text-fg-muted">{categoryLabel(product.category)}</td>
+      <td className="px-4 py-3 text-sm font-semibold text-fg">
+        {formatCurrency(product.price)} / {u}
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label={`Decrease stock by ${product.minOrderQty}`}
+            disabled={busy || product.stock <= 0}
+            onClick={() => adjustStock(-1)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-line bg-raised text-fg-muted transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <span className="min-w-[3ch] text-center text-sm font-bold text-fg">
+            {product.stock}
+          </span>
+          <button
+            type="button"
+            aria-label={`Increase stock by ${product.minOrderQty}`}
+            disabled={busy}
+            onClick={() => adjustStock(1)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-line bg-raised text-fg-muted transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          {busy && <Spinner className="h-4 w-4" />}
+        </div>
+      </td>
+      <td className="px-4 py-3 text-sm text-fg-muted">
+        {product.minOrderQty} {u}
+      </td>
+      <td className="px-4 py-3">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={toggleActive}
+          className={cn(
+            "rounded-full px-2.5 py-1 text-2xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+            product.active
+              ? "bg-brand-500/15 text-brand-300 hover:bg-brand-500/25"
+              : "bg-raised text-fg-subtle hover:bg-surface"
+          )}
+        >
+          {product.active ? "Active" : "Inactive"}
+        </button>
+        {low && (
+          <span className="ml-2 rounded-full bg-red-500/15 px-2 py-0.5 text-2xs font-bold uppercase tracking-wide text-red-300">
+            Low
+          </span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-right">
+        <Button
+          size="sm"
+          variant="ghost"
+          leadingIcon={<Pencil className="h-3.5 w-3.5" />}
+          disabled={busy}
+          onClick={() => onEdit(product)}
+        >
+          Edit
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
+function ProductTable({
+  products,
+  onPatched,
+  onEdit,
+}: {
+  products: Product[];
+  onPatched: (p: Product) => void;
+  onEdit: (p: Product) => void;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="fc-scroll overflow-x-auto">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="bg-raised text-xs font-bold uppercase tracking-wide text-fg-subtle">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Image</th>
+              <th className="px-4 py-3 font-semibold">Name</th>
+              <th className="px-4 py-3 font-semibold">Category</th>
+              <th className="px-4 py-3 font-semibold">Price</th>
+              <th className="px-4 py-3 font-semibold">Stock</th>
+              <th className="px-4 py-3 font-semibold">Min order</th>
+              <th className="px-4 py-3 font-semibold">Active</th>
+              <th className="px-4 py-3 text-right font-semibold">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {products.map((p) => (
+              <ProductTableRow key={p.id} product={p} onPatched={onPatched} onEdit={onEdit} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 
 export function AdminProductsScreen() {
+  const { user } = useAuth();
   const { data, loading, error, refetch } = useAsync(() => api.listProducts(), []);
+  const {
+    data: settings,
+    loading: settingsLoading,
+    error: settingsError,
+    refetch: refetchSettings,
+  } = useAsync(() => api.getDailyPricesSettings(), []);
+  const [publishing, setPublishing] = useState(false);
 
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>(ALL);
@@ -460,9 +622,55 @@ export function AdminProductsScreen() {
     refetch();
   }
 
+  const publishedToday = isDailyPriceUpdatePublished(settings?.publishedAt);
+
+  async function publishToday() {
+    if (!user || publishedToday) return;
+    setPublishing(true);
+    try {
+      await api.publishDailyPrices(user.id);
+      await refetchSettings();
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   return (
     <AdminShell>
       <div className="flex flex-col gap-4 p-4">
+        {settingsError && <Alert variant="error">{settingsError}</Alert>}
+        {!settingsLoading && !settingsError && (
+          <Card>
+            <CardBody className="flex items-center gap-3 p-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/15 text-brand-400">
+                <Sparkles className="h-4 w-4" aria-hidden />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-fg">
+                  {publishedToday ? "Today's prices are live" : "Publish today's prices"}
+                </p>
+                <p className="text-xs text-fg-subtle">
+                  {publishedToday
+                    ? `Updated at ${new Date(settings!.publishedAt).toLocaleTimeString("en-IN", {
+                        timeZone: "Asia/Kolkata",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}`
+                    : "Buyers can't place orders until prices are published."}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={publishToday}
+                loading={publishing}
+                disabled={publishedToday || publishing || !user}
+              >
+                {publishedToday ? "Published" : "Publish"}
+              </Button>
+            </CardBody>
+          </Card>
+        )}
+
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-extrabold text-fg">Inventory</h1>
@@ -531,11 +739,16 @@ export function AdminProductsScreen() {
             }
           />
         ) : (
-          <div className="flex flex-col gap-3">
-            {filtered.map((p) => (
-              <ProductRow key={p.id} product={p} onPatched={applyOverride} onEdit={setEditing} />
-            ))}
-          </div>
+          <>
+            <div className="flex flex-col gap-3 lg:hidden">
+              {filtered.map((p) => (
+                <ProductRow key={p.id} product={p} onPatched={applyOverride} onEdit={setEditing} />
+              ))}
+            </div>
+            <div className="hidden lg:block">
+              <ProductTable products={filtered} onPatched={applyOverride} onEdit={setEditing} />
+            </div>
+          </>
         )}
       </div>
 

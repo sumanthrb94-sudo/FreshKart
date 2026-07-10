@@ -30,6 +30,13 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock']);
     }
 
+    // --- Settings: daily price-update gate. World-readable; admin-writable. ---
+    match /settings/dailyPrices {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
     // Stock must only be decremented (not incremented or set arbitrarily)
     // and by at most 500 units at a time.
     function isStockDecrementValid() {
@@ -114,23 +121,23 @@ service cloud.firestore {
     match /orders/{orderId} {
       allow read: if isSignedIn()
                   && (resource.data.buyerId == request.auth.uid || isAdmin());
-      // Buyers create their own PENDING orders; admins (POS / phone desk) may
+      // Buyers create their own auto-confirmed orders; admins (POS / phone desk) may
       // place an order on behalf of any buyer. Field whitelist prevents
       // injection of arbitrary keys (e.g. `discount`, `isAdmin`).
       allow create: if isAdmin()
                     || (isSignedIn()
                         && hasOnlyOrderFields()
                         && request.resource.data.buyerId == request.auth.uid
-                        && request.resource.data.status == 'PENDING'
+                        && request.resource.data.status in ['CONFIRMED']
                         && validateOrderItems(request.resource.data.items)
                         && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items)
                         && request.resource.data.total == request.resource.data.subtotal);
       // Admin can advance to any status; a buyer may only cancel while the
-      // order is still PENDING or CONFIRMED and may ONLY change `status` +
-      // `updatedAt` (cannot tamper with items, totals, or other fields).
+      // order is still CONFIRMED and may ONLY change `status` + `updatedAt`
+      // (cannot tamper with items, totals, or other fields).
       allow update: if isAdmin()
                     || (resource.data.buyerId == request.auth.uid
-                        && resource.data.status in ['PENDING', 'CONFIRMED']
+                        && resource.data.status in ['CONFIRMED']
                         && request.resource.data.status == 'CANCELLED'
                         && onlyStatusChanged());
       allow delete: if isAdmin();

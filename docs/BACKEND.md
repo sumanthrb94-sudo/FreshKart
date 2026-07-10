@@ -30,10 +30,11 @@ All shapes are defined in [`src/lib/types.ts`](../src/lib/types.ts). Summary:
 | **DeliveryDetails** | `name, phone, city, address, pincode` |
 | **Customer** (admin view) | `id, name, businessName?, phone, city?, orderCount, totalSpent` |
 | **AdminStats** | `revenue, orderCount, productCount, activeProductCount, customerCount, lowStockCount, ordersByStatus` |
+| **DailyPricesSettings** | `publishedAt: string (ISO 8601), publishedBy?: string` |
 
 **Enums**
 - `OrderStatus`: `PENDING → CONFIRMED → PACKED → SHIPPED → DELIVERED`, plus `CANCELLED`
-- `PaymentMethod`: `COD | CREDIT | ONLINE`
+- `PaymentMethod`: `COD | CREDIT | ONLINE` (`CREDIT` is kept for legacy orders but new orders must use `COD` or `ONLINE`)
 - `PaymentStatus`: `UNPAID | PAID`
 
 **Conventions**
@@ -67,7 +68,7 @@ Base URL = `NEXT_PUBLIC_API_BASE_URL`. All bodies are JSON. Errors return
 ### Orders
 | Method | Path | Body | Returns |
 |--------|------|------|---------|
-| POST | `/orders` | `{ buyerId, items: [{productId, qty}], delivery, paymentMethod, paid }` | `Order` (validates stock) |
+| POST | `/orders` | `{ buyerId, items: [{productId, qty}], delivery, paymentMethod, paid }` | `Order` (validates stock and daily price-update gate) |
 | GET | `/orders?buyerId=…` | — | `Order[]` (omit `buyerId` ⇒ all, for admin) |
 | GET | `/orders/:id` | — | `Order \| null` |
 | PATCH | `/orders/:id/status` | `{ status }` | `Order` |
@@ -78,6 +79,12 @@ Base URL = `NEXT_PUBLIC_API_BASE_URL`. All bodies are JSON. Errors return
 |--------|------|---------|
 | GET | `/customers` | `Customer[]` |
 | GET | `/admin/stats` | `AdminStats` |
+
+### Settings (daily price-update gate)
+| Method | Path | Body | Returns |
+|--------|------|------|---------|
+| GET | `/settings/dailyPrices` | — | `DailyPricesSettings \| null` |
+| POST | `/settings/dailyPrices/publish` | `{ publishedBy: string }` | `DailyPricesSettings` |
 
 ### Ops
 | Method | Path | Returns |
@@ -133,6 +140,12 @@ If you build a custom server-side backend instead of Firebase:
 Any language/framework works (Node/Express, Go, Python/FastAPI, …) — only the
 JSON contract matters.
 
+### Daily price-update gate
+
+The app treats prices as stale until an admin publishes them for the current
+IST day at or after 07:00. `POST /orders` must reject new orders with a clear
+message (e.g. `"Getting best live prices for you. Orders open after today's prices are published."`) when the latest `DailyPricesSettings.publishedAt` is missing or older than today's 07:00 IST cutoff. Only `POST /settings/dailyPrices/publish` (admin) should update that timestamp.
+
 ---
 
 ## 5. Suggested Postgres schema (starting point)
@@ -142,7 +155,15 @@ create type role as enum ('BUYER','ADMIN','SELLER');
 create type unit as enum ('kg','pc');
 create type order_status as enum ('PENDING','CONFIRMED','PACKED','SHIPPED','DELIVERED','CANCELLED');
 create type payment_method as enum ('COD','CREDIT','ONLINE');
+-- Note: application code rejects new orders using 'CREDIT'; keep the enum value
+-- so existing legacy orders still load correctly.
 create type payment_status as enum ('UNPAID','PAID');
+
+create table daily_prices_settings (
+  id            text primary key default 'dailyPrices',
+  published_at  timestamptz not null,
+  published_by  text
+);
 
 create table users (
   id            text primary key,

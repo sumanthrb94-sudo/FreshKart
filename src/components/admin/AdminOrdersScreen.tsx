@@ -1,15 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import {
   ArrowRight,
   Ban,
+  CheckSquare,
   ClipboardList,
+  FileText,
   MapPin,
   Phone,
   Search,
   SearchX,
   ServerCrash,
+  Square,
+  SquareCheck,
+  Truck,
+  PackageCheck,
 } from "lucide-react";
 import type { Order, OrderStatus } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -21,9 +27,9 @@ import {
   STATUS_FLOW,
   unitLabel,
 } from "@/lib/format";
-import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { AdminShell } from "./AdminShell";
+import { InvoiceDownloader } from "@/components/InvoiceDownloader";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
@@ -32,11 +38,12 @@ import { OrderStatusBadge } from "@/components/ui/Badge";
 import { Sheet } from "@/components/ui/Sheet";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader } from "@/components/ui/Spinner";
+import { toast } from "@/lib/toast";
 
-/** Order lifecycle + the terminal cancelled bucket, in display order. */
+/** Order lifecycle in display order. CONFIRMED is the starting state (auto-confirmed). */
 const FILTERS: OrderStatus[] = [...STATUS_FLOW, "CANCELLED"];
 
-/** The status that follows `current`, or null at the end of the flow. */
+/** The status that follows current, or null at the end of the flow. */
 function nextInFlow(current: OrderStatus): OrderStatus | null {
   const i = STATUS_FLOW.indexOf(current);
   if (i === -1 || i === STATUS_FLOW.length - 1) return null;
@@ -47,7 +54,7 @@ function isTerminal(status: OrderStatus): boolean {
   return status === "DELIVERED" || status === "CANCELLED";
 }
 
-/** "3 items · Onion, Potato…" */
+/** 3 items · Onion, Potato… */
 function itemSummary(order: Order): string {
   const count = order.items.length;
   const noun = count === 1 ? "item" : "items";
@@ -70,15 +77,120 @@ function PaymentBadge({ paid }: { paid: boolean }) {
   );
 }
 
-function OrderCard({ order, onOpen }: { order: Order; onOpen: () => void }) {
+function OrderTable({
+  orders,
+  selectedIds,
+  onToggleSelect,
+  onOpen,
+}: {
+  orders: Order[];
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="fc-scroll overflow-x-auto">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="bg-raised text-xs font-bold uppercase tracking-wide text-fg-subtle">
+            <tr>
+              <th className="px-4 py-3 font-semibold"></th>
+              <th className="px-4 py-3 font-semibold">Order #</th>
+              <th className="px-4 py-3 font-semibold">Business</th>
+              <th className="px-4 py-3 font-semibold">Items</th>
+              <th className="px-4 py-3 font-semibold">Total</th>
+              <th className="px-4 py-3 font-semibold">Status</th>
+              <th className="px-4 py-3 font-semibold">Payment</th>
+              <th className="px-4 py-3 font-semibold">Date</th>
+              <th className="px-4 py-3 text-right font-semibold">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {orders.map((o) => (
+              <tr key={o.id}>
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleSelect(o.id);
+                    }}
+                    className="text-fg-subtle hover:text-brand-500"
+                  >
+                    {selectedIds.has(o.id) ? (
+                      <SquareCheck className="h-5 w-5 text-brand-500" />
+                    ) : (
+                      <Square className="h-5 w-5" />
+                    )}
+                  </button>
+                </td>
+                <td className="px-4 py-3 text-xs font-semibold text-fg-muted">{o.orderNumber}</td>
+                <td className="px-4 py-3">
+                  <p className="font-semibold text-fg">{o.businessName}</p>
+                  <p className="text-xs text-fg-subtle">{o.delivery.phone}</p>
+                </td>
+                <td className="px-4 py-3 text-sm text-fg-muted">{itemSummary(o)}</td>
+                <td className="px-4 py-3 text-sm font-bold text-fg">{formatCurrency(o.total)}</td>
+                <td className="px-4 py-3">
+                  <OrderStatusBadge status={o.status} />
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-fg-muted">{PAYMENT_LABELS[o.paymentMethod]}</span>
+                    <PaymentBadge paid={o.paymentStatus === "PAID"} />
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-xs text-fg-subtle">{formatDate(o.createdAt)}</td>
+                <td className="px-4 py-3 text-right">
+                  <Button size="sm" variant="ghost" onClick={() => onOpen(o.id)}>
+                    Open
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function OrderCard({
+  order,
+  onOpen,
+  selected,
+  onToggleSelect,
+}: {
+  order: Order;
+  onOpen: () => void;
+  selected: boolean;
+  onToggleSelect: () => void;
+}) {
   return (
     <Card>
-      <button
-        type="button"
-        onClick={onOpen}
-        className="block w-full text-left transition-colors hover:bg-raised/40 rounded-xl"
-      >
-        <CardBody className="p-4">
+      <div className="flex items-start gap-2 p-3">
+        {/* Checkbox for bulk selection */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect();
+          }}
+          className="mt-0.5 shrink-0 text-fg-subtle hover:text-brand-500"
+        >
+          {selected ? (
+            <SquareCheck className="h-5 w-5 text-brand-500" />
+          ) : (
+            <Square className="h-5 w-5" />
+          )}
+        </button>
+
+        {/* Order content */}
+        <button
+          type="button"
+          onClick={onOpen}
+          className="min-w-0 flex-1 text-left transition-colors hover:bg-raised/40 rounded-xl"
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="truncate text-xs font-semibold text-fg-muted">
@@ -108,8 +220,8 @@ function OrderCard({ order, onOpen }: { order: Order; onOpen: () => void }) {
             <span className="font-medium">{PAYMENT_LABELS[order.paymentMethod]}</span>
             <PaymentBadge paid={order.paymentStatus === "PAID"} />
           </div>
-        </CardBody>
-      </button>
+        </button>
+      </div>
     </Card>
   );
 }
@@ -153,6 +265,9 @@ function OrderDetail({
   return (
     <div className="flex flex-col">
       <div className="flex flex-col gap-5 p-5">
+        {/* Invoice download */}
+        <InvoiceDownloader order={order} fullWidth />
+
         {/* Business + meta */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -299,13 +414,47 @@ function OrderDetail({
   );
 }
 
+export function useAdminOrders() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check if the backend supports real-time subscriptions
+    if (typeof api.subscribeOrders !== "function") {
+      // Fallback to one-time fetch for HTTP backend
+      api.listOrders()
+        .then((data) => {
+          setOrders(data);
+          setLoading(false);
+        })
+        .catch((e) => {
+          setError(e instanceof Error ? e.message : "Failed to load orders.");
+          setLoading(false);
+        });
+      return;
+    }
+
+    // Use real-time subscription (Firebase or Mock)
+    const unsubscribe = api.subscribeOrders(undefined, (freshOrders) => {
+      setOrders(freshOrders);
+      setLoading(false);
+      setError(null);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return { orders, loading, error };
+}
+
 export function AdminOrdersScreen() {
-  const { data, loading, error, refetch } = useAsync(() => api.listOrders(), []);
+  const { orders, loading, error } = useAdminOrders();
   const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
-
-  const orders = useMemo(() => data ?? [], [data]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // Per-status counts for the filter chips.
   const counts = useMemo(() => {
@@ -334,12 +483,112 @@ export function AdminOrdersScreen() {
   }, [orders, filter, query]);
 
   // The order shown in the sheet, re-read from the freshest list each render so
-  // it stays in sync after refetch.
+  // it stays in sync after updates.
   const active = openId ? orders.find((o) => o.id === openId) ?? null : null;
 
+  // Select all visible
+  const allVisibleSelected = visible.length > 0 && visible.every((o) => selectedIds.has(o.id));
+
   function handleMutated(updated: Order) {
-    refetch();
+    // Real-time subscription will update the list automatically
     setOpenId(updated.id);
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        // Deselect all visible
+        for (const o of visible) next.delete(o.id);
+      } else {
+        // Select all visible
+        for (const o of visible) next.add(o.id);
+      }
+      return next;
+    });
+  }
+
+  async function bulkAdvance() {
+    if (selectedIds.size === 0) return;
+    setBulkBusy(true);
+    try {
+      const toUpdate: string[] = [];
+      for (const order of orders) {
+        if (selectedIds.has(order.id) && !isTerminal(order.status)) {
+          toUpdate.push(order.id);
+        }
+      }
+      if (toUpdate.length === 0) {
+        toast.info("No actionable orders", "Selected orders are already terminal.");
+        return;
+      }
+      const results = await api.bulkUpdateOrderStatus(toUpdate, "PACKED");
+      toast.success(
+        "Bulk update complete",
+        `${results.length} orders marked as Packed`,
+        3000
+      );
+      setSelectedIds(new Set());
+      // Real-time subscription will refresh the list
+    } catch (e) {
+      toast.error("Bulk update failed", e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkDeliver() {
+    if (selectedIds.size === 0) return;
+    setBulkBusy(true);
+    try {
+      const toDeliver = orders
+        .filter((o) => selectedIds.has(o.id) && o.status === "PACKED")
+        .map((o) => o.id);
+      if (toDeliver.length === 0) {
+        toast.info("No packed orders", "Select orders that are Packed first.");
+        return;
+      }
+      const results = await api.bulkUpdateOrderStatus(toDeliver, "DELIVERED");
+      toast.success(
+        "Morning delivery complete",
+        `${results.length} orders marked as Delivered`,
+        3000
+      );
+      setSelectedIds(new Set());
+    } catch (e) {
+      toast.error("Delivery failed", e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkCancel() {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Cancel ${selectedIds.size} selected orders? Stock will be restored.`)) return;
+    setBulkBusy(true);
+    try {
+      const toCancel = Array.from(selectedIds);
+      const results = await api.bulkUpdateOrderStatus(toCancel, "CANCELLED");
+      toast.success(
+        "Bulk cancel complete",
+        `${results.length} orders cancelled`,
+        3000
+      );
+      setSelectedIds(new Set());
+    } catch (e) {
+      toast.error("Bulk cancel failed", e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   if (loading) {
@@ -358,8 +607,8 @@ export function AdminOrdersScreen() {
           title="Couldn't load orders"
           subtitle={error}
           action={
-            <Button variant="outline" onClick={refetch}>
-              Try again
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Refresh page
             </Button>
           }
         />
@@ -393,9 +642,71 @@ export function AdminOrdersScreen() {
           ))}
         </div>
 
+        {/* Bulk actions bar (sticky when items selected) */}
+        {selectedIds.size > 0 && (
+          <div className="sticky top-0 z-10 -mx-4 flex items-center gap-2 border-y border-line bg-surface px-4 py-2">
+            <span className="text-xs font-semibold text-fg-muted">
+              {selectedIds.size} selected
+            </span>
+            <div className="flex flex-1 items-center justify-end gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                loading={bulkBusy}
+                disabled={bulkBusy}
+                leadingIcon={<PackageCheck className="h-3.5 w-3.5" />}
+                onClick={bulkAdvance}
+              >
+                Mark Packed
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                loading={bulkBusy}
+                disabled={bulkBusy}
+                leadingIcon={<Truck className="h-3.5 w-3.5" />}
+                onClick={bulkDeliver}
+              >
+                Deliver
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                loading={bulkBusy}
+                disabled={bulkBusy}
+                leadingIcon={<Ban className="h-3.5 w-3.5" />}
+                onClick={bulkCancel}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Select all */}
+        {visible.length > 0 && (
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={selectAllVisible}
+              className="flex items-center gap-1.5 text-xs font-semibold text-fg-subtle hover:text-brand-500"
+            >
+              {allVisibleSelected ? (
+                <CheckSquare className="h-4 w-4 text-brand-500" />
+              ) : (
+                <Square className="h-4 w-4" />
+              )}
+              {allVisibleSelected ? "Deselect all" : "Select all"}
+            </button>
+            <span className="text-2xs text-fg-subtle">
+              {visible.length} order{visible.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+        )}
+
         {/* List */}
         {orders.length === 0 ? (
-          <EmptyState icon={ClipboardList} title="No orders yet" subtitle="New orders will appear here." />
+          <EmptyState icon={ClipboardList} title="No orders yet" subtitle="New orders will appear here in real-time." />
         ) : visible.length === 0 ? (
           <EmptyState
             icon={SearchX}
@@ -403,11 +714,27 @@ export function AdminOrdersScreen() {
             subtitle="Try a different status or search term."
           />
         ) : (
-          <div className="flex flex-col gap-3">
-            {visible.map((o) => (
-              <OrderCard key={o.id} order={o} onOpen={() => setOpenId(o.id)} />
-            ))}
-          </div>
+          <>
+            <div className="flex flex-col gap-3 lg:hidden">
+              {visible.map((o) => (
+                <OrderCard
+                  key={o.id}
+                  order={o}
+                  onOpen={() => setOpenId(o.id)}
+                  selected={selectedIds.has(o.id)}
+                  onToggleSelect={() => toggleSelect(o.id)}
+                />
+              ))}
+            </div>
+            <div className="hidden lg:block">
+              <OrderTable
+                orders={visible}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+                onOpen={setOpenId}
+              />
+            </div>
+          </>
         )}
       </div>
 

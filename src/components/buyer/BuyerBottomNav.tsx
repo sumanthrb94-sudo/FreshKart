@@ -6,14 +6,14 @@ import { Store, Package, User as UserIcon, ShieldCheck, type LucideIcon } from "
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
 
-type Tab = {
+export type BuyerTab = {
   href: string;
   label: string;
   icon: LucideIcon;
   isActive: (path: string) => boolean;
 };
 
-const TABS: Tab[] = [
+export const BUYER_TABS: BuyerTab[] = [
   { href: "/", label: "Shop", icon: Store, isActive: (p) => p === "/" },
   { href: "/orders", label: "Orders", icon: Package, isActive: (p) => p.startsWith("/orders") },
   { href: "/account", label: "Account", icon: UserIcon, isActive: (p) => p.startsWith("/account") },
@@ -30,7 +30,7 @@ export function BuyerBottomNav() {
   const pathname = usePathname() || "/";
   const { isAdmin } = useAuth();
   // The Admin tab is only visible to admins (e.g. the configured Gmail admin).
-  const tabs = isAdmin ? TABS : TABS.filter((t) => t.href !== "/admin");
+  const tabs = isAdmin ? BUYER_TABS : BUYER_TABS.filter((t) => t.href !== "/admin");
 
   return (
     <nav className="shrink-0 border-t border-line bg-surface pb-[max(0.25rem,env(safe-area-inset-bottom))]">

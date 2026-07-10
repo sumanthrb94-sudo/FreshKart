@@ -2,6 +2,7 @@ import type {
   AdminStats,
   CreateOrderInput,
   Customer,
+  DailyPricesSettings,
   Order,
   OrderStatus,
   Product,
@@ -110,6 +111,14 @@ export class HttpDataSource implements DataSource {
     });
   }
 
+  /** Bulk update status for multiple orders at once (morning delivery batch processing). */
+  bulkUpdateOrderStatus(ids: string[], status: OrderStatus) {
+    return this.request<Order[]>("/orders/bulk-status", {
+      method: "PATCH",
+      body: JSON.stringify({ ids, status }),
+    });
+  }
+
   cancelOrder(id: string) {
     return this.request<Order>(`/orders/${id}/cancel`, { method: "POST" });
   }
@@ -131,5 +140,16 @@ export class HttpDataSource implements DataSource {
 
   getUser(id: string) {
     return this.request<User | null>(`/users/${id}`);
+  }
+
+  getDailyPricesSettings() {
+    return this.request<DailyPricesSettings | null>("/settings/dailyPrices");
+  }
+
+  publishDailyPrices(userId: string) {
+    return this.request<DailyPricesSettings>("/settings/dailyPrices/publish", {
+      method: "POST",
+      body: JSON.stringify({ publishedBy: userId }),
+    });
   }
 }

@@ -20,7 +20,7 @@ export function SuccessOverlay({
       : PAYMENT_LABELS[order.paymentMethod];
 
   return (
-    <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app flex-col items-center justify-center gap-5 bg-surface px-6 text-center shadow-xl">
+    <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app flex-col items-center justify-center gap-5 bg-surface px-6 text-center shadow-xl lg:left-[var(--sidebar-width)] lg:mx-0 lg:max-w-none">
       <div className="flex h-20 w-20 animate-pop items-center justify-center rounded-full bg-brand-500/15">
         <CheckCircle2 className="h-11 w-11 text-brand-500" />
       </div>

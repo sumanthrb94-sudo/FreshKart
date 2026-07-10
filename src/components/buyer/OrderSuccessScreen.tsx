@@ -7,6 +7,7 @@ import { formatCurrency, PAYMENT_LABELS } from "@/lib/format";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
+import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -19,7 +20,7 @@ export function OrderSuccessScreen({ id }: { id: string }) {
 
   if (!ready || loading) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
         <FullScreenLoader />
       </AppShell>
     );
@@ -27,7 +28,7 @@ export function OrderSuccessScreen({ id }: { id: string }) {
 
   if (!order) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
         <div className="flex h-full items-center justify-center">
           <EmptyState
             icon={PackageX}
@@ -47,8 +48,8 @@ export function OrderSuccessScreen({ id }: { id: string }) {
     order.paymentStatus === "PAID" ? "✓ Paid online" : PAYMENT_LABELS[order.paymentMethod];
 
   return (
-    <AppShell header={<BuyerHeader />}>
-      <div className="flex flex-col gap-3 p-4">
+    <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4">
         {/* Hero */}
         <div className="flex flex-col items-center gap-2 py-4 text-center">
           <div className="flex h-16 w-16 animate-pop items-center justify-center rounded-full bg-brand-500/15">

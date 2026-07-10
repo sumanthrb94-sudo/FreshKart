@@ -2,6 +2,7 @@ import type {
   AdminStats,
   CreateOrderInput,
   Customer,
+  DailyPricesSettings,
   Order,
   OrderStatus,
   ProfileSetupInput,
@@ -49,6 +50,11 @@ export interface DataSource {
    * null when the Google account is new and still needs the "set up shop" step.
    */
   signInWithGoogle?(): Promise<User | null>;
+  /**
+   * Optional: email/password sign-in (used by mock/demo mode). Returns the
+   * authenticated user profile.
+   */
+  login?(credentials: { email: string; password: string }): Promise<User>;
 
   // --- Catalog ------------------------------------------------------------
   listProducts(): Promise<Product[]>;
@@ -64,17 +70,31 @@ export interface DataSource {
   createOrder(buyerId: string, input: CreateOrderInput): Promise<Order>;
   /** buyerId omitted → all orders (admin). */
   listOrders(buyerId?: string): Promise<Order[]>;
+  /**
+   * Real-time subscription to order changes. Fires immediately with current
+   * data, then on every create/update/delete. Used by admin dashboard for
+   * instant new-order notifications without page refresh.
+   */
+  subscribeOrders?(buyerId?: string, cb?: (orders: Order[]) => void): () => void;
   getOrder(id: string): Promise<Order | null>;
   updateOrderStatus(id: string, status: OrderStatus): Promise<Order>;
+  /** Bulk update status for multiple orders at once (morning delivery batch processing). */
+  bulkUpdateOrderStatus(ids: string[], status: OrderStatus): Promise<Order[]>;
   cancelOrder(id: string): Promise<Order>;
-  /** Admin: mark an order paid / unpaid (COD / credit settlement, POS). */
+  /** Admin: mark an order paid / unpaid (COD / credit settlement). */
   setOrderPaid(id: string, paid: boolean): Promise<Order>;
 
   // --- Admin --------------------------------------------------------------
   listCustomers(): Promise<Customer[]>;
   getAdminStats(): Promise<AdminStats>;
-  /** Admin: read any user's full profile (e.g. POS customer lookup). */
+  /** Admin: read any user's full profile. */
   getUser(id: string): Promise<User | null>;
+
+  // --- Settings -------------------------------------------------------------
+  /** Read the daily price-update gate status (world-readable). */
+  getDailyPricesSettings(): Promise<DailyPricesSettings | null>;
+  /** Admin: mark today's prices as published. */
+  publishDailyPrices(userId: string): Promise<DailyPricesSettings>;
 }
 
 /** Thrown for expected, user-facing failures (bad creds, validation, etc.). */

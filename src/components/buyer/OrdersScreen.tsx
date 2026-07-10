@@ -7,10 +7,12 @@ import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
 import { BuyerBottomNav } from "./BuyerBottomNav";
+import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { OrderCard } from "./OrderCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
+import { CallNowInline } from "@/components/CallNowInline";
 
 export function OrdersScreen() {
   const { ready, user } = useRequireAuth({ callbackUrl: "/orders" });
@@ -21,15 +23,19 @@ export function OrdersScreen() {
 
   if (!ready) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
         <FullScreenLoader />
       </AppShell>
     );
   }
 
   return (
-    <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />}>
-      <div className="flex flex-col gap-3 p-4">
+    <AppShell
+      header={<BuyerHeader />}
+      footer={<BuyerBottomNav />}
+      sidebar={<BuyerSidebar />}
+    >
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 p-4">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold text-fg">Your orders</h1>
           <Link
@@ -69,6 +75,9 @@ export function OrdersScreen() {
         ) : (
           orders.map((o) => <OrderCard key={o.id} order={o} />)
         )}
+
+        {/* Call Now support banner - placed in orders section */}
+        <CallNowInline />
       </div>
     </AppShell>
   );
