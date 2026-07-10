@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  ClipboardList,
   Clock,
   IndianRupee,
   Package,
@@ -12,6 +13,7 @@ import {
   ScanLine,
   ShoppingCart,
   Sparkles,
+  Tag,
   Users,
 } from "lucide-react";
 import type { OrderStatus } from "@/lib/types";
@@ -142,18 +144,35 @@ export function AdminOverviewScreen() {
         {/* Quick actions */}
         <div className="grid grid-cols-2 gap-3">
           <Link
-            href="/admin/pos"
+            href="/admin/prices"
             className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-bold text-white shadow-card transition-colors hover:bg-brand-600 active:bg-brand-600"
+          >
+            <Tag className="h-4 w-4" aria-hidden />
+            Update prices
+          </Link>
+          <Link
+            href="/admin/pos"
+            className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold text-fg shadow-card transition-colors hover:bg-raised"
           >
             <ScanLine className="h-4 w-4" aria-hidden />
             New POS sale
           </Link>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
           <Link
             href="/admin/products"
             className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold text-fg shadow-card transition-colors hover:bg-raised"
           >
             <Plus className="h-4 w-4" aria-hidden />
             Add product
+          </Link>
+          <Link
+            href="/admin/orders"
+            className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold text-fg shadow-card transition-colors hover:bg-raised"
+          >
+            <ClipboardList className="h-4 w-4" aria-hidden />
+            View orders
           </Link>
         </div>
 

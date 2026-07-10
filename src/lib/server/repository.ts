@@ -65,6 +65,17 @@ export const repository = {
     return p;
   },
 
+  updateProductPrices(updates: { id: string; price: number }[]): Product[] {
+    const result: Product[] = [];
+    for (const u of updates) {
+      const p = products.find((x) => x.id === u.id);
+      if (!p) continue;
+      p.price = u.price;
+      result.push(p);
+    }
+    return result;
+  },
+
   createOrder(buyerId: string, input: CreateOrderInput): Order {
     if (input.paymentMethod === "CREDIT") {
       throw new RepoError("Business credit is not available.");
