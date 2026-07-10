@@ -65,6 +65,14 @@ service cloud.firestore {
              && (items.size() < 10 || validateItem(items[9]));
     }
 
+    // Delivery fee slab based on subtotal (in rupees).
+    function getExpectedDeliveryFee(subtotal) {
+      return subtotal <= 0 ? 0 :
+             subtotal <= 1000 ? 75 :
+             subtotal <= 3000 ? 50 :
+             0;
+    }
+
     // Helper to compute expected subtotal from order items
     function getExpectedSubtotal(items) {
       return items.size() == 1 ? items[0].lineTotal :
@@ -131,7 +139,8 @@ service cloud.firestore {
                         && request.resource.data.status in ['CONFIRMED']
                         && validateOrderItems(request.resource.data.items)
                         && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items)
-                        && request.resource.data.total == request.resource.data.subtotal);
+                        && request.resource.data.deliveryFee == getExpectedDeliveryFee(request.resource.data.subtotal)
+                        && request.resource.data.total == request.resource.data.subtotal + request.resource.data.deliveryFee);
       // Admin can advance to any status; a buyer may only cancel while the
       // order is still CONFIRMED and may ONLY change `status` + `updatedAt`
       // (cannot tamper with items, totals, or other fields).
