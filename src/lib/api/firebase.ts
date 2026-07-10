@@ -15,6 +15,7 @@ import {
   where,
   orderBy,
   runTransaction,
+  writeBatch,
   type DocumentData,
   type DocumentReference,
   type DocumentSnapshot,
@@ -294,6 +295,21 @@ export class FirebaseDataSource implements DataSource {
     ) as DocumentData;
     await setDoc(ref, data);
     return { ...input, id: ref.id };
+  }
+
+  async updateProductPrices(updates: { id: string; price: number }[]): Promise<Product[]> {
+    await this.ready();
+    const db = getDb();
+    const batch = writeBatch(db);
+    const refs = updates.map((u) => doc(db, COL.products, u.id));
+    for (let i = 0; i < updates.length; i++) {
+      batch.update(refs[i], { price: updates[i].price });
+    }
+    await batch.commit();
+    const snaps = await Promise.all(refs.map((r) => getDoc(r)));
+    return snaps
+      .filter((s) => s.exists())
+      .map((s) => ({ ...(s.data() as Omit<Product, "id">), id: s.id }));
   }
 
   // --- Orders -------------------------------------------------------------

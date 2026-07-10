@@ -71,6 +71,20 @@ export class MockDataSource implements DataSource {
     return delay(structuredClone(created!), 400);
   }
 
+  async updateProductPrices(updates: { id: string; price: number }[]): Promise<Product[]> {
+    const result: Product[] = [];
+    store.mutate((s) => {
+      for (const u of updates) {
+        const p = s.products.find((x) => x.id === u.id);
+        if (p) {
+          p.price = u.price;
+          result.push(p);
+        }
+      }
+    });
+    return delay(structuredClone(result));
+  }
+
   // --- Orders -------------------------------------------------------------
   async createOrder(buyerId: string, input: CreateOrderInput): Promise<Order> {
     let created: Order | null = null;

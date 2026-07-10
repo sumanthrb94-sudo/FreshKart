@@ -62,6 +62,17 @@ export const repository = {
     return p;
   },
 
+  updateProductPrices(updates: { id: string; price: number }[]): Product[] {
+    const result: Product[] = [];
+    for (const u of updates) {
+      const p = products.find((x) => x.id === u.id);
+      if (!p) continue;
+      p.price = u.price;
+      result.push(p);
+    }
+    return result;
+  },
+
   createOrder(buyerId: string, input: CreateOrderInput): Order {
     const buyer = users.find((u) => u.id === buyerId);
     if (!buyer) throw new RepoError("Buyer not found.", 404);

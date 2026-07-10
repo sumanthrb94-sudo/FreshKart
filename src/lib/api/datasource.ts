@@ -57,6 +57,8 @@ export interface DataSource {
   updateProduct(id: string, patch: Partial<Product>): Promise<Product>;
   /** Admin: add a new product to the catalog. */
   createProduct(input: ProductInput): Promise<Product>;
+  /** Admin: bulk update prices for the daily price sheet. */
+  updateProductPrices(updates: { id: string; price: number }[]): Promise<Product[]>;
 
   // --- Orders -------------------------------------------------------------
   createOrder(buyerId: string, input: CreateOrderInput): Promise<Order>;

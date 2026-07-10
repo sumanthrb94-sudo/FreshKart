@@ -80,6 +80,13 @@ export class HttpDataSource implements DataSource {
     });
   }
 
+  updateProductPrices(updates: { id: string; price: number }[]) {
+    return this.request<Product[]>("/products/prices", {
+      method: "PATCH",
+      body: JSON.stringify({ updates }),
+    });
+  }
+
   createOrder(buyerId: string, input: CreateOrderInput) {
     return this.request<Order>("/orders", {
       method: "POST",

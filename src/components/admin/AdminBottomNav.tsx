@@ -8,6 +8,7 @@ import {
   Boxes,
   ClipboardList,
   Users,
+  Tag,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ type Tab = {
 
 const TABS: Tab[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, isActive: (p) => p === "/admin" },
+  { href: "/admin/prices", label: "Prices", icon: Tag, isActive: (p) => p.startsWith("/admin/prices") },
   { href: "/admin/pos", label: "POS", icon: ScanLine, isActive: (p) => p.startsWith("/admin/pos") },
   { href: "/admin/products", label: "Inventory", icon: Boxes, isActive: (p) => p.startsWith("/admin/products") },
   { href: "/admin/orders", label: "Orders", icon: ClipboardList, isActive: (p) => p.startsWith("/admin/orders") },

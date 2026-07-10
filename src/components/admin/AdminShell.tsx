@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, ShieldCheck, Store } from "lucide-react";
+import { LogOut, ShieldCheck, Store, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
@@ -33,7 +33,13 @@ function AdminHeader() {
         <div className="flex items-center gap-1.5">
           <Link
             href="/"
-            className="flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-fg-muted hover:bg-raised"
+            className="flex items-center gap-1 rounded-full border border-line bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-400 hover:bg-brand-500/20"
+          >
+            <ShoppingBag className="h-3.5 w-3.5" /> Buyer view
+          </Link>
+          <Link
+            href="/"
+            className="hidden items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-fg-muted hover:bg-raised sm:flex"
           >
             <Store className="h-3.5 w-3.5" /> Shop
           </Link>
