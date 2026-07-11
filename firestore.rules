@@ -94,14 +94,14 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly([
         'buyerId', 'businessName', 'items', 'status', 'paymentMethod',
         'paymentStatus', 'subtotal', 'deliveryFee', 'total', 'delivery',
-        'createdAt', 'updatedAt', 'orderNumber'
+        'createdAt', 'updatedAt', 'orderNumber', 'deliveredAt'
       ]);
     }
 
-    // Buyer cancel: only the `status` and `updatedAt` fields may change.
+    // Buyer cancel: only the `status`, `updatedAt`, and `deliveredAt` fields may change.
     function onlyStatusChanged() {
       return request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['status', 'updatedAt']);
+             .hasOnly(['status', 'updatedAt', 'deliveredAt']);
     }
 
     // --- Products: public catalog. Admins manage; signed-in users may only

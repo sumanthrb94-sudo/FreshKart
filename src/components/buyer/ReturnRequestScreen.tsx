@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { RETURN_REASON_LABELS } from "@/lib/returns";
 import type { ReturnReason, ReturnImage } from "@/lib/returns";
 import { AppShell } from "@/components/layout/AppShell";
@@ -24,9 +25,10 @@ import { formatCurrency } from "@/lib/format";
 import { toast } from "@/lib/toast";
 
 export function ReturnRequestScreen({ orderId }: { orderId: string }) {
-  const { ready } = useRequireAuth({ callbackUrl: `/orders/${orderId}/return` });
+  const { ready, user } = useRequireAuth({ callbackUrl: `/orders/${orderId}/return` });
   const router = useRouter();
   const { data: order, loading } = useAsync(() => api.getOrder(orderId), [orderId]);
+  const { data: returns } = useAsync(() => api.listReturns(user?.id), [user?.id]);
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
   const [reason, setReason] = useState<ReturnReason>("OTHER");
   const [notes, setNotes] = useState("");
@@ -125,6 +127,9 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
 
       setReturnId(returnReq.id);
       setSubmitted(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not submit return request.";
+      toast.error("Return failed", message);
     } finally {
       setSubmitting(false);
     }
@@ -143,6 +148,47 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
       <AppShell header={<BuyerHeader />}>
         <div className="flex h-full items-center justify-center">
           <p className="text-fg-muted">Order not found</p>
+        </div>
+      </AppShell>
+    );
+  }
+
+  const existingReturn = returns?.find((r) => r.orderId === order.id);
+  const deliveredAt = order.deliveredAt || order.updatedAt;
+  const hoursSinceDelivery = (Date.now() - new Date(deliveredAt).getTime()) / 36e5;
+
+  if (existingReturn) {
+    return (
+      <AppShell header={<BuyerHeader />}>
+        <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+          <h2 className="text-lg font-bold text-fg">Return already requested</h2>
+          <p className="mt-2 text-sm text-fg-muted">
+            A return request already exists for this order.
+          </p>
+          <div className="mt-6 flex w-full flex-col gap-2">
+            <Button onClick={() => router.push(`/returns/${existingReturn.id}`)}>
+              View Return
+            </Button>
+            <Button variant="outline" onClick={() => router.push("/orders")}>
+              Back to Orders
+            </Button>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (order.status !== "DELIVERED" || hoursSinceDelivery > 4) {
+    return (
+      <AppShell header={<BuyerHeader />}>
+        <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+          <h2 className="text-lg font-bold text-fg">Return window closed</h2>
+          <p className="mt-2 text-sm text-fg-muted">
+            Returns can only be requested within 4 hours of delivery.
+          </p>
+          <Button className="mt-6" variant="outline" onClick={() => router.push("/orders")}>
+            Back to Orders
+          </Button>
         </div>
       </AppShell>
     );

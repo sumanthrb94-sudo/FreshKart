@@ -227,6 +227,9 @@ export class MockDataSource implements DataSource {
         }
         o.notes = "Order cancelled — stock was released.";
       }
+      if (status === "DELIVERED" && o.status !== "DELIVERED") {
+        o.deliveredAt = new Date().toISOString();
+      }
       o.status = status;
       o.updatedAt = new Date().toISOString();
       updated = o;
@@ -247,6 +250,9 @@ export class MockDataSource implements DataSource {
             const p = s.products.find((x) => x.id === i.productId);
             if (p) p.stock += i.qty;
           }
+        }
+        if (status === "DELIVERED" && o.status !== "DELIVERED") {
+          o.deliveredAt = new Date().toISOString();
         }
         o.status = status;
         o.updatedAt = new Date().toISOString();
@@ -289,6 +295,10 @@ export class MockDataSource implements DataSource {
   }
 
   async createReturn(input: CreateReturnInput): Promise<ReturnRequest> {
+    const existing = store.get().returns.find((r) => r.orderId === input.orderId);
+    if (existing) {
+      throw new ApiError("A return request already exists for this order.", 409);
+    }
     let created: ReturnRequest | null = null;
     store.mutate((s) => {
       const id = `RET-${Date.now()}-${s.returns.length + 1}`;

@@ -134,6 +134,8 @@ export interface Order {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  /** Set when the order is marked DELIVERED; used for the return window. */
+  deliveredAt?: string;
 }
 
 /** Aggregated buyer view for the admin "Customers" screen. */

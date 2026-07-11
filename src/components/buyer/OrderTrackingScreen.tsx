@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useAuth } from "@/components/providers/AuthProvider";
 import {
   ArrowLeft,
   MapPin,
@@ -33,10 +34,11 @@ import { FullScreenLoader } from "@/components/ui/Spinner";
 import { PackageX } from "lucide-react";
 
 export function OrderTrackingScreen({ id }: { id: string }) {
-  const { ready } = useRequireAuth({ callbackUrl: `/orders/${id}` });
+  const { ready, user } = useRequireAuth({ callbackUrl: `/orders/${id}` });
   const params = useSearchParams();
   const justPlaced = params.get("placed") === "1";
   const { data: order, loading, refetch } = useAsync(() => api.getOrder(id), [id]);
+  const { data: returns } = useAsync(() => api.listReturns(user?.id), [user?.id]);
   const [cancelling, setCancelling] = useState(false);
 
   async function handleCancel() {
@@ -77,6 +79,10 @@ export function OrderTrackingScreen({ id }: { id: string }) {
   }
 
   const isDelivered = order.status === "DELIVERED";
+  const existingReturn = returns?.find((r) => r.orderId === order.id);
+  const deliveredAt = order.deliveredAt || order.updatedAt;
+  const hoursSinceDelivery = (Date.now() - new Date(deliveredAt).getTime()) / 36e5;
+  const canReturn = isDelivered && !existingReturn && hoursSinceDelivery <= 4;
 
   return (
     <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
@@ -105,13 +111,25 @@ export function OrderTrackingScreen({ id }: { id: string }) {
         {/* Invoice Download */}
         <InvoiceDownloader order={order} fullWidth />
 
-        {/* Return Request Button - only for delivered orders */}
-        {isDelivered && (
+        {/* Return Request Button - only for delivered orders within the 4-hour window and without an existing return */}
+        {canReturn && (
           <Link href={`/orders/${order.id}/return`}>
             <Button variant="outline" fullWidth leadingIcon={<RotateCcw className="h-4 w-4" />}>
               Request Return / Refund
             </Button>
           </Link>
+        )}
+        {isDelivered && existingReturn && (
+          <Link href={`/returns/${existingReturn.id}`}>
+            <Button variant="outline" fullWidth leadingIcon={<RotateCcw className="h-4 w-4" />}>
+              View return request
+            </Button>
+          </Link>
+        )}
+        {isDelivered && !existingReturn && hoursSinceDelivery > 4 && (
+          <div className="rounded-lg border border-line bg-surface px-3 py-2 text-center text-xs text-fg-subtle">
+            Return window closed ({Math.floor(hoursSinceDelivery)} hours since delivery)
+          </div>
         )}
 
         {/* Tracking */}

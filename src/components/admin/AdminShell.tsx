@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, ShieldCheck, Store, ShoppingBag, Radio, Bell } from "lucide-react";
+import { LogOut, ShieldCheck, Store, ShoppingBag, Radio } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
@@ -12,6 +12,7 @@ import { api } from "@/lib/api";
 import { useEffect, useState, useRef } from "react";
 import { formatCurrency } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { NotificationBell } from "@/components/NotificationDrawer";
 
 /** Web Audio API new-order chime — no external files needed. */
 function playNewOrderSound() {
@@ -124,10 +125,11 @@ function AdminHeader() {
           {/* New orders badge */}
           {confirmedCount > 0 && (
             <span className="mr-1 flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
-              <Bell className="h-3 w-3" />
               {confirmedCount} new
             </span>
           )}
+
+          <NotificationBell />
 
           <Link
             href="/"

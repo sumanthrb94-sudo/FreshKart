@@ -177,11 +177,44 @@ export class FirebaseDataSource implements DataSource {
     const auth = getFirebaseAuth();
     const fb = auth.currentUser;
     if (!fb) throw new ApiError("Not signed in.", 401);
+
+    const email = (fb.email || input.email?.trim() || "").toLowerCase();
+    const phone = fb.phoneNumber || input.phone?.trim() || "";
+
+    // Enforce one account per email and one account per phone.
+    const db = getDb();
+    const checks: Promise<boolean>[] = [];
+    if (email) {
+      checks.push(
+        getDocs(query(collection(db, COL.users), where("email", "==", email)))
+          .then((snap) => snap.docs.some((d) => d.id !== fb.uid))
+      );
+    }
+    if (phone) {
+      checks.push(
+        getDocs(query(collection(db, COL.users), where("phone", "==", phone)))
+          .then((snap) => snap.docs.some((d) => d.id !== fb.uid))
+      );
+    }
+    const [emailTaken, phoneTaken] = await Promise.all([
+      email ? checks.shift()! : Promise.resolve(false),
+      phone ? checks.shift()! : Promise.resolve(false),
+    ]);
+    if (emailTaken && phoneTaken) {
+      throw new ApiError("This email and phone are already linked to another account.");
+    }
+    if (emailTaken) {
+      throw new ApiError("This email is already linked to another account.");
+    }
+    if (phoneTaken) {
+      throw new ApiError("This phone number is already linked to another account.");
+    }
+
     const name = input.name?.trim() || fb.displayName || fb.phoneNumber || "Customer";
     const profile: Omit<User, "id"> = {
       name,
-      email: fb.email || input.email?.trim() || "",
-      phone: fb.phoneNumber || input.phone?.trim() || "",
+      email,
+      phone,
       role: isAdminEmail(fb.email) ? "ADMIN" : "BUYER",
       businessName: input.businessName?.trim() || name,
       businessType: input.businessType,
@@ -201,7 +234,7 @@ export class FirebaseDataSource implements DataSource {
     // instead of hanging forever on "Saving…".
     try {
       await withTimeout(
-        setDoc(doc(getDb(), COL.users, fb.uid), data, { merge: true }),
+        setDoc(doc(db, COL.users, fb.uid), data, { merge: true }),
         12000
       );
     } catch (e) {
@@ -483,6 +516,9 @@ export class FirebaseDataSource implements DataSource {
       const order = { ...(oSnap.data() as Omit<Order, "id">), id: oRef.id } as Order;
 
       const patch: DocumentData = { status, updatedAt: new Date().toISOString() };
+      if (status === "DELIVERED" && order.status !== "DELIVERED") {
+        patch.deliveredAt = new Date().toISOString();
+      }
 
       if (status === "CANCELLED" && order.status !== "CANCELLED") {
         const refs = order.items.map((i) => doc(db, COL.products, i.productId));
@@ -531,9 +567,13 @@ export class FirebaseDataSource implements DataSource {
           updatedAt: new Date().toISOString(),
         });
       } else {
-        batch.update(oRef, { status, updatedAt: new Date().toISOString() });
+        const patch: DocumentData = { status, updatedAt: new Date().toISOString() };
+        if (status === "DELIVERED" && order.status !== "DELIVERED") {
+          patch.deliveredAt = new Date().toISOString();
+        }
+        batch.update(oRef, patch);
       }
-      updated.push({ ...order, status });
+      updated.push({ ...order, status, deliveredAt: order.deliveredAt });
     }
 
     await batch.commit();
@@ -578,6 +618,15 @@ export class FirebaseDataSource implements DataSource {
   async createReturn(input: CreateReturnInput): Promise<ReturnRequest> {
     await this.ready();
     const db = getDb();
+
+    // Prevent duplicate return requests for the same order.
+    const existingSnap = await getDocs(
+      query(collection(db, COL.returns), where("orderId", "==", input.orderId))
+    );
+    if (!existingSnap.empty) {
+      throw new ApiError("A return request already exists for this order.", 409);
+    }
+
     const ref = doc(collection(db, COL.returns));
     const id = ref.id;
     const now = new Date().toISOString();
@@ -614,9 +663,13 @@ export class FirebaseDataSource implements DataSource {
     };
 
     // Strip id before writing — the Firestore document path is the canonical id.
+    // Also drop undefined optional fields so Firestore doesn't reject them.
     const { id: _id, ...data } = returnReq;
     void _id;
-    await setDoc(ref, data as DocumentData);
+    await setDoc(
+      ref,
+      Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) as DocumentData
+    );
     return returnReq;
   }
 
