@@ -84,6 +84,20 @@ a:active {
   scrollbar-width: none;
 }
 
+/* Product grid: single column on mobile, responsive auto-fill on desktop.
+   Cards never shrink below 176 px, preventing the horizontal/card overlap
+   that happens with a fixed column count on narrower viewports. */
+.product-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 768px) {
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  }
+}
+
 /* Numeric inputs without spinners (qty / price / stock fields) */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {

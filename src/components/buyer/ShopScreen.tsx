@@ -234,7 +234,7 @@ export function ShopScreen() {
         ) : visible.length === 0 ? (
           <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
         ) : (
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="product-grid mt-3">
             {visible.map((p) => (
               <ProductListItem key={p.id} product={p} />
             ))}

@@ -15,58 +15,75 @@ export function ProductListItem({ product }: { product: Product }) {
   const outOfStock = product.stock < product.minOrderQty;
 
   return (
-    <div className="flex gap-3 rounded-xl border border-line bg-surface p-3 shadow-card">
-      <ProductThumb name={product.name} imageUrl={product.imageUrl} size={96} />
+    <div
+      data-testid="product-card"
+      className="group flex flex-row items-center gap-3 overflow-hidden rounded-xl border border-line bg-surface p-3 shadow-card transition-shadow hover:shadow-card-hover md:flex-col md:items-stretch md:p-0"
+    >
+      {/* Thumbnail: fixed square on mobile, full-width aspect-square on desktop */}
+      <div className="relative shrink-0 md:aspect-square md:w-full">
+        <ProductThumb
+          name={product.name}
+          imageUrl={product.imageUrl}
+          size={80}
+          fill
+          className="h-20 w-20 md:absolute md:inset-0 md:h-full md:w-full md:rounded-b-none"
+        />
+      </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <p className="text-sm font-bold leading-snug text-fg">{tProduct(product.name)}</p>
+      {/* Content */}
+      <div className="flex min-w-0 flex-1 flex-col md:p-3">
+        <p className="line-clamp-2 text-sm font-bold leading-snug text-fg">
+          {tProduct(product.name)}
+        </p>
         <p className="mt-0.5 flex items-center gap-1 text-[11px] text-fg-subtle">
-          <MapPin className="h-3 w-3" />
+          <MapPin className="h-3 w-3 shrink-0" aria-hidden />
           <span className="truncate">{product.origin}</span>
         </p>
 
-        <div className="mt-1.5 flex items-baseline gap-1">
-          <span className="text-lg font-extrabold text-fg">
-            {formatCurrency(product.price)}
-          </span>
-          <span className="text-xs text-fg-subtle">/ {unitLabel(product.unit)}</span>
+        <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+          <div className="min-w-0">
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-extrabold text-fg">
+                {formatCurrency(product.price)}
+              </span>
+              <span className="text-xs text-fg-subtle">/ {unitLabel(product.unit)}</span>
+            </div>
+            <span className="mt-1 inline-flex w-fit whitespace-nowrap rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-semibold text-brand-300">
+              {t("minOrder")} {product.minOrderQty} {unitLabel(product.unit)}
+            </span>
+          </div>
+
+          <div className="shrink-0">
+            {outOfStock ? (
+              <span className="rounded-full bg-raised px-2.5 py-1.5 text-xs font-semibold text-fg-subtle">
+                {t("outOfStock")}
+              </span>
+            ) : qty === 0 ? (
+              <button
+                type="button"
+                data-testid="add-to-cart-btn"
+                onClick={() => add(product)}
+                className="flex items-center gap-1 rounded-full border border-brand-500 bg-brand-500/10 px-3 py-1.5 text-sm font-bold text-brand-400 transition-colors hover:bg-brand-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+              >
+                <Plus className="h-4 w-4" />
+                {t("add")}
+              </button>
+            ) : (
+              <div className="flex flex-col items-end gap-1">
+                <QuantityStepper
+                  product={product}
+                  qty={qty}
+                  onIncrement={() => increment(product)}
+                  onDecrement={() => decrement(product)}
+                  size="sm"
+                />
+                <span className="text-xs font-bold text-fg">
+                  {formatCurrency(product.price * qty)}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
-
-        <span className="mt-1.5 w-fit rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-semibold text-brand-300">
-          {t("minOrder")} {product.minOrderQty} {unitLabel(product.unit)}
-        </span>
-      </div>
-
-      <div className="flex shrink-0 flex-col items-end justify-center gap-1">
-        {outOfStock ? (
-          <span className="rounded-full bg-raised px-3 py-1.5 text-xs font-semibold text-fg-subtle">
-            {t("outOfStock")}
-          </span>
-        ) : qty === 0 ? (
-          <button
-            type="button"
-            onClick={() => add(product)}
-            className="flex items-center gap-1 rounded-full border border-brand-500 px-4 py-1.5 text-sm font-bold text-brand-400 transition-colors hover:bg-brand-500/15"
-          >
-            <Plus className="h-4 w-4" />
-            {t("add")}
-          </button>
-        ) : (
-          <>
-            <QuantityStepper
-              product={product}
-              qty={qty}
-              onIncrement={() => increment(product)}
-              onDecrement={() => decrement(product)}
-            />
-            <span className="text-xs font-bold text-fg">
-              {formatCurrency(product.price * qty)}
-            </span>
-            <span className="text-2xs text-fg-subtle">
-              +{product.minOrderQty} {unitLabel(product.unit)} / tap
-            </span>
-          </>
-        )}
       </div>
     </div>
   );
