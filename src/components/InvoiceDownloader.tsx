@@ -102,7 +102,7 @@ function buildInvoiceHTML(order: Order): string {
     month: "long",
     year: "numeric",
   });
-  const invoiceNumber = `INV-${order.orderNumber.replace("ORD-", "")}`;
+  const invoiceNumber = order.adjustedInvoiceNumber || `INV-${order.orderNumber.replace("ORD-", "")}`;
   const gstin = "29FRESH9876B1Z2";
 
   return `<!DOCTYPE html>
@@ -129,7 +129,7 @@ function buildInvoiceHTML(order: Order): string {
       overflow: hidden;
     }
     .header {
-      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
       color: white;
       padding: 32px 40px;
       display: flex;
@@ -240,7 +240,7 @@ function buildInvoiceHTML(order: Order): string {
     }
     .footer .brand {
       font-weight: 700;
-      color: #dc2626;
+      color: #059669;
     }
     .print-hint {
       display: none;
@@ -347,12 +347,26 @@ function buildInvoiceHTML(order: Order): string {
             <span>Delivery Fee</span>
             <span>${order.deliveryFee > 0 ? `Rs. ${order.deliveryFee.toLocaleString("en-IN")}` : "FREE"}</span>
           </div>
+          ${order.refundAmount ? `
+          <div class="total-row">
+            <span>Refund</span>
+            <span style="color:#059669;font-weight:600;">-Rs. ${order.refundAmount.toLocaleString("en-IN")}</span>
+          </div>` : ""}
           <div class="total-row grand">
             <span>Grand Total</span>
             <span>Rs. ${order.total.toLocaleString("en-IN")}</span>
           </div>
         </div>
       </div>
+
+      ${order.refundAmount ? `
+      <!-- Refund Note -->
+      <div class="section" style="margin-top:24px;padding:16px;background:#ecfdf5;border-radius:8px;">
+        <p class="section-title" style="color:#065f46;">Refund Note</p>
+        <div class="info-block">
+          <p>A refund of <strong>Rs. ${order.refundAmount.toLocaleString("en-IN")}</strong> was processed on ${formatDate(order.refundedAt || order.updatedAt)}. This invoice has been adjusted accordingly.</p>
+        </div>
+      </div>` : ""}
 
       <!-- Terms -->
       <div class="section" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;">

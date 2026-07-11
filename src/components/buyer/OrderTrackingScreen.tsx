@@ -182,6 +182,12 @@ export function OrderTrackingScreen({ id }: { id: string }) {
                   {order.deliveryFee === 0 ? "FREE" : formatCurrency(order.deliveryFee)}
                 </span>
               </div>
+              {order.refundAmount ? (
+                <div className="mt-1 flex items-center justify-between text-sm">
+                  <span className="text-fg-muted">Refund</span>
+                  <span className="font-semibold text-emerald-500">-{formatCurrency(order.refundAmount)}</span>
+                </div>
+              ) : null}
               <div className="mt-2 flex items-center justify-between border-t border-dashed border-line pt-2">
                 <span className="text-sm font-bold text-fg">Total</span>
                 <span className="text-base font-extrabold text-fg">
@@ -214,8 +220,12 @@ export function OrderTrackingScreen({ id }: { id: string }) {
               <p className="font-semibold text-fg">
                 {PAYMENT_LONG[order.paymentMethod]}
               </p>
-              <p className="text-xs text-fg-subtle">
-                {order.paymentStatus === "PAID" ? "Paid" : "Payment due"}
+              <p className={cn("text-xs", order.refundedAt ? "text-emerald-500" : "text-fg-subtle")}>
+                {order.refundedAt
+                  ? `Refund of ${formatCurrency(order.refundAmount || 0)} processed`
+                  : order.paymentStatus === "PAID"
+                    ? "Paid"
+                    : "Payment due"}
               </p>
             </div>
           </CardBody>

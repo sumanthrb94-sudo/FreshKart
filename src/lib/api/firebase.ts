@@ -714,10 +714,49 @@ export class FirebaseDataSource implements DataSource {
 
   async updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest> {
     await this.ready();
-    const ref = doc(getDb(), COL.returns, id);
-    const patch: DocumentData = { status, updatedAt: new Date().toISOString() };
-    if ((["REJECTED", "REFUNDED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
-      patch.resolvedAt = new Date().toISOString();
+    const db = getDb();
+    const ref = doc(db, COL.returns, id);
+    const now = new Date().toISOString();
+
+    // When a refund is processed, adjust the parent order's total so the
+    // customer bill reflects the refund.
+    if (status === "REFUNDED") {
+      const updated = await runTransaction(db, async (tx) => {
+        const retSnap = await tx.get(ref);
+        if (!retSnap.exists()) throw new ApiError("Return request not found.", 404);
+        const ret = { ...(retSnap.data() as Omit<ReturnRequest, "id">), id: retSnap.id };
+
+        const orderRef = doc(db, COL.orders, ret.orderId);
+        const orderSnap = await tx.get(orderRef);
+        if (!orderSnap.exists()) throw new ApiError("Order not found.", 404);
+        const order = { ...(orderSnap.data() as Omit<Order, "id">), id: orderSnap.id };
+
+        const originalTotal = order.subtotal + order.deliveryFee;
+        const newTotal = Math.max(0, originalTotal - ret.totalRefund);
+
+        const retPatch: DocumentData = {
+          status,
+          updatedAt: now,
+          resolvedAt: now,
+        };
+        const orderPatch: DocumentData = {
+          refundAmount: ret.totalRefund,
+          refundedAt: now,
+          adjustedInvoiceNumber: ret.adjustedInvoiceNumber,
+          total: newTotal,
+          updatedAt: now,
+        };
+
+        tx.update(ref, retPatch);
+        tx.update(orderRef, orderPatch);
+        return { ...ret, ...retPatch } as ReturnRequest;
+      });
+      return updated;
+    }
+
+    const patch: DocumentData = { status, updatedAt: now };
+    if ((["REJECTED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
+      patch.resolvedAt = now;
     }
     await updateDoc(ref, patch);
     const snap = await getDoc(ref);

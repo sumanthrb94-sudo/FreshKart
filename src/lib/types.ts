@@ -136,6 +136,12 @@ export interface Order {
   updatedAt: string;
   /** Set when the order is marked DELIVERED; used for the return window. */
   deliveredAt?: string;
+  /** Refund amount (in rupees) after a return is marked REFUNDED. */
+  refundAmount?: number;
+  /** ISO timestamp when the refund was processed. */
+  refundedAt?: string;
+  /** Adjusted invoice number generated for the refund. */
+  adjustedInvoiceNumber?: string;
 }
 
 /** Aggregated buyer view for the admin "Customers" screen. */
