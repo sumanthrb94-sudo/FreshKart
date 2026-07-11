@@ -18,8 +18,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { RETURN_REASON_LABELS, canBuyerMessage, addThreadMessage, demoReturnRequests } from "@/lib/returns";
+import { RETURN_REASON_LABELS, canBuyerMessage } from "@/lib/returns";
 import type { ReturnRequest, ReturnMessage, ReturnStatus } from "@/lib/returns";
+import { api } from "@/lib/api";
+import { useAsync } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { Card, CardBody } from "@/components/ui/Card";
@@ -35,42 +37,11 @@ const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: 
   COMPLETED: { label: "Completed", color: "text-brand-500 bg-brand-500/10", icon: CheckCircle2 },
 };
 
-// FIX: Static import instead of dynamic import (Critical Bug #4)
-function useReturnRequest(id: string) {
-  const [data, setData] = useState<ReturnRequest | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Check localStorage first
-    const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
-    const found = stored.find((r: ReturnRequest) => r.id === id);
-    if (found) {
-      setData(found);
-    } else {
-      // Check demo data (static import)
-      const demo = demoReturnRequests.find((r) => r.id === id);
-      if (demo) setData(demo);
-    }
-    setLoading(false);
-  }, [id]);
-
-  const refresh = () => {
-    const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
-    const found = stored.find((r: ReturnRequest) => r.id === id);
-    if (found) {
-      setData(found);
-    } else {
-      const demo = demoReturnRequests.find((r) => r.id === id);
-      setData(demo || null);
-    }
-  };
-
-  return { data, loading, refresh };
-}
 
 export function ReturnThreadScreen({ id }: { id: string }) {
   const router = useRouter();
-  const { data: returnReq, loading, refresh } = useReturnRequest(id);
+  const { data: returnReq, loading, error, refetch } = useAsync(() => api.getReturn(id), [id]);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -79,27 +50,16 @@ export function ReturnThreadScreen({ id }: { id: string }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [returnReq?.thread.length]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!reply.trim() || !returnReq) return;
     setSending(true);
-
-    // Update localStorage
-    const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
-    const idx = stored.findIndex((r: ReturnRequest) => r.id === id);
-    if (idx !== -1) {
-      addThreadMessage(stored[idx], "buyer", reply.trim());
-      localStorage.setItem("green_basket_returns", JSON.stringify(stored));
+    try {
+      await api.addReturnMessage(id, "buyer", reply.trim());
       setReply("");
-      refresh();
-    } else {
-      // For demo data, create a localStorage copy
-      const demoCopy = { ...returnReq, thread: [...returnReq.thread] };
-      addThreadMessage(demoCopy, "buyer", reply.trim());
-      localStorage.setItem("green_basket_returns", JSON.stringify([...stored, demoCopy]));
-      setReply("");
-      refresh();
+      await refetch();
+    } finally {
+      setSending(false);
     }
-    setSending(false);
   };
 
   if (loading) {
@@ -110,11 +70,11 @@ export function ReturnThreadScreen({ id }: { id: string }) {
     );
   }
 
-  if (!returnReq) {
+  if (error || !returnReq) {
     return (
       <AppShell header={<BuyerHeader />}>
         <div className="flex h-full items-center justify-center">
-          <p className="text-fg-muted">Return request not found</p>
+          <p className="text-fg-muted">{error || "Return request not found"}</p>
         </div>
       </AppShell>
     );

@@ -10,6 +10,13 @@ import type {
   ProductInput,
   User,
 } from "@/lib/types";
+import type {
+  CreateReturnInput,
+  ReturnRequest,
+  ReturnStatus,
+  ReturnMessage,
+} from "@/lib/returns";
+import { RETURN_REASON_LABELS, generateAdjustedInvoiceNumber } from "@/lib/returns";
 import { generateOrderNumber } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
@@ -263,6 +270,108 @@ export class MockDataSource implements DataSource {
       updated = o;
     });
     if (!updated) throw new ApiError("Order not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  // --- Returns --------------------------------------------------------------
+  async listReturns(buyerId?: string): Promise<ReturnRequest[]> {
+    const all = store.get().returns;
+    const list = buyerId ? all.filter((r) => r.buyerId === buyerId) : all;
+    const sorted = [...list].sort(
+      (a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt)
+    );
+    return delay(structuredClone(sorted));
+  }
+
+  async getReturn(id: string): Promise<ReturnRequest | null> {
+    const r = store.get().returns.find((x) => x.id === id) ?? null;
+    return delay(r ? structuredClone(r) : null);
+  }
+
+  async createReturn(input: CreateReturnInput): Promise<ReturnRequest> {
+    let created: ReturnRequest | null = null;
+    store.mutate((s) => {
+      const id = `RET-${Date.now()}-${s.returns.length + 1}`;
+      const now = new Date().toISOString();
+      const items = input.items.map((item) => ({
+        ...item,
+        lineRefund: item.returnQty * item.unitPrice,
+      }));
+      const totalRefund = items.reduce((sum, item) => sum + item.lineRefund, 0);
+      const systemMessage: ReturnMessage = {
+        id: `msg-${Date.now()}-sys`,
+        sender: "system",
+        text: `Return request ${id} created for order ${input.orderNumber}. Status: REQUESTED. Reason: ${RETURN_REASON_LABELS[input.reason]}. Estimated refund: Rs. ${totalRefund}.`,
+        sentAt: now,
+      };
+      const returnReq: ReturnRequest = {
+        id,
+        orderId: input.orderId,
+        orderNumber: input.orderNumber,
+        buyerId: input.buyerId,
+        businessName: input.businessName,
+        buyerPhone: input.buyerPhone,
+        items,
+        status: "REQUESTED",
+        reason: input.reason,
+        notes: input.notes,
+        requestedAt: now,
+        totalRefund,
+        adjustedInvoiceNumber: generateAdjustedInvoiceNumber(`INV-${input.orderNumber}`, 1),
+        images: input.images,
+        thread: [systemMessage],
+      };
+      s.returns.unshift(returnReq);
+      created = returnReq;
+    });
+    return delay(structuredClone(created!), 200);
+  }
+
+  async updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest> {
+    let updated: ReturnRequest | null = null;
+    store.mutate((s) => {
+      const r = s.returns.find((x) => x.id === id);
+      if (!r) return;
+      r.status = status;
+      r.updatedAt = new Date().toISOString();
+      if ((["REJECTED", "REFUNDED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
+        r.resolvedAt = new Date().toISOString();
+      }
+      updated = r;
+    });
+    if (!updated) throw new ApiError("Return request not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest> {
+    let updated: ReturnRequest | null = null;
+    store.mutate((s) => {
+      const r = s.returns.find((x) => x.id === id);
+      if (!r) return;
+      const message: ReturnMessage = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sender,
+        text: text.trim(),
+        sentAt: new Date().toISOString(),
+      };
+      r.thread.push(message);
+      r.updatedAt = new Date().toISOString();
+      updated = r;
+    });
+    if (!updated) throw new ApiError("Return request not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest> {
+    let updated: ReturnRequest | null = null;
+    store.mutate((s) => {
+      const r = s.returns.find((x) => x.id === id);
+      if (!r) return;
+      r.adminNotes = notes;
+      r.updatedAt = new Date().toISOString();
+      updated = r;
+    });
+    if (!updated) throw new ApiError("Return request not found.", 404);
     return delay(structuredClone(updated));
   }
 

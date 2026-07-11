@@ -125,6 +125,40 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Allowed top-level fields on a new return document.
+    function hasOnlyReturnFields() {
+      return request.resource.data.keys().hasOnly([
+        'buyerId', 'businessName', 'buyerPhone', 'orderId', 'orderNumber',
+        'items', 'status', 'reason', 'notes', 'requestedAt', 'totalRefund',
+        'adjustedInvoiceNumber', 'images', 'thread'
+      ]);
+    }
+
+    // Buyer reply: only the thread and updatedAt may change, and the thread must grow.
+    function isBuyerReturnReply() {
+      return resource.data.buyerId == request.auth.uid
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['thread', 'updatedAt'])
+             && request.resource.data.thread.size() == resource.data.thread.size() + 1;
+    }
+
+    // --- Returns: buyer creates/reads/replies on their own; admins manage all. ---
+    match /returns/{returnId} {
+      allow read: if isSignedIn()
+                  && (resource.data.buyerId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.status == 'REQUESTED'
+                    && hasOnlyReturnFields()
+                    && request.resource.data.items.size() > 0
+                    && request.resource.data.items.size() <= 10;
+
+      allow update: if isAdmin()
+                    || isBuyerReturnReply();
+
+      allow delete: if isAdmin();
+    }
+
     // --- Orders: a buyer creates/reads/cancels their own; admins manage all. ---
     match /orders/{orderId} {
       allow read: if isSignedIn()

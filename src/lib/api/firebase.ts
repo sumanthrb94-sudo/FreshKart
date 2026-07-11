@@ -17,6 +17,7 @@ import {
   runTransaction,
   writeBatch,
   onSnapshot,
+  arrayUnion,
   type DocumentData,
   type DocumentReference,
   type DocumentSnapshot,
@@ -34,13 +35,23 @@ import type {
   ProductInput,
   User,
 } from "@/lib/types";
+import {
+  RETURN_REASON_LABELS,
+  generateAdjustedInvoiceNumber,
+} from "@/lib/returns";
+import type {
+  CreateReturnInput,
+  ReturnRequest,
+  ReturnStatus,
+  ReturnMessage,
+} from "@/lib/returns";
 import { generateOrderNumber } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
 import { DataSource, ApiError } from "./datasource";
 
-const COL = { users: "users", products: "products", orders: "orders", settings: "settings" } as const;
+const COL = { users: "users", products: "products", orders: "orders", returns: "returns", settings: "settings" } as const;
 
 // Emails auto-granted ADMIN on Google sign-in. Keep this in sync with the
 // `isAdminEmail()` allowlist in firestore.rules (rules can't import from here).
@@ -542,6 +553,111 @@ export class FirebaseDataSource implements DataSource {
     const snap = await getDoc(doc(db, COL.orders, id));
     if (!snap.exists()) throw new ApiError("Order not found.", 404);
     return { ...(snap.data() as Omit<Order, "id">), id: snap.id };
+  }
+
+  // --- Returns --------------------------------------------------------------
+  async listReturns(buyerId?: string): Promise<ReturnRequest[]> {
+    await this.ready();
+    const base = collection(getDb(), COL.returns);
+    const snap = buyerId
+      ? await getDocs(query(base, where("buyerId", "==", buyerId)))
+      : await getDocs(query(base, orderBy("requestedAt", "desc")));
+    const returns = snap.docs.map((d) => ({
+      ...(d.data() as Omit<ReturnRequest, "id">),
+      id: d.id,
+    }));
+    return returns.sort((a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt));
+  }
+
+  async getReturn(id: string): Promise<ReturnRequest | null> {
+    await this.ready();
+    const snap = await getDoc(doc(getDb(), COL.returns, id));
+    return snap.exists() ? { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id } : null;
+  }
+
+  async createReturn(input: CreateReturnInput): Promise<ReturnRequest> {
+    await this.ready();
+    const db = getDb();
+    const ref = doc(collection(db, COL.returns));
+    const id = ref.id;
+    const now = new Date().toISOString();
+
+    const items = input.items.map((item) => ({
+      ...item,
+      lineRefund: item.returnQty * item.unitPrice,
+    }));
+    const totalRefund = items.reduce((sum, item) => sum + item.lineRefund, 0);
+
+    const systemMessage: ReturnMessage = {
+      id: `msg-${Date.now()}-sys`,
+      sender: "system",
+      text: `Return request ${id} created for order ${input.orderNumber}. Status: REQUESTED. Reason: ${RETURN_REASON_LABELS[input.reason]}. Estimated refund: Rs. ${totalRefund}.`,
+      sentAt: now,
+    };
+
+    const returnReq: ReturnRequest = {
+      id,
+      orderId: input.orderId,
+      orderNumber: input.orderNumber,
+      buyerId: input.buyerId,
+      businessName: input.businessName,
+      buyerPhone: input.buyerPhone,
+      items,
+      status: "REQUESTED",
+      reason: input.reason,
+      notes: input.notes,
+      requestedAt: now,
+      totalRefund,
+      adjustedInvoiceNumber: generateAdjustedInvoiceNumber(`INV-${input.orderNumber}`, 1),
+      images: input.images,
+      thread: [systemMessage],
+    };
+
+    // Strip id before writing — the Firestore document path is the canonical id.
+    const { id: _id, ...data } = returnReq;
+    void _id;
+    await setDoc(ref, data as DocumentData);
+    return returnReq;
+  }
+
+  async updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest> {
+    await this.ready();
+    const ref = doc(getDb(), COL.returns, id);
+    const patch: DocumentData = { status, updatedAt: new Date().toISOString() };
+    if ((["REJECTED", "REFUNDED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
+      patch.resolvedAt = new Date().toISOString();
+    }
+    await updateDoc(ref, patch);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
+    return { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
+  }
+
+  async addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest> {
+    await this.ready();
+    const ref = doc(getDb(), COL.returns, id);
+    const message: ReturnMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      sender,
+      text: text.trim(),
+      sentAt: new Date().toISOString(),
+    };
+    await updateDoc(ref, {
+      thread: arrayUnion(message),
+      updatedAt: new Date().toISOString(),
+    });
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
+    return { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
+  }
+
+  async updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest> {
+    await this.ready();
+    const ref = doc(getDb(), COL.returns, id);
+    await updateDoc(ref, { adminNotes: notes, updatedAt: new Date().toISOString() });
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
+    return { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
   }
 
   // --- Admin --------------------------------------------------------------

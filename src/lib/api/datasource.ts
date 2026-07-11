@@ -10,6 +10,11 @@ import type {
   ProductInput,
   User,
 } from "@/lib/types";
+import type {
+  CreateReturnInput,
+  ReturnRequest,
+  ReturnStatus,
+} from "@/lib/returns";
 
 /**
  * The contract every backend must satisfy. The UI depends ONLY on this
@@ -89,6 +94,15 @@ export interface DataSource {
   getAdminStats(): Promise<AdminStats>;
   /** Admin: read any user's full profile. */
   getUser(id: string): Promise<User | null>;
+
+  // --- Returns --------------------------------------------------------------
+  /** buyerId omitted → all returns (admin). */
+  listReturns(buyerId?: string): Promise<ReturnRequest[]>;
+  getReturn(id: string): Promise<ReturnRequest | null>;
+  createReturn(input: CreateReturnInput): Promise<ReturnRequest>;
+  updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest>;
+  addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest>;
+  updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest>;
 
   // --- Settings -------------------------------------------------------------
   /** Read the daily price-update gate status (world-readable). */

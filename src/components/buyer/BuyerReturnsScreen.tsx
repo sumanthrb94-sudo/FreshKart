@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   RotateCcw,
@@ -19,9 +17,13 @@ import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FullScreenLoader } from "@/components/ui/Spinner";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { RETURN_REASON_LABELS, demoReturnRequests } from "@/lib/returns";
+import { RETURN_REASON_LABELS } from "@/lib/returns";
 import type { ReturnRequest, ReturnStatus } from "@/lib/returns";
+import { api } from "@/lib/api";
+import { useAuth } from "@/components/providers/AuthProvider";
+import { useAsync } from "@/lib/hooks";
 
 const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: typeof Clock }> = {
   REQUESTED: { label: "Requested", color: "text-amber-500 bg-amber-500/10", icon: Clock },
@@ -33,28 +35,20 @@ const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: 
 };
 
 export function BuyerReturnsScreen() {
-  const [returns, setReturns] = useState<ReturnRequest[]>([]);
+  const { user } = useAuth();
+  const { data: returns, loading } = useAsync(
+    () => api.listReturns(user?.id),
+    [user?.id]
+  );
+  const list = returns ?? [];
 
-  useEffect(() => {
-    // FIX: Merge demo data with stored data (Critical Bug #3)
-    const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
-    const merged = [
-      ...demoReturnRequests,
-      ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id)),
-    ];
-    setReturns(merged);
-
-    // Listen for storage changes from other tabs/components
-    const handleStorage = () => {
-      const updated = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
-      setReturns([
-        ...demoReturnRequests,
-        ...updated.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id)),
-      ]);
-    };
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, []);
+  if (loading) {
+    return (
+      <AppShell header={<BuyerHeader />}>
+        <FullScreenLoader />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell header={<BuyerHeader />}>
@@ -68,7 +62,7 @@ export function BuyerReturnsScreen() {
           <p className="text-xs text-fg-subtle">Track your return and refund requests</p>
         </div>
 
-        {returns.length === 0 ? (
+        {list.length === 0 ? (
           <EmptyState
             icon={PackageX}
             title="No returns yet"
@@ -81,7 +75,7 @@ export function BuyerReturnsScreen() {
           />
         ) : (
           <div className="flex flex-col gap-3">
-            {returns.map((ret) => {
+            {list.map((ret) => {
               const cfg = STATUS_CONFIG[ret.status];
               return (
                 <Link key={ret.id} href={`/returns/${ret.id}`}>

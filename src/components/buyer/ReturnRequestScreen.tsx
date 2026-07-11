@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
-import { createReturnRequest, RETURN_REASON_LABELS } from "@/lib/returns";
+import { RETURN_REASON_LABELS } from "@/lib/returns";
 import type { ReturnReason, ReturnImage } from "@/lib/returns";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
@@ -109,7 +109,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
         }))
         .filter((item) => item.returnQty > 0);
 
-      const returnReq = createReturnRequest({
+      const returnReq = await api.createReturn({
         orderId: order.id,
         orderNumber: order.orderNumber,
         buyerId: order.buyerId,
@@ -121,11 +121,6 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
         images,
       });
 
-      const existing = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
-      existing.push(returnReq);
-      localStorage.setItem("green_basket_returns", JSON.stringify(existing));
-
-      // Increment coupon usage if applicable
       toast.success("Return request submitted!", `Refund of ${formatCurrency(returnReq.totalRefund)} will be processed in 3-5 days`);
 
       setReturnId(returnReq.id);

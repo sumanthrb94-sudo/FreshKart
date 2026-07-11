@@ -69,6 +69,7 @@ export interface ReturnRequest {
   adminNotes?: string;
   pickupScheduledAt?: string;
   refundTransactionId?: string;
+  updatedAt?: string;
 }
 
 export interface CreateReturnInput {

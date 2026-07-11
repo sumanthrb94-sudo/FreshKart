@@ -20,14 +20,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  demoReturnRequests,
   RETURN_REASON_LABELS,
   allowedTransitions,
   canAdminRespond,
-  addThreadMessage,
 } from "@/lib/returns";
 import type { ReturnRequest, ReturnStatus, ReturnMessage } from "@/lib/returns";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { api } from "@/lib/api";
+import { useAsync } from "@/lib/hooks";
+import { Spinner } from "@/components/ui/Spinner";
 
 const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: typeof CheckCircle2; nextAction: string }> = {
   REQUESTED: { label: "Requested", color: "bg-amber-500/10 text-amber-500", icon: Clock, nextAction: "Approve" },
@@ -39,84 +40,46 @@ const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: 
 };
 
 export function AdminReturnsScreen() {
-  const [returns, setReturns] = useState<ReturnRequest[]>(demoReturnRequests);
+  const { data: returns, loading, error, refetch } = useAsync(() => api.listReturns(), []);
   const [filter, setFilter] = useState<ReturnStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [threadVersion, setThreadVersion] = useState(0);
 
-  useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
-      setReturns([...demoReturnRequests, ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id))]);
-    } catch {
-      setReturns(demoReturnRequests);
-    }
-  }, []);
+  const list = returns ?? [];
 
-  const refresh = () => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
-      setReturns([...demoReturnRequests, ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id))]);
-    } catch {
-      setReturns(demoReturnRequests);
-    }
-  };
-
-  const filtered = returns.filter((r) => {
+  const filtered = list.filter((r) => {
     if (filter !== "all" && r.status !== filter) return false;
     if (search && !r.businessName.toLowerCase().includes(search.toLowerCase()) &&
         !r.orderNumber.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  const handleStatusChange = (id: string, newStatus: ReturnStatus) => {
-    setReturns((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: newStatus, resolvedAt: new Date().toISOString() } : r))
-    );
-    try {
-      const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
-      const idx = stored.findIndex((r: ReturnRequest) => r.id === id);
-      if (idx !== -1) {
-        stored[idx].status = newStatus;
-        stored[idx].resolvedAt = new Date().toISOString();
-        localStorage.setItem("green_basket_returns", JSON.stringify(stored));
-      }
-    } catch { /* noop */ }
+  const handleStatusChange = async (id: string, newStatus: ReturnStatus) => {
+    await api.updateReturnStatus(id, newStatus);
+    await refetch();
   };
 
-  const handleSendReply = (returnId: string, text: string) => {
+  const handleSendReply = async (returnId: string, text: string) => {
     if (!text.trim()) return;
-
-    setReturns((prev) =>
-      prev.map((r) => {
-        if (r.id !== returnId) return r;
-        const newMsg: ReturnMessage = {
-          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          sender: "admin",
-          text: text.trim(),
-          sentAt: new Date().toISOString(),
-        };
-        return { ...r, thread: [...r.thread, newMsg] };
-      })
-    );
+    await api.addReturnMessage(returnId, "admin", text.trim());
     setThreadVersion((v) => v + 1);
-
-    try {
-      const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
-      const idx = stored.findIndex((r: ReturnRequest) => r.id === returnId);
-      if (idx !== -1) {
-        addThreadMessage(stored[idx], "admin", text.trim());
-        localStorage.setItem("green_basket_returns", JSON.stringify(stored));
-      }
-    } catch { /* noop */ }
+    await refetch();
   };
 
-  const activeReturn = detailId ? returns.find((r) => r.id === detailId) || null : null;
+  const activeReturn = detailId ? list.find((r) => r.id === detailId) || null : null;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {!activeReturn ? (
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Spinner className="h-8 w-8" />
+        </div>
+      ) : error ? (
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-fg-subtle">{error}</p>
+        </div>
+      ) : !activeReturn ? (
         <>
           <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
             <h1 className="text-lg font-extrabold text-fg">Returns & Refunds</h1>
@@ -140,7 +103,7 @@ export function AdminReturnsScreen() {
                     filter === s ? "bg-brand-500 text-white" : "bg-raised text-fg-subtle hover:bg-surface"
                   }`}
                 >
-                  {s === "all" ? `All (${returns.length})` : `${s} (${returns.filter((r) => r.status === s).length})`}
+                  {s === "all" ? `All (${list.length})` : `${s} (${list.filter((r) => r.status === s).length})`}
                 </button>
               ))}
             </div>
@@ -153,7 +116,7 @@ export function AdminReturnsScreen() {
               </div>
             ) : (
               filtered.map((ret) => (
-                <ReturnCard key={ret.id} ret={ret} onOpen={() => { refresh(); setDetailId(ret.id); }} />
+                <ReturnCard key={ret.id} ret={ret} onOpen={() => { refetch(); setDetailId(ret.id); }} />
               ))
             )}
           </div>
@@ -236,16 +199,8 @@ function ReturnDetail({
     setReply("");
   };
 
-  const handleSaveNotes = () => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("green_basket_returns") || "[]");
-      const idx = stored.findIndex((r: ReturnRequest) => r.id === returnReq.id);
-      if (idx !== -1) {
-        stored[idx].adminNotes = notes;
-        localStorage.setItem("green_basket_returns", JSON.stringify(stored));
-      }
-      returnReq.adminNotes = notes;
-    } catch { /* noop */ }
+  const handleSaveNotes = async () => {
+    await api.updateReturnAdminNotes(returnReq.id, notes);
   };
 
   return (

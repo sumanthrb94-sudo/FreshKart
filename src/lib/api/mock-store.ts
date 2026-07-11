@@ -1,10 +1,13 @@
 import type { DailyPricesSettings, Order, Product, User } from "@/lib/types";
 import { ORDERS, PRODUCTS, USERS, DEMO_PASSWORD } from "@/lib/mock-data";
+import type { ReturnRequest } from "@/lib/returns";
+import { demoReturnRequests } from "@/lib/returns";
 
 interface MockStore {
   products: Product[];
   users: User[];
   orders: Order[];
+  returns: ReturnRequest[];
   dailyPrices: DailyPricesSettings | null;
   credentials: Record<string, string>;
 }
@@ -16,6 +19,7 @@ function seed(): MockStore {
     products: structuredClone(PRODUCTS),
     users: structuredClone(USERS),
     orders: structuredClone(ORDERS),
+    returns: structuredClone(demoReturnRequests),
     dailyPrices: null,
     credentials: {
       "customer@green-basket.in": DEMO_PASSWORD,
@@ -34,6 +38,7 @@ function load(): MockStore {
     const parsed = JSON.parse(raw) as MockStore;
     // Ensure all required fields exist (migration from older store versions)
     if (!parsed.orders) parsed.orders = [];
+    if (!parsed.returns) parsed.returns = seed().returns;
     if (!parsed.credentials) parsed.credentials = seed().credentials;
     if (!parsed.products || parsed.products.length === 0) parsed.products = seed().products;
     if (!parsed.users || parsed.users.length === 0) parsed.users = seed().users;
