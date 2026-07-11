@@ -620,10 +620,12 @@ export class FirebaseDataSource implements DataSource {
     const db = getDb();
 
     // Prevent duplicate return requests for the same order.
+    // Query by buyerId (required by security rules) and filter by orderId in JS.
     const existingSnap = await getDocs(
-      query(collection(db, COL.returns), where("orderId", "==", input.orderId))
+      query(collection(db, COL.returns), where("buyerId", "==", input.buyerId))
     );
-    if (!existingSnap.empty) {
+    const existingReturn = existingSnap.docs.find((d) => d.data().orderId === input.orderId);
+    if (existingReturn) {
       throw new ApiError("A return request already exists for this order.", 409);
     }
 
