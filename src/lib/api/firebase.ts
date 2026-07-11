@@ -293,12 +293,17 @@ export class FirebaseDataSource implements DataSource {
 
   async createProduct(input: ProductInput): Promise<Product> {
     const ref = doc(collection(getDb(), COL.products));
+    // Normalise minOrderQty so every product defaults to 1 kg/pc if omitted.
+    const normalised: ProductInput = {
+      ...input,
+      minOrderQty: Number.isFinite(input.minOrderQty) && input.minOrderQty > 0 ? input.minOrderQty : 1,
+    };
     // Firestore rejects `undefined` field values — drop any unset optionals.
     const data = Object.fromEntries(
-      Object.entries(input).filter(([, v]) => v !== undefined)
+      Object.entries(normalised).filter(([, v]) => v !== undefined)
     ) as DocumentData;
     await setDoc(ref, data);
-    return { ...input, id: ref.id };
+    return { ...normalised, id: ref.id };
   }
 
   async updateProductPrices(updates: { id: string; price: number }[]): Promise<Product[]> {

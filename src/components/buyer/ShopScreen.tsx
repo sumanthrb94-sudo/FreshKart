@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Clock, Globe, Phone, Search, SearchX } from "lucide-react";
+import { Clock, Phone, Search, SearchX } from "lucide-react";
 import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
@@ -11,7 +11,7 @@ import { getStoreStatus } from "@/lib/store-hours";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
-import { useLang, LANGS } from "@/lib/i18n";
+import { useLang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
@@ -20,7 +20,6 @@ import { Input } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader, Spinner } from "@/components/ui/Spinner";
 import { BuyerHeader } from "./BuyerHeader";
-import { PromoBanner } from "./PromoBanner";
 import { ProductListItem } from "./ProductListItem";
 import { StickyCartBar } from "./StickyCartBar";
 import { BuyerBottomNav } from "./BuyerBottomNav";
@@ -150,7 +149,7 @@ export function ShopScreen() {
       }
       sidebar={<BuyerSidebar />}
     >
-      {/* Sticky language + search + category rail */}
+      {/* Sticky search + category rail */}
       <div className="sticky top-0 z-20 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur">
         {/* Daily price-update banner */}
         {!settingsLoading && !pricesPublished && storeStatus.isOpen && (
@@ -174,25 +173,6 @@ export function ShopScreen() {
           </div>
         )}
 
-        {/* Language scroller — scroll & tap to switch */}
-        <div className="fc-scroll -mx-4 mb-3 flex items-center gap-2 overflow-x-auto px-4">
-          <Globe className="h-4 w-4 shrink-0 text-brand-500" />
-          {LANGS.map((l) => (
-            <button
-              key={l.code}
-              type="button"
-              onClick={() => setLang(l.code)}
-              className={cn(
-                "shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold transition-colors",
-                lang === l.code
-                  ? "bg-brand-500 text-white shadow-sm"
-                  : "border border-line bg-surface text-fg-muted hover:border-brand-500/30"
-              )}
-            >
-              {l.native}
-            </button>
-          ))}
-        </div>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
           <Input
@@ -217,8 +197,6 @@ export function ShopScreen() {
       </div>
 
       <div className="p-4">
-        <PromoBanner />
-
         {loading ? (
           <div className="flex justify-center py-16">
             <Spinner className="h-7 w-7" />

@@ -61,7 +61,7 @@ function emptyForm(): FormState {
     category: CATEGORIES[0]?.id ?? "",
     unit: "kg",
     price: "",
-    minOrderQty: "",
+    minOrderQty: "1",
     stock: "",
     origin: "",
     active: true,

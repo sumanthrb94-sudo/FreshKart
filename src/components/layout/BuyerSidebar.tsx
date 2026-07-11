@@ -27,10 +27,7 @@ export function BuyerSidebar() {
         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500 text-white">
           <Sprout className="h-5 w-5" />
         </span>
-        <span className="leading-tight">
-          <span className="block text-base font-extrabold text-fg">Green Basket</span>
-          <span className="block text-2xs font-medium text-fg-subtle">Wholesale B2B · per kg</span>
-        </span>
+        <span className="text-base font-extrabold text-fg">Green Basket</span>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-2">

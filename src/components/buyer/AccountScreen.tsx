@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { LogOut, MapPin, Package, Pencil } from "lucide-react";
+import { Globe, LogOut, MapPin, Package, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
+import { useLang, LANGS } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
 import { BuyerBottomNav } from "./BuyerBottomNav";
@@ -23,6 +25,7 @@ export function AccountScreen() {
   const router = useRouter();
   const { ready } = useRequireAuth({ callbackUrl: "/account" });
   const { user, updateProfile, logout } = useAuth();
+  const { lang, setLang } = useLang();
 
   const [form, setForm] = useState({
     name: user?.name ?? "",
@@ -119,6 +122,35 @@ export function AccountScreen() {
           <h1 className="text-xl font-bold text-fg">Your account</h1>
           <Badge className="bg-brand-500/20 text-brand-300">{user.role}</Badge>
         </div>
+
+        {/* Language preference */}
+        <Card>
+          <CardBody className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-brand-400">
+              <Globe className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-fg">Language</p>
+              <div className="fc-scroll -mx-4 mt-2 flex items-center gap-2 overflow-x-auto px-4">
+                {LANGS.map((l) => (
+                  <button
+                    key={l.code}
+                    type="button"
+                    onClick={() => setLang(l.code)}
+                    className={cn(
+                      "shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold transition-colors",
+                      lang === l.code
+                        ? "bg-brand-500 text-white shadow-sm"
+                        : "border border-line bg-surface text-fg-muted hover:border-brand-500/30"
+                    )}
+                  >
+                    {l.native}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardBody>
+        </Card>
 
         {/* Delivery address — map-based */}
         <Card>
