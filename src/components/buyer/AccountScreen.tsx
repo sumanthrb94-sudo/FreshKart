@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { MapPin, Package, Pencil } from "lucide-react";
+import { LogOut, MapPin, Package, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
@@ -19,8 +20,9 @@ import { Sheet } from "@/components/ui/Sheet";
 import { AddressPicker, type PickedAddress } from "@/components/address/AddressPicker";
 
 export function AccountScreen() {
+  const router = useRouter();
   const { ready } = useRequireAuth({ callbackUrl: "/account" });
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, logout } = useAuth();
 
   const [form, setForm] = useState({
     name: user?.name ?? "",
@@ -69,6 +71,11 @@ export function AccountScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleLogout() {
+    await logout();
+    router.replace("/");
   }
 
   async function handleSaveAddress(addr: PickedAddress) {
@@ -199,6 +206,16 @@ export function AccountScreen() {
             Your orders
           </Button>
         </Link>
+
+        <Button
+          variant="danger"
+          size="lg"
+          fullWidth
+          leadingIcon={<LogOut className="h-4 w-4" />}
+          onClick={handleLogout}
+        >
+          Log out
+        </Button>
 
         <Sheet
           open={addrOpen}

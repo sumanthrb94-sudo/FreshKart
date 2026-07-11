@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sprout } from "lucide-react";
+import { LogOut, Sprout } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { BUYER_TABS } from "@/components/buyer/BuyerBottomNav";
@@ -13,8 +13,13 @@ import { BUYER_TABS } from "@/components/buyer/BuyerBottomNav";
  */
 export function BuyerSidebar() {
   const pathname = usePathname() || "/";
-  const { isAdmin } = useAuth();
+  const { isAdmin, logout } = useAuth();
   const tabs = isAdmin ? BUYER_TABS : BUYER_TABS.filter((t) => t.href !== "/admin");
+
+  async function handleLogout() {
+    await logout();
+    window.location.assign("/");
+  }
 
   return (
     <div className="flex h-full flex-col border-r border-line bg-surface">
@@ -53,6 +58,17 @@ export function BuyerSidebar() {
           })}
         </ul>
       </nav>
+
+      <div className="border-t border-line p-3">
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-fg-subtle transition-colors hover:bg-red-500/10 hover:text-red-400"
+        >
+          <LogOut className="h-5 w-5" />
+          Log out
+        </button>
+      </div>
     </div>
   );
 }
