@@ -132,7 +132,7 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly([
         'buyerId', 'businessName', 'buyerPhone', 'orderId', 'orderNumber',
         'items', 'status', 'reason', 'notes', 'requestedAt', 'totalRefund',
-        'adjustedInvoiceNumber', 'images', 'thread'
+        'adjustedInvoiceNumber', 'images', 'thread', 'updatedAt', 'resolvedAt'
       ]);
     }
 
