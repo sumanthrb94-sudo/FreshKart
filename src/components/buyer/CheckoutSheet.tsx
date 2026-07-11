@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Banknote, CreditCard, MapPin, Pencil, ShieldCheck, Wallet } from "lucide-react";
 import type { DeliveryDetails, PaymentMethod } from "@/lib/types";
-import { formatCurrency, pricePerUnit } from "@/lib/format";
+import { formatCurrency, pricePerUnit, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { Button } from "@/components/ui/Button";
@@ -81,6 +81,8 @@ export function CheckoutSheet({
     }).catch(() => {});
   }
 
+  const totalQty = lines.reduce((sum, l) => sum + l.qty, 0);
+
   function handleSubmit() {
     if (!delivery.address || !delivery.city || !delivery.pincode) {
       setLocalError("Please add a delivery address.");
@@ -88,6 +90,10 @@ export function CheckoutSheet({
     }
     if (!delivery.phone) {
       setLocalError("Please add a phone number for delivery updates.");
+      return;
+    }
+    if (totalQty < MIN_ORDER_TOTAL_QTY) {
+      setLocalError(`Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. Add ${MIN_ORDER_TOTAL_QTY - totalQty} more kg to continue.`);
       return;
     }
     setLocalError(null);

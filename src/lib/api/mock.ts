@@ -17,7 +17,7 @@ import type {
   ReturnMessage,
 } from "@/lib/returns";
 import { RETURN_REASON_LABELS, generateAdjustedInvoiceNumber } from "@/lib/returns";
-import { generateOrderNumber } from "@/lib/format";
+import { generateOrderNumber, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { DataSource, ApiError } from "./datasource";
@@ -125,6 +125,11 @@ export class MockDataSource implements DataSource {
       }
       if (!input.items.length) {
         error = "Your cart is empty.";
+        return;
+      }
+      const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
+      if (totalQty < MIN_ORDER_TOTAL_QTY) {
+        error = `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
         return;
       }
       const items: OrderItem[] = [];

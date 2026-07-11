@@ -22,6 +22,8 @@ interface CartContextValue {
   lines: CartLine[];
   /** distinct products in the cart */
   itemCount: number;
+  /** total quantity across all lines (used for whole-order minimum) */
+  totalQty: number;
   subtotal: number;
   deliveryFee: number;
   total: number;
@@ -112,6 +114,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     () => lines.reduce((sum, l) => sum + l.product.price * l.qty, 0),
     [lines]
   );
+  const totalQty = useMemo(() => lines.reduce((sum, l) => sum + l.qty, 0), [lines]);
   const deliveryFee = useMemo(() => calculateDeliveryFee(subtotal), [subtotal]);
   const total = useMemo(() => subtotal + deliveryFee, [subtotal, deliveryFee]);
 
@@ -119,6 +122,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     () => ({
       lines,
       itemCount: lines.length,
+      totalQty,
       subtotal,
       deliveryFee,
       total,
@@ -130,7 +134,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       remove,
       clear,
     }),
-    [lines, subtotal, deliveryFee, total, qtyOf, add, increment, decrement, setProductQty, remove, clear]
+    [lines, totalQty, subtotal, deliveryFee, total, qtyOf, add, increment, decrement, setProductQty, remove, clear]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

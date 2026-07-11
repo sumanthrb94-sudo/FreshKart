@@ -6,7 +6,7 @@ import { LogOut, Sprout, ShoppingCart, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
 import { BUYER_TABS } from "@/components/buyer/BuyerBottomNav";
 
 /**
@@ -16,7 +16,7 @@ import { BUYER_TABS } from "@/components/buyer/BuyerBottomNav";
 export function BuyerSidebar() {
   const pathname = usePathname() || "/";
   const { isAdmin, logout } = useAuth();
-  const { itemCount, subtotal } = useCart();
+  const { itemCount, totalQty, subtotal } = useCart();
   const tabs = isAdmin ? BUYER_TABS : BUYER_TABS.filter((t) => t.href !== "/admin");
 
   async function handleLogout() {
@@ -62,18 +62,25 @@ export function BuyerSidebar() {
       <div className="border-t border-line p-3">
         {itemCount > 0 && (
           <Link
-            href="/?cart=1"
-            className="mb-3 flex flex-col gap-2 rounded-xl bg-brand-500/10 p-3 text-brand-400 transition-colors hover:bg-brand-500 hover:text-white"
+            href={totalQty >= MIN_ORDER_TOTAL_QTY ? "/?cart=1" : "/"}
+            className={cn(
+              "mb-3 flex flex-col gap-2 rounded-xl p-3 text-brand-400 transition-colors",
+              totalQty >= MIN_ORDER_TOTAL_QTY
+                ? "bg-brand-500/10 hover:bg-brand-500 hover:text-white"
+                : "cursor-not-allowed bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-white"
+            )}
           >
             <span className="flex items-center justify-between text-xs font-bold">
               <span className="flex items-center gap-1.5">
                 <ShoppingCart className="h-4 w-4" />
-                {itemCount} {itemCount === 1 ? "item" : "items"}
+                {totalQty} {totalQty === 1 ? "kg" : "kgs"}
               </span>
               <span>{formatCurrency(subtotal)}</span>
             </span>
             <span className="flex items-center justify-between text-sm font-extrabold">
-              Review & Order
+              {totalQty >= MIN_ORDER_TOTAL_QTY
+                ? "Review & Order"
+                : `Min ${MIN_ORDER_TOTAL_QTY} kgs · add ${MIN_ORDER_TOTAL_QTY - totalQty}`}
               <ArrowRight className="h-4 w-4" />
             </span>
           </Link>

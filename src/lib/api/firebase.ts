@@ -45,7 +45,7 @@ import type {
   ReturnStatus,
   ReturnMessage,
 } from "@/lib/returns";
-import { generateOrderNumber } from "@/lib/format";
+import { generateOrderNumber, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
@@ -370,6 +370,12 @@ export class FirebaseDataSource implements DataSource {
     await this.ready();
     const db = getDb();
     if (!input.items.length) throw new ApiError("Your cart is empty.");
+    const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
+    if (totalQty < MIN_ORDER_TOTAL_QTY) {
+      throw new ApiError(
+        `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`
+      );
+    }
     if (input.paymentMethod === "CREDIT") {
       throw new ApiError("Business credit is not available.");
     }

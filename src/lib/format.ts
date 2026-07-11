@@ -1,4 +1,12 @@
-import type { OrderStatus, PaymentMethod, Unit } from "./types";
+import type { OrderStatus, PaymentMethod, Unit, CartLine } from "./types";
+
+/** Whole-order minimum quantity (in kg / units). */
+export const MIN_ORDER_TOTAL_QTY = 10;
+
+/** Total cart quantity across all lines. */
+export function cartTotalQty(lines: CartLine[]): number {
+  return lines.reduce((sum, l) => sum + l.qty, 0);
+}
 
 /** ₹24, ₹1,250 — Indian Rupee, no decimals, en-IN grouping. */
 export function formatCurrency(amount: number): string {
