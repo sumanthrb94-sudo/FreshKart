@@ -60,9 +60,15 @@ export const repository = {
   updateProduct(id: string, patch: Partial<Product>): Product {
     const p = products.find((x) => x.id === id);
     if (!p) throw new RepoError("Product not found.", 404);
+    if (patch.name !== undefined) p.name = patch.name;
+    if (patch.category !== undefined) p.category = patch.category;
+    if (patch.unit !== undefined) p.unit = patch.unit;
     if (patch.price !== undefined) p.price = patch.price;
+    if (patch.minOrderQty !== undefined) p.minOrderQty = patch.minOrderQty;
     if (patch.stock !== undefined) p.stock = patch.stock;
+    if (patch.origin !== undefined) p.origin = patch.origin;
     if (patch.active !== undefined) p.active = patch.active;
+    if (patch.imageUrl !== undefined) p.imageUrl = patch.imageUrl;
     return p;
   },
 
