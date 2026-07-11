@@ -98,6 +98,12 @@ export interface DataSource {
   // --- Returns --------------------------------------------------------------
   /** buyerId omitted → all returns (admin). */
   listReturns(buyerId?: string): Promise<ReturnRequest[]>;
+  /**
+   * Real-time subscription to return changes. Fires immediately with current
+   * data, then on every create/update/delete. Used by admin for instant
+   * new-return-request notifications.
+   */
+  subscribeReturns?(buyerId?: string, cb?: (returns: ReturnRequest[]) => void): () => void;
   getReturn(id: string): Promise<ReturnRequest | null>;
   createReturn(input: CreateReturnInput): Promise<ReturnRequest>;
   updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest>;

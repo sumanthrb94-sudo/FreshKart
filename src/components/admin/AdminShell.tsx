@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, ShieldCheck, Store, ShoppingBag, Radio } from "lucide-react";
+import { LogOut, ShieldCheck, Store, ShoppingBag, Radio, RotateCcw } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
@@ -33,6 +33,31 @@ function playNewOrderSound() {
       gain.connect(ctx.destination);
       osc.start(now + i * 0.12);
       osc.stop(now + i * 0.12 + 0.4);
+    });
+  } catch {
+    // Audio not supported — silently ignore
+  }
+}
+
+/** Web Audio API new-return alert — distinct descending tone. */
+function playNewReturnSound() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    // Distinct descending alert (A5 → E5 → A4)
+    [880.0, 659.25, 440.0].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.1);
+      gain.gain.setValueAtTime(0.14, now + i * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.1);
+      osc.stop(now + i * 0.1 + 0.35);
     });
   } catch {
     // Audio not supported — silently ignore
@@ -87,9 +112,60 @@ function useAdminOrderAlerts() {
   return { confirmedCount, isLive };
 }
 
+/** Hook for real-time pending-return count + new-return alerts in admin header */
+function useAdminReturnAlerts() {
+  const [pendingCount, setPendingCount] = useState(0);
+  const [isLive, setIsLive] = useState(false);
+  const previousIds = useRef<Set<string>>(new Set());
+  const hasInit = useRef(false);
+
+  useEffect(() => {
+    if (typeof api.subscribeReturns !== "function") {
+      // HTTP / mock backend — not live
+      api.listReturns()
+        .then((returns) => {
+          setPendingCount(returns.filter((r) => r.status === "REQUESTED").length);
+        })
+        .catch(() => {});
+      return;
+    }
+
+    setIsLive(true);
+    const unsubscribe = api.subscribeReturns(undefined, (returns) => {
+      setPendingCount(returns.filter((r) => r.status === "REQUESTED").length);
+
+      if (hasInit.current) {
+        const currentIds = new Set(returns.map((r) => r.id));
+        const newReturns = returns.filter(
+          (r) => !previousIds.current.has(r.id) && r.status === "REQUESTED"
+        );
+        if (newReturns.length > 0) {
+          playNewReturnSound();
+          newReturns.forEach((r) => {
+            toast.info(
+              "New return request",
+              `${r.businessName} — ${formatCurrency(r.totalRefund)}`,
+              6000
+            );
+          });
+        }
+        previousIds.current = currentIds;
+      } else {
+        previousIds.current = new Set(returns.map((r) => r.id));
+        hasInit.current = true;
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return { pendingCount, isLive };
+}
+
 function AdminHeader() {
   const { logout } = useAuth();
   const { confirmedCount, isLive } = useAdminOrderAlerts();
+  const { pendingCount: pendingReturnCount } = useAdminReturnAlerts();
 
   async function handleLogout() {
     await logout();
@@ -126,6 +202,14 @@ function AdminHeader() {
           {confirmedCount > 0 && (
             <span className="mr-1 flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
               {confirmedCount} new
+            </span>
+          )}
+
+          {/* Pending returns badge */}
+          {pendingReturnCount > 0 && (
+            <span className="mr-1 flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-400">
+              <RotateCcw className="h-3 w-3" />
+              {pendingReturnCount} returns
             </span>
           )}
 

@@ -596,6 +596,37 @@ export class FirebaseDataSource implements DataSource {
   }
 
   // --- Returns --------------------------------------------------------------
+  /**
+   * Real-time returns subscription. Admin (no buyerId) gets all returns newest-first;
+   * buyers get only their own returns.
+   */
+  subscribeReturns(buyerId?: string, cb?: (returns: ReturnRequest[]) => void): () => void {
+    const db = getDb();
+    const base = collection(db, COL.returns);
+    const q = buyerId
+      ? query(base, where("buyerId", "==", buyerId))
+      : query(base, orderBy("requestedAt", "desc"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const returns = snap.docs.map((d) => ({
+          ...(d.data() as Omit<ReturnRequest, "id">),
+          id: d.id,
+        }));
+        const sorted = returns.sort(
+          (a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt)
+        );
+        cb?.(sorted);
+      },
+      (err) => {
+        console.warn("Returns subscription error:", err.message);
+      }
+    );
+
+    return unsubscribe;
+  }
+
   async listReturns(buyerId?: string): Promise<ReturnRequest[]> {
     await this.ready();
     const base = collection(getDb(), COL.returns);
