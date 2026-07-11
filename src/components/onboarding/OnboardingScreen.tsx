@@ -71,7 +71,7 @@ function friendlyPhoneError(e: unknown): string {
     return "Phone sign-in is not enabled. Please enable it in Firebase Console → Authentication → Sign-in method → Phone.";
   }
   if (code.includes("captcha-check-failed")) {
-    return "reCAPTCHA verification failed. Please refresh the page and try again.";
+    return "Security check failed. Please refresh the page and try again.";
   }
   if (code.includes("app-not-authorized")) {
     return "This app is not authorized for phone authentication. Add your domain to Firebase Console → Authentication → Authorized domains.";
@@ -86,7 +86,7 @@ function friendlyPhoneError(e: unknown): string {
     return "Too many attempts. Please wait a few minutes before trying again.";
   }
   if (code.includes("argument-error")) {
-    return "Authentication setup error. The reCAPTCHA verifier may not be configured correctly.";
+    return "Authentication setup error. The security verifier may not be configured correctly.";
   }
   if (code.includes("timeout")) {
     return "Request timed out. Check your connection and try again.";
@@ -485,10 +485,8 @@ export function OnboardingScreen() {
                 className="h-12 flex-1 bg-transparent text-lg font-semibold tracking-wide text-fg outline-none placeholder:font-normal placeholder:text-fg-subtle"
               />
             </div>
-            {/* Visible reCAPTCHA widget — much more reliable than invisible on mobile */}
-            <div className="mt-3 flex justify-center">
-              <div id={RECAPTCHA_ID} />
-            </div>
+            {/* Invisible reCAPTCHA verifier — no visible widget, hidden badge container */}
+            <div id={RECAPTCHA_ID} className="hidden" />
 
             <button
               type="button"
