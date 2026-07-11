@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Globe, LogOut, MapPin, Package, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -36,14 +36,13 @@ export function AccountScreen() {
     city: user?.city ?? "",
     pincode: user?.pincode ?? "",
   });
+  const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [addrOpen, setAddrOpen] = useState(false);
   const [savingAddr, setSavingAddr] = useState(false);
 
-  // Re-sync the form once the signed-in profile loads (on a fresh page load it
-  // can arrive after first paint), so saved phone/address always show up.
-  useEffect(() => {
+  function startEditing() {
     if (!user) return;
     setForm({
       name: user.name ?? "",
@@ -54,9 +53,9 @@ export function AccountScreen() {
       city: user.city ?? "",
       pincode: user.pincode ?? "",
     });
-    // Only when the loaded user identity changes — not on every keystroke.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+    setIsEditing(true);
+    setStatus(null);
+  }
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -69,6 +68,7 @@ export function AccountScreen() {
     try {
       await updateProfile(form);
       setStatus({ ok: true, msg: "Profile updated." });
+      setIsEditing(false);
     } catch (err) {
       setStatus({ ok: false, msg: err instanceof Error ? err.message : "Could not save." });
     } finally {
@@ -186,50 +186,105 @@ export function AccountScreen() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-fg">Profile details</h2>
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={startEditing}
+                className="flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-fg-muted hover:bg-raised"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </button>
+            )}
           </CardHeader>
           <CardBody>
-            <form className="flex flex-col gap-3" onSubmit={handleSave}>
-              <Field label="Email">
-                <Input value={user.email} disabled />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Full name">
-                  <Input value={form.name} onChange={(e) => set("name", e.target.value)} />
+            {isEditing ? (
+              <form className="flex flex-col gap-3" onSubmit={handleSave}>
+                <Field label="Email">
+                  <Input value={user.email} disabled />
                 </Field>
-                <Field label="Business name">
-                  <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Full name">
+                    <Input value={form.name} onChange={(e) => set("name", e.target.value)} />
+                  </Field>
+                  <Field label="Business name">
+                    <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Phone">
+                    <Input inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+                  </Field>
+                  <Field label="GSTIN">
+                    <Input value={form.gstin} onChange={(e) => set("gstin", e.target.value)} placeholder="29ABCDE1234A1Z9" />
+                  </Field>
+                </div>
+                <Field label="Address">
+                  <Input value={form.address} onChange={(e) => set("address", e.target.value)} />
                 </Field>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Phone">
-                  <Input inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
-                </Field>
-                <Field label="GSTIN">
-                  <Input value={form.gstin} onChange={(e) => set("gstin", e.target.value)} placeholder="29ABCDE1234A1Z9" />
-                </Field>
-              </div>
-              <Field label="Address">
-                <Input value={form.address} onChange={(e) => set("address", e.target.value)} />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="City">
-                  <Input value={form.city} onChange={(e) => set("city", e.target.value)} />
-                </Field>
-                <Field label="Pincode">
-                  <Input inputMode="numeric" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} />
-                </Field>
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="City">
+                    <Input value={form.city} onChange={(e) => set("city", e.target.value)} />
+                  </Field>
+                  <Field label="Pincode">
+                    <Input inputMode="numeric" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} />
+                  </Field>
+                </div>
 
-              {status && (
-                <Alert variant={status.ok ? "success" : "error"}>{status.msg}</Alert>
-              )}
+                {status && (
+                  <Alert variant={status.ok ? "success" : "error"}>{status.msg}</Alert>
+                )}
 
-              <Button type="submit" size="lg" fullWidth loading={saving}>
-                {saving ? "Saving…" : "Save changes"}
-              </Button>
-            </form>
+                <div className="flex flex-col gap-2">
+                  <Button type="submit" size="lg" fullWidth loading={saving}>
+                    {saving ? "Saving…" : "Save changes"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="lg"
+                    fullWidth
+                    onClick={() => setIsEditing(false)}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-fg-subtle">Full name</p>
+                  <p className="font-semibold text-fg">{user.name || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-fg-subtle">Business name</p>
+                  <p className="font-semibold text-fg">{user.businessName || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-fg-subtle">Phone</p>
+                  <p className="font-semibold text-fg">{user.phone || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-fg-subtle">GSTIN</p>
+                  <p className="font-semibold text-fg">{user.gstin || "—"}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-fg-subtle">Address</p>
+                  <p className="font-semibold text-fg">{user.address || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-fg-subtle">City</p>
+                  <p className="font-semibold text-fg">{user.city || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-fg-subtle">Pincode</p>
+                  <p className="font-semibold text-fg">{user.pincode || "—"}</p>
+                </div>
+              </div>
+            )}
           </CardBody>
         </Card>
 
