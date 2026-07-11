@@ -389,7 +389,11 @@ export class FirebaseDataSource implements DataSource {
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
-      tx.set(orderRef, built as DocumentData);
+      // Firestore rules whitelist the order fields and exclude `id` (the
+      // document ID is already the path segment; storing it inside the doc is
+      // redundant and breaks the security-rules field allow-list for buyers).
+      const { id, ...orderData } = built;
+      tx.set(orderRef, orderData as DocumentData);
     });
 
     return built!;
