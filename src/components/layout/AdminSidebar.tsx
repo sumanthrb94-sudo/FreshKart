@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
+import { NotificationBell } from "@/components/NotificationDrawer";
 import { cn } from "@/lib/utils";
 import { ADMIN_TABS } from "@/components/admin/AdminBottomNav";
 
@@ -50,6 +51,10 @@ export function AdminSidebar() {
           })}
         </ul>
       </nav>
+
+      <div className="border-t border-line p-3">
+        <NotificationBell />
+      </div>
     </div>
   );
 }
