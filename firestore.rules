@@ -42,7 +42,8 @@ service cloud.firestore {
     // (either direction), keeping catalog integrity without needing a backend.
     function isStockChangeValid() {
       return request.resource.data.stock >= 0
-             && math.abs(resource.data.stock - request.resource.data.stock) <= 500;
+             && request.resource.data.stock <= resource.data.stock + 500
+             && request.resource.data.stock >= resource.data.stock - 500;
     }
 
     // Helper to validate a single order item's price and line total integrity
@@ -177,8 +178,8 @@ service cloud.firestore {
                         && request.resource.data.deliveryFee == getExpectedDeliveryFee(request.resource.data.subtotal)
                         && request.resource.data.total == request.resource.data.subtotal + request.resource.data.deliveryFee);
       // Admin can advance to any status; a buyer may only cancel while the
-      // order is still CONFIRMED and may ONLY change `status` + `updatedAt`
-      // (cannot tamper with items, totals, or other fields).
+      // order is still PENDING/CONFIRMED and may ONLY change `status`,
+      // `updatedAt`, and `notes` (cannot tamper with items, totals, etc.).
       allow update: if isAdmin()
                     || (resource.data.buyerId == request.auth.uid
                         && resource.data.status in ['PENDING', 'CONFIRMED']
