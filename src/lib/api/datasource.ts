@@ -51,10 +51,21 @@ export interface DataSource {
    */
   completeProfile?(input: ProfileSetupInput): Promise<User>;
   /**
-   * Optional: sign in with Google (popup). Returns the existing profile, or
-   * null when the Google account is new and still needs the "set up shop" step.
+   * Optional: sign in with Google. Uses a popup where supported, falling back
+   * to a full-page redirect where it isn't (iOS Safari, in-app browsers that
+   * don't support `window.open`). Returns the existing profile, `null` when
+   * the Google account is new and still needs the "set up shop" step, or
+   * `undefined` when the browser navigated away for the redirect fallback
+   * (the result arrives later via `completeGoogleRedirect`).
    */
-  signInWithGoogle?(): Promise<User | null>;
+  signInWithGoogle?(): Promise<User | null | undefined>;
+  /**
+   * Optional: pick up the result of a Google sign-in that continued via
+   * full-page redirect. Call once on app load. Returns `null` when there is
+   * no pending redirect result, or `{ user }` when one just completed
+   * (`user` is `null` for a brand-new account still needing "set up shop").
+   */
+  completeGoogleRedirect?(): Promise<{ user: User | null } | null>;
   /**
    * Optional: email/password sign-in (used by mock/demo mode). Returns the
    * authenticated user profile.

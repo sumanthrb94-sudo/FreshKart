@@ -3,6 +3,9 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  type User as FirebaseUser,
 } from "firebase/auth";
 import {
   collection,
@@ -110,6 +113,35 @@ async function readDoc(
     }
   }
   throw lastErr;
+}
+
+/**
+ * Write a signed-in user's own doc, forcing a fresh ID token first and
+ * retrying once on `permission-denied`. Firestore's client can briefly lag
+ * behind Auth right after a sign-in (the token hasn't propagated to the
+ * outgoing request yet) — worse on browsers with slower/partitioned storage
+ * (iOS Safari, Brave, in-app browsers) — so the very first write after
+ * sign-in can race ahead of what the security rules see, producing a
+ * spurious "Missing or insufficient permissions" error during onboarding.
+ */
+async function writeUserDoc(
+  fbUser: FirebaseUser,
+  ref: DocumentReference<DocumentData>,
+  data: DocumentData,
+  ms: number
+): Promise<void> {
+  await fbUser.getIdToken();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await withTimeout(setDoc(ref, data, { merge: true }), ms);
+      return;
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      if (code !== "permission-denied" || attempt === 1) throw e;
+      await fbUser.getIdToken(true);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
 }
 
 /**
@@ -234,10 +266,7 @@ export class FirebaseDataSource implements DataSource {
     // Bound the write so a stalled connection surfaces a retryable error
     // instead of hanging forever on "Saving…".
     try {
-      await withTimeout(
-        setDoc(doc(db, COL.users, fb.uid), data, { merge: true }),
-        12000
-      );
+      await writeUserDoc(fb, doc(db, COL.users, fb.uid), data, 12000);
     } catch (e) {
       if (e instanceof ApiError && e.status === 599) {
         throw new ApiError("Couldn't save — your connection dropped. Please try again.", 599);
@@ -247,39 +276,21 @@ export class FirebaseDataSource implements DataSource {
     return { ...profile, id: fb.uid };
   }
 
-  async signInWithGoogle(): Promise<User | null> {
-    const auth = getFirebaseAuth();
-    let cred;
-    try {
-      cred = await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (e) {
-      const code = (e as { code?: string })?.code ?? "";
-      // User dismissed the popup — surface a sentinel the UI can ignore quietly.
-      if (code.includes("popup-closed-by-user") || code.includes("cancelled-popup-request")) {
-        throw new ApiError("Sign-in cancelled.", 499);
-      }
-      if (code.includes("popup-blocked")) {
-        throw new ApiError("Your browser blocked the sign-in popup — allow popups and try again.");
-      }
-      if (code.includes("operation-not-allowed")) {
-        throw new ApiError("Google sign-in isn't enabled for this project yet.");
-      }
-      if (code.includes("unauthorized-domain")) {
-        throw new ApiError("This domain isn't authorized for sign-in. Add it in Firebase Auth settings.");
-      }
-      throw new ApiError(e instanceof Error ? e.message : "Google sign-in failed.");
-    }
-
-    // Auth succeeded (the Firebase user now exists). Try to load the profile —
-    // but if Firestore is momentarily unreachable, DON'T dead-end the sign-in
-    // with an error. Treat it as a fresh account and let the user set up their
-    // shop; completeProfile uses { merge: true }, so it's safe even if a
-    // profile already exists. This is the fix for "Google created the user but
-    // the app showed 'Connection timed out' and never let me in".
-    // Load (or bootstrap) the profile. Configured admin email(s) are promoted to
-    // ADMIN here so they land straight in the console — no buyer onboarding.
-    const ref = doc(getDb(), COL.users, cred.user.uid);
-    const wantsAdmin = isAdminEmail(cred.user.email);
+  /**
+   * Load (or bootstrap) the Firestore profile for a Google-authenticated
+   * Firebase user, shared by both the popup and redirect sign-in paths.
+   * Configured admin email(s) are promoted to ADMIN here so they land
+   * straight in the console — no buyer onboarding.
+   */
+  private async resolveGoogleUser(fbUser: FirebaseUser): Promise<User | null> {
+    // Try to load the profile — but if Firestore is momentarily unreachable,
+    // DON'T dead-end the sign-in with an error. Treat it as a fresh account
+    // and let the user set up their shop; completeProfile uses { merge: true },
+    // so it's safe even if a profile already exists. This is the fix for
+    // "Google created the user but the app showed 'Connection timed out' and
+    // never let me in".
+    const ref = doc(getDb(), COL.users, fbUser.uid);
+    const wantsAdmin = isAdminEmail(fbUser.email);
     try {
       const snap = await readDoc(ref);
       if (snap.exists()) {
@@ -292,20 +303,72 @@ export class FirebaseDataSource implements DataSource {
       }
       if (wantsAdmin) {
         const adminProfile: Omit<User, "id"> = {
-          name: cred.user.displayName || "Admin",
-          email: cred.user.email || "",
-          phone: cred.user.phoneNumber || "",
+          name: fbUser.displayName || "Admin",
+          email: fbUser.email || "",
+          phone: fbUser.phoneNumber || "",
           role: "ADMIN",
           businessName: "Green Basket Admin",
           createdAt: new Date().toISOString(),
         };
         await setDoc(ref, adminProfile as DocumentData);
-        return { ...adminProfile, id: cred.user.uid };
+        return { ...adminProfile, id: fbUser.uid };
       }
       return null;
     } catch {
       return null;
     }
+  }
+
+  async signInWithGoogle(): Promise<User | null | undefined> {
+    const auth = getFirebaseAuth();
+    let cred;
+    try {
+      cred = await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      // User dismissed the popup — surface a sentinel the UI can ignore quietly.
+      if (code.includes("popup-closed-by-user") || code.includes("cancelled-popup-request")) {
+        throw new ApiError("Sign-in cancelled.", 499);
+      }
+      // Popups are blocked or simply unsupported in this environment — the
+      // most common reason Google sign-in works on desktop Chrome but fails
+      // on iOS Safari (popups routinely blocked) and in-app browsers like
+      // Instagram/Facebook (no window.open at all). Fall back to a full-page
+      // redirect instead of dead-ending the user with a cryptic Firebase
+      // error; the result is picked up by completeGoogleRedirect() on the
+      // next page load.
+      if (
+        code.includes("popup-blocked") ||
+        code.includes("operation-not-supported-in-this-environment")
+      ) {
+        await signInWithRedirect(auth, new GoogleAuthProvider());
+        return undefined; // browser is navigating away
+      }
+      if (code.includes("operation-not-allowed")) {
+        throw new ApiError("Google sign-in isn't enabled for this project yet.");
+      }
+      if (code.includes("unauthorized-domain")) {
+        throw new ApiError("This domain isn't authorized for sign-in. Add it in Firebase Auth settings.");
+      }
+      throw new ApiError(e instanceof Error ? e.message : "Google sign-in failed.");
+    }
+    return this.resolveGoogleUser(cred.user);
+  }
+
+  async completeGoogleRedirect(): Promise<{ user: User | null } | null> {
+    const auth = getFirebaseAuth();
+    let cred;
+    try {
+      cred = await getRedirectResult(auth);
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      if (code.includes("unauthorized-domain")) {
+        throw new ApiError("This domain isn't authorized for sign-in. Add it in Firebase Auth settings.");
+      }
+      throw new ApiError(e instanceof Error ? e.message : "Google sign-in failed.");
+    }
+    if (!cred) return null; // no redirect sign-in was pending
+    return { user: await this.resolveGoogleUser(cred.user) };
   }
 
   // --- Catalog ------------------------------------------------------------
