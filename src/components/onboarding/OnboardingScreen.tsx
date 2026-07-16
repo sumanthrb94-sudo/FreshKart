@@ -17,6 +17,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
 import { AddressPicker, type PickedAddress } from "@/components/address/AddressPicker";
+import { BrandSplash } from "@/components/ui/BrandSplash";
 
 type Step = "mobile" | "verify" | "shop" | "done";
 
@@ -122,11 +123,44 @@ export function OnboardingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
+  // On browsers where Google sign-in falls back to a full-page redirect
+  // (iOS Safari, in-app browsers), the app reloads on return from Google —
+  // hold the sign-in card back until we know whether a redirect just
+  // completed, so returning users don't flash the mobile-number screen.
+  const [checkingRedirect, setCheckingRedirect] = useState(
+    typeof api.completeGoogleRedirect === "function"
+  );
 
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
   const confirmation = useRef<ConfirmationResult | null>(null);
 
   useEffect(() => () => resetRecaptcha(), []);
+
+  useEffect(() => {
+    if (!api.completeGoogleRedirect) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await api.completeGoogleRedirect!();
+        if (cancelled || !result) return;
+        await refreshUser();
+        if (result.user) {
+          router.replace(result.user.role === "ADMIN" ? "/admin" : "/");
+        } else {
+          setMethod("google");
+          setStep("shop");
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Google sign-in failed.");
+      } finally {
+        if (!cancelled) setCheckingRedirect(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -160,6 +194,8 @@ export function OnboardingScreen() {
   const stepIndex = STEP_ORDER.indexOf(step as Step);
   const googleEnabled = typeof api.signInWithGoogle === "function";
 
+  if (checkingRedirect) return <BrandSplash />;
+
   async function handleDemoLogin(role: "ADMIN" | "BUYER") {
     setDemoBusy(true);
     setError(null);
@@ -183,6 +219,7 @@ export function OnboardingScreen() {
     setError(null);
     try {
       const existing = await api.signInWithGoogle();
+      if (existing === undefined) return; // popup unavailable — redirecting to Google
       await refreshUser();
       if (existing) {
         router.replace(existing.role === "ADMIN" ? "/admin" : "/");
