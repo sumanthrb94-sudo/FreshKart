@@ -456,7 +456,7 @@ export function OnboardingScreen() {
             {/* Demo login buttons (mock mode only) */}
             {usingMockBackend && (
               <>
-                <div className="mt-4 flex flex-col gap-2">
+                <div className="mt-5 flex flex-col gap-2">
                   <button
                     type="button"
                     onClick={() => handleDemoLogin("ADMIN")}
@@ -477,7 +477,7 @@ export function OnboardingScreen() {
                   </button>
                 </div>
 
-                <div className="my-4 flex items-center gap-3">
+                <div className="my-5 flex items-center gap-3">
                   <span className="h-px flex-1 bg-line" />
                   <span className="text-xs font-medium text-fg-subtle">or sign in</span>
                   <span className="h-px flex-1 bg-line" />
@@ -492,7 +492,7 @@ export function OnboardingScreen() {
                   type="button"
                   onClick={handleGoogle}
                   disabled={busy || googleBusy || demoBusy}
-                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-line bg-surface py-3.5 text-base font-bold text-fg-muted shadow-sm transition-colors hover:bg-raised disabled:opacity-50"
+                  className="mt-5 flex w-full items-center justify-center gap-3 rounded-xl border border-line bg-surface py-3.5 text-base font-bold text-fg-muted shadow-sm transition-colors hover:bg-raised disabled:opacity-50"
                 >
                   {googleBusy ? (
                     <Loader2 className="h-5 w-5 animate-spin text-fg-subtle" />
