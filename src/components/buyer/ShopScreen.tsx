@@ -194,9 +194,6 @@ export function ShopScreen() {
               Gathering best prices across Hyderabad
             </p>
             <p className="text-xs text-brand-200/80">Will be online at 8 AM everyday</p>
-=======
-            <p className="text-xs text-amber-200/70">Orders open after 7 AM daily price update</p>
->>>>>>> a02b807 (feat: enhance FreshKart UI/UX, checkout, payment, returns, and add desktop UI tests)
           </div>
         )}
 
