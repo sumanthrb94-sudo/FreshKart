@@ -242,8 +242,15 @@ export function AddressPicker({
         />
       </form>
 
-      {/* Map with fixed centre pin + locate button */}
-      <div className={cn("relative overflow-hidden rounded-xl border border-line", mapClassName)}>
+      {/* Map with fixed centre pin + locate button. `isolate` forces a new
+          stacking context: Leaflet's internal panes use z-index up to 700
+          (popup pane), and without this, those values compare against
+          whatever ancestor stacking context they land in instead of staying
+          contained here — e.g. bleeding on top of a modal/sheet (z-50)
+          opened over a page that still has another Leaflet map mounted
+          behind it, like the small "Deliver to" preview under the address
+          sheet's "Change" flow. */}
+      <div className={cn("relative isolate overflow-hidden rounded-xl border border-line", mapClassName)}>
         <div ref={mapEl} className="h-full w-full" />
         {/* Fixed pin — tip sits at the exact map centre */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-full">
@@ -426,7 +433,10 @@ export function AddressMapPreview({
   );
 
   return (
-    <div className={cn("relative overflow-hidden rounded-xl border border-line", className)}>
+    // `isolate`: see the comment on the main picker's map wrapper above —
+    // this is exactly the map instance that was bleeding through the
+    // "Change" address sheet opened on top of it.
+    <div className={cn("relative isolate overflow-hidden rounded-xl border border-line", className)}>
       <div ref={el} className="h-full w-full" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full">
         <MapPin className="h-8 w-8 fill-brand-500 text-white drop-shadow-lg" strokeWidth={2} />
