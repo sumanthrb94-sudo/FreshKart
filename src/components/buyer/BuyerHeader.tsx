@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut, ShoppingCart, Sprout, Sun, Moon } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Sprout, Sun, Moon } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { useTheme } from "@/components/providers/ThemeProvider";
@@ -13,15 +13,10 @@ const ICON_BTN =
   "flex h-8 w-8 items-center justify-center rounded-full bg-raised text-fg-muted transition-colors hover:bg-line hover:text-fg";
 
 export function BuyerHeader({ searchSlot }: { searchSlot?: React.ReactNode }) {
-  const { isAuthenticated, isAdmin, logout } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
   const { itemCount } = useCart();
   const { theme, toggleTheme } = useTheme();
   const router = useRouter();
-
-  async function handleLogout() {
-    await logout();
-    window.location.assign("/");
-  }
 
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface">
@@ -73,14 +68,6 @@ export function BuyerHeader({ searchSlot }: { searchSlot?: React.ReactNode }) {
                     {itemCount}
                   </span>
                 )}
-              </button>
-              <button
-                type="button"
-                aria-label="Log out"
-                onClick={handleLogout}
-                className={ICON_BTN}
-              >
-                <LogOut className="h-4 w-4" />
               </button>
             </>
           )}
