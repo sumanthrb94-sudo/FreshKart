@@ -55,7 +55,15 @@ import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
 import { DataSource, ApiError } from "./datasource";
 
-const COL = { users: "users", products: "products", orders: "orders", returns: "returns", settings: "settings" } as const;
+const COL = {
+  users: "users",
+  products: "products",
+  orders: "orders",
+  returns: "returns",
+  settings: "settings",
+  emailIndex: "emailIndex",
+  phoneIndex: "phoneIndex",
+} as const;
 
 // Emails auto-granted ADMIN on Google sign-in. Keep this in sync with the
 // `isAdminEmail()` allowlist in firestore.rules (rules can't import from here).
@@ -145,6 +153,32 @@ async function writeUserDoc(
 }
 
 /**
+ * Claim a unique value (email or phone) for this user via an index doc whose
+ * ID is the normalized value itself. Firestore security rules only allow
+ * `create` on a slot this user doesn't already own (see firestore.rules) —
+ * writing to a slot already claimed by someone else is evaluated as an
+ * `update` and denied, which is how "already taken" is detected. No read of
+ * other users' data is ever needed, unlike a `list` query across `users`
+ * filtered by email/phone (which rules can't safely grant to a non-admin —
+ * it would let any signed-in buyer dump every other buyer's profile).
+ */
+async function claimUnique(
+  fbUser: FirebaseUser,
+  ref: DocumentReference<DocumentData>,
+  label: string
+): Promise<void> {
+  try {
+    await setDoc(ref, { uid: fbUser.uid });
+  } catch (e) {
+    const code = (e as { code?: string })?.code ?? "";
+    if (code === "permission-denied") {
+      throw new ApiError(`This ${label} is already linked to another account.`);
+    }
+    throw e;
+  }
+}
+
+/**
  * Firestore + Firebase Auth implementation of the app's DataSource. The browser
  * talks to Firebase directly; integrity (ownership, admin gating) is enforced by
  * Firestore Security Rules (see firestore.rules). Stock changes use transactions
@@ -214,34 +248,25 @@ export class FirebaseDataSource implements DataSource {
     const email = (fb.email || input.email?.trim() || "").toLowerCase();
     const phone = fb.phoneNumber || input.phone?.trim() || "";
 
-    // Enforce one account per email and one account per phone.
+    // Force a fresh ID token before any of the writes below — right after
+    // sign-in, Firestore's client can briefly lag behind Auth (worse on
+    // browsers with slower/partitioned storage), and a stale token here would
+    // get a spurious permission-denied misread as "already taken" by the
+    // claim writes just below.
+    await fb.getIdToken();
+
+    // Enforce one account per email and one account per phone via claim docs
+    // (id = the normalized value) instead of querying across `users` — a
+    // `list` query filtered by email/phone can never be granted to a
+    // non-admin without letting them dump every buyer's profile, so
+    // Firestore rejected it outright for every sign-up ("Missing or
+    // insufficient permissions" on every new Google/phone account). Claiming
+    // only ever needs `create` on a doc this user doesn't already own; the
+    // rules deny writing to a slot owned by someone else, which is how
+    // "taken" is detected — no read of other users' data required.
     const db = getDb();
-    const checks: Promise<boolean>[] = [];
-    if (email) {
-      checks.push(
-        getDocs(query(collection(db, COL.users), where("email", "==", email)))
-          .then((snap) => snap.docs.some((d) => d.id !== fb.uid))
-      );
-    }
-    if (phone) {
-      checks.push(
-        getDocs(query(collection(db, COL.users), where("phone", "==", phone)))
-          .then((snap) => snap.docs.some((d) => d.id !== fb.uid))
-      );
-    }
-    const [emailTaken, phoneTaken] = await Promise.all([
-      email ? checks.shift()! : Promise.resolve(false),
-      phone ? checks.shift()! : Promise.resolve(false),
-    ]);
-    if (emailTaken && phoneTaken) {
-      throw new ApiError("This email and phone are already linked to another account.");
-    }
-    if (emailTaken) {
-      throw new ApiError("This email is already linked to another account.");
-    }
-    if (phoneTaken) {
-      throw new ApiError("This phone number is already linked to another account.");
-    }
+    if (email) await claimUnique(fb, doc(db, COL.emailIndex, email), "email");
+    if (phone) await claimUnique(fb, doc(db, COL.phoneIndex, phone), "phone number");
 
     const name = input.name?.trim() || fb.displayName || fb.phoneNumber || "Customer";
     const profile: Omit<User, "id"> = {

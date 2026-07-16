@@ -127,6 +127,29 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // --- Email/phone uniqueness claims: id = the normalized email or phone,
+    //     value = { uid }. A signed-in user may only claim a slot nobody else
+    //     already owns (this is how onboarding enforces one account per
+    //     email/phone) — never listed or read back, so no buyer's email/phone
+    //     is ever exposed to another buyer. See src/lib/api/firebase.ts
+    //     completeProfile()/claimUnique().
+    function isOwnUidOnlyDoc() {
+      return request.resource.data.keys().hasOnly(['uid'])
+             && request.resource.data.uid == request.auth.uid;
+    }
+    match /emailIndex/{email} {
+      allow get, list: if false;
+      allow create: if isSignedIn() && isOwnUidOnlyDoc();
+      allow update: if isSignedIn() && isOwnUidOnlyDoc() && resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+    match /phoneIndex/{phone} {
+      allow get, list: if false;
+      allow create: if isSignedIn() && isOwnUidOnlyDoc();
+      allow update: if isSignedIn() && isOwnUidOnlyDoc() && resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+
     // Allowed top-level fields on a new return document.
     function hasOnlyReturnFields() {
       return request.resource.data.keys().hasOnly([
