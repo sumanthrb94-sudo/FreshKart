@@ -122,8 +122,16 @@ export function AddressPicker({
         ro.observe(mapEl.current);
       }
       if (!initial?.address) reverseGeocode(center.lat, center.lng);
-      // Fresh capture (no saved pin) → grab the device's GPS location now.
-      if (initial?.lat == null) captureLocation();
+      // Deliberately NOT auto-firing captureLocation() here. WebKit (Safari,
+      // and every other browser on iOS — Chrome/Brave/Firefox for iOS are all
+      // WebKit under the hood) only shows the location permission dialog for
+      // a request made directly inside a user gesture (e.g. this tap). A
+      // geolocation call fired automatically on mount gets silently denied
+      // with no dialog at all — and WebKit then treats the origin's decision
+      // as already made, so even the later "Use my location" button click
+      // silently fails too. Chrome/Android is lenient about this and will
+      // prompt regardless, which is why this only ever showed up on iOS /
+      // non-Chrome. The user must tap "Use my location" to trigger GPS.
     })();
     return () => {
       cancelled = true;
