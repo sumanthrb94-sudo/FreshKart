@@ -367,9 +367,6 @@ export function OnboardingScreen() {
               Your delivery address is saved. Browse today&apos;s fresh arrivals and
               place your first order.
             </p>
-            <span className="mt-5 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold">
-              🎉 Free delivery on your first 3 orders
-            </span>
           </div>
 
           <div className="relative z-10 flex flex-col gap-3 pb-9 pt-6">
@@ -447,7 +444,7 @@ export function OnboardingScreen() {
               Wholesale B2B · fresh produce, per kg
             </p>
             <p className="relative z-10 mt-1 text-xs text-white/70">
-              Order in bulk · live rates · 1–2 day delivery
+              Order in bulk · live rates · next day delivery
             </p>
           </div>
 
