@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 const ICON_BTN =
   "flex h-8 w-8 items-center justify-center rounded-full bg-raised text-fg-muted transition-colors hover:bg-line hover:text-fg";
 
-export function BuyerHeader() {
+export function BuyerHeader({ searchSlot }: { searchSlot?: React.ReactNode }) {
   const { isAuthenticated, isAdmin, logout } = useAuth();
   const { itemCount } = useCart();
   const { theme, toggleTheme } = useTheme();
@@ -26,18 +26,17 @@ export function BuyerHeader() {
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface">
       <div className="flex items-center justify-between gap-2 px-3 py-2">
-        <div className="flex items-center gap-2">
-          <Link href="/" className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Link href="/" aria-label="Green Basket" className="flex items-center">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-white">
               <Sprout className="h-4 w-4" />
             </span>
-            <span className="text-sm font-extrabold text-fg">Green Basket</span>
           </Link>
 
           <button
             type="button"
             onClick={toggleTheme}
-            className="ml-1 flex h-7 w-7 items-center justify-center rounded-full bg-raised text-fg-muted transition-colors hover:bg-line hover:text-fg"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-raised text-fg-muted transition-colors hover:bg-line hover:text-fg"
             title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
@@ -45,7 +44,9 @@ export function BuyerHeader() {
           </button>
         </div>
 
-        <div className="flex items-center gap-1">
+        {searchSlot && <div className="min-w-0 flex-1">{searchSlot}</div>}
+
+        <div className="flex shrink-0 items-center gap-1">
           {isAuthenticated && (
             <>
               {isAdmin && (

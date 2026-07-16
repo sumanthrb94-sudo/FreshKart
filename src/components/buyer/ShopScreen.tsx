@@ -11,7 +11,7 @@ import { getStoreStatus } from "@/lib/store-hours";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
-import { useLang, LANGS } from "@/lib/i18n";
+import { useLang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
@@ -20,7 +20,6 @@ import { Input } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader, Spinner } from "@/components/ui/Spinner";
 import { BuyerHeader } from "./BuyerHeader";
-import { PromoBanner } from "./PromoBanner";
 import { ProductListItem } from "./ProductListItem";
 import { StickyCartBar } from "./StickyCartBar";
 import { BuyerBottomNav } from "./BuyerBottomNav";
@@ -36,7 +35,7 @@ export function ShopScreen() {
   const params = useSearchParams();
   const { user } = useAuth();
   const { lines, subtotal, clear } = useCart();
-  const { t, tCategory, lang, setLang } = useLang();
+  const { t, tCategory } = useLang();
   const { data: products, loading, error } = useAsync(() => api.listProducts(), []);
   const { data: settings, loading: settingsLoading } = useAsync(
     () => api.getDailyPricesSettings(),
@@ -138,9 +137,23 @@ export function ShopScreen() {
 
   const banner = !settingsLoading && !pricesPublished && storeStatus.isOpen;
 
+  const searchSlot = (
+    <div className="relative">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-subtle" />
+      <Input
+        flavor="field"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={t("searchProduce")}
+        className="h-9 pl-8 text-sm"
+        aria-label={t("searchProduce")}
+      />
+    </div>
+  );
+
   return (
     <AppShell
-      header={<BuyerHeader />}
+      header={<BuyerHeader searchSlot={searchSlot} />}
       footer={
         <>
           <StickyCartBar onReview={handleReview} disabled={!canOrder} />
@@ -149,31 +162,7 @@ export function ShopScreen() {
       }
       sidebar={<BuyerSidebar />}
     >
-      {/* Language bar — compact, outside the sticky search area */}
-      <div className="border-b border-line/60 bg-surface px-4 py-2">
-        <div className="fc-scroll -mx-4 flex items-center gap-1.5 overflow-x-auto px-4">
-          <span className="mr-1 text-[11px] font-medium text-fg-subtle uppercase tracking-wide">
-            Language
-          </span>
-          {LANGS.map((l) => (
-            <button
-              key={l.code}
-              type="button"
-              onClick={() => setLang(l.code)}
-              className={cn(
-                "shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors",
-                lang === l.code
-                  ? "bg-brand-500 text-white"
-                  : "text-fg-muted hover:bg-raised"
-              )}
-            >
-              {l.native}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Sticky search + category rail */}
+      {/* Sticky category rail */}
       <div className="sticky top-0 z-20 border-b border-line/60 bg-canvas/95 px-4 py-3 backdrop-blur">
         {/* Daily price-update banner */}
         {!settingsLoading && !pricesPublished && storeStatus.isOpen && (
@@ -197,7 +186,9 @@ export function ShopScreen() {
           </div>
         )}
 
-        <div className="relative">
+        {/* Search — shown here only on desktop; the mobile header hosts it instead
+            (there is no visible header at the lg: breakpoint, only the sidebar). */}
+        <div className="relative mb-3 hidden lg:block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
           <Input
             flavor="field"
@@ -208,7 +199,8 @@ export function ShopScreen() {
             aria-label={t("searchProduce")}
           />
         </div>
-        <div className="fc-scroll -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-0.5">
+
+        <div className="fc-scroll -mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5">
           <Chip active={category === "all"} onClick={() => setCategory("all")}>
             {t("all")}
           </Chip>
@@ -223,13 +215,10 @@ export function ShopScreen() {
       <div className="p-4 lg:p-6">
         {/* Hero */}
         <section className="mb-6">
-          <div className="mb-4">
-            <h1 className="text-2xl font-bold text-fg">
-              {user?.businessName ? `${user.businessName}` : user?.name ? `Hello, ${user.name}` : "Welcome back"}
-            </h1>
-            <p className="text-sm text-fg-subtle">Fresh wholesale produce delivered to your business.</p>
-          </div>
-          <PromoBanner />
+          <h1 className="text-2xl font-bold text-fg">
+            {user?.businessName ? `${user.businessName}` : user?.name ? `Hello, ${user.name}` : "Welcome back"}
+          </h1>
+          <p className="text-sm text-fg-subtle">Fresh wholesale produce delivered to your business.</p>
         </section>
 
         {/* Closed state */}
