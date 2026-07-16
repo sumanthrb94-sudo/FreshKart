@@ -19,14 +19,22 @@ export function ProductListItem({ product }: { product: Product }) {
       data-testid="product-card"
       className="group flex flex-row items-center gap-3 overflow-hidden rounded-xl border border-line bg-surface p-3 shadow-card transition-shadow hover:shadow-card-hover md:flex-col md:items-stretch md:p-0"
     >
-      {/* Thumbnail: fixed square on mobile, full-width aspect-square on desktop */}
-      <div className="relative shrink-0 md:aspect-square md:w-full">
+      {/* Thumbnail: fixed square on mobile, full-width aspect-square on desktop.
+          The size must live on THIS wrapper, not on ProductThumb's className —
+          next/image's `fill` mode injects its own inline
+          position:absolute;height:100%;width:100% on the <img>, which beats
+          any Tailwind size classes passed to it. Without an explicit size
+          here, the wrapper had nothing to size itself by on mobile (its only
+          child is out-of-flow) and collapsed to 0 width, making every
+          product photo invisible on mobile while still showing on desktop
+          (where md:aspect-square + md:w-full gave it a size). */}
+      <div className="relative h-20 w-20 shrink-0 md:h-auto md:aspect-square md:w-full">
         <ProductThumb
           name={product.name}
           imageUrl={product.imageUrl}
           size={80}
           fill
-          className="h-20 w-20 md:absolute md:inset-0 md:h-full md:w-full md:rounded-b-none"
+          className="md:rounded-b-none"
         />
       </div>
 
