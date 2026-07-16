@@ -11,6 +11,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteField,
   query,
   where,
   orderBy,
@@ -320,14 +321,22 @@ export class FirebaseDataSource implements DataSource {
     return snap.exists() ? { ...(snap.data() as Omit<Product, "id">), id: snap.id } : null;
   }
 
-  async updateProduct(id: string, patch: Partial<Product>): Promise<Product> {
+  async updateProduct(
+    id: string,
+    patch: Partial<Omit<Product, "imageUrl">> & { imageUrl?: string | null }
+  ): Promise<Product> {
     const db = getDb();
     const FIELDS = [
-      "name", "category", "unit", "price", "minOrderQty", "stock", "origin", "active", "imageUrl",
+      "name", "category", "unit", "price", "minOrderQty", "stock", "origin", "active",
     ] as const;
     const allowed: DocumentData = {};
     for (const k of FIELDS) {
       if (patch[k] !== undefined) allowed[k] = patch[k];
+    }
+    if (patch.imageUrl === null) {
+      allowed.imageUrl = deleteField();
+    } else if (patch.imageUrl !== undefined) {
+      allowed.imageUrl = patch.imageUrl;
     }
     await updateDoc(doc(db, COL.products, id), allowed);
     const snap = await getDoc(doc(db, COL.products, id));

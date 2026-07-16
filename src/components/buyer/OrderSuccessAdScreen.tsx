@@ -6,6 +6,8 @@ import { ArrowLeft, CheckCircle2, Copy, Tag, Percent, Sparkles } from "lucide-re
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
+import { BuyerBottomNav } from "@/components/buyer/BuyerBottomNav";
+import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { formatCurrency } from "@/lib/format";
@@ -148,7 +150,11 @@ export function OrderSuccessAdScreen({
   }, []);
 
   return (
-    <AppShell header={<BuyerHeader />}>
+    <AppShell
+      header={<BuyerHeader />}
+      footer={<BuyerBottomNav />}
+      sidebar={<BuyerSidebar />}
+    >
       <div className="flex flex-col gap-3 p-4">
         {/* Order Success Header */}
         <div className="flex flex-col items-center py-6 text-center">

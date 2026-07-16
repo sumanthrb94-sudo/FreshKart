@@ -65,7 +65,10 @@ export interface DataSource {
   listProducts(): Promise<Product[]>;
   getProduct(id: string): Promise<Product | null>;
   /** Admin: edit any product field (price / stock / active / details). */
-  updateProduct(id: string, patch: Partial<Product>): Promise<Product>;
+  updateProduct(
+    id: string,
+    patch: Partial<Omit<Product, "imageUrl">> & { imageUrl?: string | null }
+  ): Promise<Product>;
   /** Admin: add a new product to the catalog. */
   createProduct(input: ProductInput): Promise<Product>;
   /** Admin: bulk update prices for the daily price sheet. */

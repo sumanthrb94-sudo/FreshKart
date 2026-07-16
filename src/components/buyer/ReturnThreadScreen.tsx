@@ -24,6 +24,8 @@ import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
+import { BuyerBottomNav } from "@/components/buyer/BuyerBottomNav";
+import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FullScreenLoader } from "@/components/ui/Spinner";
@@ -64,7 +66,7 @@ export function ReturnThreadScreen({ id }: { id: string }) {
 
   if (loading) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />} sidebar={<BuyerSidebar />}>
         <FullScreenLoader />
       </AppShell>
     );
@@ -72,7 +74,7 @@ export function ReturnThreadScreen({ id }: { id: string }) {
 
   if (error || !returnReq) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />} sidebar={<BuyerSidebar />}>
         <div className="flex h-full items-center justify-center">
           <p className="text-fg-muted">{error || "Return request not found"}</p>
         </div>
@@ -84,7 +86,7 @@ export function ReturnThreadScreen({ id }: { id: string }) {
   const canMessage = canBuyerMessage(returnReq.status);
 
   return (
-    <AppShell header={<BuyerHeader />}>
+    <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />} sidebar={<BuyerSidebar />}>
       <div className="flex h-[calc(100dvh-56px)] flex-col">
         <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
           <button onClick={() => router.back()} className="flex items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg-muted">

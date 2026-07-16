@@ -68,12 +68,19 @@ export class MockDataSource implements DataSource {
     return delay(p ? structuredClone(p) : null);
   }
 
-  async updateProduct(id: string, patch: Partial<Product>): Promise<Product> {
+  async updateProduct(
+    id: string,
+    patch: Partial<Omit<Product, "imageUrl">> & { imageUrl?: string | null }
+  ): Promise<Product> {
     let updated: Product | null = null;
     store.mutate((s) => {
       const p = s.products.find((x) => x.id === id);
       if (!p) return;
-      Object.assign(p, patch, { id: p.id });
+      const normalized = { ...patch } as Partial<Product> & { imageUrl?: string | null };
+      if (normalized.imageUrl === null) {
+        delete normalized.imageUrl;
+      }
+      Object.assign(p, normalized as Partial<Product>, { id: p.id });
       updated = p;
     });
     if (!updated) throw new ApiError("Product not found.", 404);

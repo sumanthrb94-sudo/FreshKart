@@ -20,8 +20,25 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Sheet } from "@/components/ui/Sheet";
 import { ProductThumb } from "@/components/ui/ProductThumb";
 import { FullScreenLoader, Spinner } from "@/components/ui/Spinner";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getFirebaseStorage } from "@/lib/firebase/client";
 
 const ALL = "__all__";
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB, matches storage.rules
+
+async function uploadProductImage(file: File, productId: string): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new ApiError("Please select an image file.");
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    throw new ApiError("Image must be smaller than 5 MB.");
+  }
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `products/${productId}/${Date.now()}.${ext}`;
+  const storageRef = ref(getFirebaseStorage(), path);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
 
 /** A product is low when stock is within twice its minimum order quantity. */
 function isLowStock(p: Product): boolean {
@@ -52,6 +69,7 @@ interface FormState {
   origin: string;
   active: boolean;
   imageUrl: string;
+
 }
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -90,6 +108,7 @@ function validate(form: FormState): { errors: FormErrors; input: ProductInput | 
 
   const name = form.name.trim();
   const origin = form.origin.trim();
+  const imageUrl = form.imageUrl.trim();
   const price = Number(form.price);
   const minOrderQty = Number(form.minOrderQty);
   const stock = Number(form.stock);
@@ -141,7 +160,7 @@ function ProductForm({
   productId?: string;
   submitLabel: string;
   onClose: () => void;
-  onSubmit: (input: ProductInput) => Promise<void>;
+  onSubmit: (input: ProductInput, file?: File) => Promise<void>;
 }) {
   const [form, setForm] = useState<FormState>(initial);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -724,15 +743,28 @@ export function AdminProductsScreen() {
 
   const lowCount = useMemo(() => products.filter((p) => p.active && isLowStock(p)).length, [products]);
 
-  async function handleCreate(input: ProductInput) {
-    await api.createProduct(input);
+  async function handleCreate(input: ProductInput, file?: File) {
+    if (file) {
+      const created = await api.createProduct({ ...input, imageUrl: undefined });
+      const url = await uploadProductImage(file, created.id);
+      await api.updateProduct(created.id, { imageUrl: url });
+    } else {
+      await api.createProduct(input);
+    }
     setAdding(false);
     refetch();
   }
 
-  async function handleUpdate(input: ProductInput) {
+  async function handleUpdate(input: ProductInput, file?: File) {
     if (!editing) return;
-    const updated = await api.updateProduct(editing.id, input);
+    const patch: Parameters<typeof api.updateProduct>[1] = { ...input };
+    if (file) {
+      const url = await uploadProductImage(file, editing.id);
+      patch.imageUrl = url;
+    } else if (editing.imageUrl && !input.imageUrl) {
+      patch.imageUrl = null;
+    }
+    const updated = await api.updateProduct(editing.id, patch);
     applyOverride(updated);
     setEditing(null);
     refetch();

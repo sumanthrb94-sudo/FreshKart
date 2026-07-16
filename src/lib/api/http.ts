@@ -68,7 +68,10 @@ export class HttpDataSource implements DataSource {
     return this.request<Product | null>(`/products/${id}`);
   }
 
-  updateProduct(id: string, patch: Partial<Product>) {
+  updateProduct(
+    id: string,
+    patch: Partial<Omit<Product, "imageUrl">> & { imageUrl?: string | null }
+  ) {
     return this.request<Product>(`/products/${id}`, {
       method: "PATCH",
       body: JSON.stringify(patch),

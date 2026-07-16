@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
+import { BuyerBottomNav } from "@/components/buyer/BuyerBottomNav";
+import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -51,7 +53,11 @@ export function BuyerReturnsScreen() {
   }
 
   return (
-    <AppShell header={<BuyerHeader />}>
+    <AppShell
+      header={<BuyerHeader />}
+      footer={<BuyerBottomNav />}
+      sidebar={<BuyerSidebar />}
+    >
       <div className="flex flex-col gap-3 p-4">
         <Link href="/orders" className="flex w-fit items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg-muted">
           <ArrowLeft className="h-3.5 w-3.5" /> My orders

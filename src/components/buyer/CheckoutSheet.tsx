@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Banknote, CreditCard, MapPin, Pencil, ShieldCheck, Wallet } from "lucide-react";
+import { Banknote, CreditCard, MapPin, Pencil, Receipt, ShieldCheck, Wallet } from "lucide-react";
 import type { DeliveryDetails, PaymentMethod } from "@/lib/types";
-import { formatCurrency, pricePerUnit, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
+import { formatCurrency, pricePerUnit, MIN_ORDER_TOTAL_QTY, PAYMENT_LABELS, PAYMENT_LONG } from "@/lib/format";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
 import { Field, Input } from "@/components/ui/Field";
 import { ProductThumb } from "@/components/ui/ProductThumb";
 import { QuantityStepper } from "@/components/ui/QuantityStepper";
@@ -18,9 +19,10 @@ import {
 } from "@/components/address/AddressPicker";
 import { cn } from "@/lib/utils";
 
-const PAYMENT_OPTIONS: { method: PaymentMethod; label: string; sub: string; icon: typeof Wallet }[] = [
-  { method: "COD", label: "Cash on delivery", sub: "Pay the rider when produce arrives", icon: Banknote },
-  { method: "ONLINE", label: "Pay online", sub: "Card or UPI · simulated gateway", icon: CreditCard },
+const PAYMENT_OPTIONS: { method: PaymentMethod; icon: typeof Wallet }[] = [
+  { method: "COD", icon: Banknote },
+  { method: "CREDIT", icon: Receipt },
+  { method: "ONLINE", icon: CreditCard },
 ];
 
 export function CheckoutSheet({
@@ -47,9 +49,6 @@ export function CheckoutSheet({
   const [localError, setLocalError] = useState<string | null>(null);
   const [changeOpen, setChangeOpen] = useState(false);
 
-  // Re-load the saved profile (address + phone) every time the sheet opens, so
-  // details saved elsewhere — Account, or a previous order — show up and we
-  // never ask again for something the user already gave us.
   useEffect(() => {
     if (open) setDelivery(defaultDelivery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -70,7 +69,6 @@ export function CheckoutSheet({
       label: addr.label,
     }));
     setChangeOpen(false);
-    // Persist as the new default for next time (best-effort).
     updateProfile({
       address: addr.address,
       city: addr.city,
@@ -97,9 +95,6 @@ export function CheckoutSheet({
       return;
     }
     setLocalError(null);
-    // Persist the phone back to the profile so it becomes the default and the
-    // next order is pre-filled — no asking twice. Best-effort (the address is
-    // already saved when picked).
     if (delivery.phone && delivery.phone !== user?.phone) {
       updateProfile({ phone: delivery.phone }).catch(() => {});
     }
@@ -110,43 +105,44 @@ export function CheckoutSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title="Your order">
-      <div className="flex flex-col gap-4 p-4">
-        {/* 1 · Items */}
-        <section className="rounded-xl border border-line bg-surface p-4">
+      <div className="flex flex-col gap-5 p-5">
+        {shownError && <Alert variant="error">{shownError}</Alert>}
+
+        {/* Items */}
+        <section>
           <h3 className="mb-3 text-sm font-bold text-fg">
             Items ({lines.length})
           </h3>
-          <ul className="flex flex-col divide-y divide-line">
+          <ul className="flex flex-col gap-3">
             {lines.map((line) => (
-              <li key={line.product.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                <ProductThumb name={line.product.name} imageUrl={line.product.imageUrl} size={48} />
+              <li
+                key={line.product.id}
+                className="flex items-center gap-3 rounded-2xl border border-line/60 bg-surface p-3"
+              >
+                <ProductThumb name={line.product.name} imageUrl={line.product.imageUrl} size={64} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-fg">
-                    {line.product.name}
-                  </p>
+                  <p className="truncate text-sm font-semibold text-fg">{line.product.name}</p>
                   <p className="text-xs text-fg-subtle">
                     {pricePerUnit(line.product.price, line.product.unit)}
                   </p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <QuantityStepper
-                    product={line.product}
-                    qty={line.qty}
-                    onIncrement={() => increment(line.product)}
-                    onDecrement={() => decrement(line.product)}
-                    size="sm"
-                  />
-                  <span className="text-xs font-bold text-fg">
+                  <p className="mt-1 text-xs font-bold text-fg">
                     {formatCurrency(line.product.price * line.qty)}
-                  </span>
+                  </p>
                 </div>
+                <QuantityStepper
+                  product={line.product}
+                  qty={line.qty}
+                  onIncrement={() => increment(line.product)}
+                  onDecrement={() => decrement(line.product)}
+                  size="sm"
+                />
               </li>
             ))}
           </ul>
         </section>
 
-        {/* 2 · Delivery — saved address (auto-selected) */}
-        <section className="rounded-xl border border-line bg-surface p-4">
+        {/* Delivery */}
+        <section className="rounded-2xl border border-line/60 bg-surface p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="flex items-center gap-1.5 text-sm font-bold text-fg">
               <MapPin className="h-4 w-4 text-brand-500" /> Deliver to
@@ -165,11 +161,11 @@ export function CheckoutSheet({
           {delivery.address ? (
             <div className="flex flex-col gap-3">
               {delivery.lat != null && delivery.lng != null && (
-                <AddressMapPreview lat={delivery.lat} lng={delivery.lng} className="h-28" />
+                <AddressMapPreview lat={delivery.lat} lng={delivery.lng} className="h-28 rounded-xl" />
               )}
               <div>
                 {delivery.label && (
-                  <span className="mb-1 inline-block rounded-full bg-brand-500/20 px-2 py-0.5 text-2xs font-bold uppercase tracking-wide text-brand-300">
+                  <span className="mb-1 inline-block rounded-full bg-brand-500/10 px-2 py-0.5 text-2xs font-bold uppercase tracking-wide text-brand-300">
                     {delivery.label}
                   </span>
                 )}
@@ -180,8 +176,9 @@ export function CheckoutSheet({
                   </p>
                 )}
               </div>
-              <Field label="Phone for delivery updates">
+              <Field label="Phone for delivery updates" htmlFor="checkout-phone">
                 <Input
+                  id="checkout-phone"
                   flavor="field"
                   inputMode="tel"
                   value={delivery.phone}
@@ -194,15 +191,15 @@ export function CheckoutSheet({
             <button
               type="button"
               onClick={() => setChangeOpen(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand-300 bg-brand-500/15 py-3 text-sm font-bold text-brand-300"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line bg-raised py-3 text-sm font-bold text-fg-muted transition-colors hover:border-brand-300 hover:text-brand-400"
             >
               <MapPin className="h-4 w-4" /> Add delivery address
             </button>
           )}
         </section>
 
-        {/* 3 · Payment */}
-        <section className="rounded-xl border border-line bg-surface p-4">
+        {/* Payment */}
+        <section>
           <h3 className="mb-3 text-sm font-bold text-fg">Payment method</h3>
           <div className="flex flex-col gap-2">
             {PAYMENT_OPTIONS.map((opt) => {
@@ -214,14 +211,25 @@ export function CheckoutSheet({
                   type="button"
                   onClick={() => setMethod(opt.method)}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors",
-                    selected ? "border-brand-500 bg-brand-500/15" : "border-line bg-surface"
+                    "flex items-center gap-3 rounded-xl border px-3.5 py-3.5 text-left transition-all",
+                    selected
+                      ? "border-brand-500 bg-brand-500/10"
+                      : "border-line/60 bg-surface hover:border-line"
                   )}
                 >
-                  <Icon className={cn("h-5 w-5 shrink-0", selected ? "text-brand-400" : "text-fg-subtle")} />
+                  <span
+                    className={cn(
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+                      selected ? "bg-brand-500 text-white" : "bg-raised text-fg-subtle"
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-fg">{opt.label}</span>
-                    <span className="block text-xs text-fg-subtle">{opt.sub}</span>
+                    <span className="block text-sm font-semibold text-fg">
+                      {PAYMENT_LABELS[opt.method]}
+                    </span>
+                    <span className="block text-xs text-fg-subtle">{PAYMENT_LONG[opt.method]}</span>
                   </span>
                   <span
                     className={cn(
@@ -237,11 +245,11 @@ export function CheckoutSheet({
           </div>
         </section>
 
-        {/* 4 · Bill */}
-        <section className="rounded-xl border border-line bg-surface p-4">
+        {/* Bill */}
+        <section className="rounded-2xl border border-line/60 bg-surface p-4">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-fg-muted">Item total</span>
-            <span className="font-semibold text-fg">{formatCurrency(subtotal)}</span>
+            <span className="text-fg-subtle">Item total</span>
+            <span className="font-medium text-fg">{formatCurrency(subtotal)}</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-sm">
             <span className="text-fg-muted">Delivery</span>
@@ -249,7 +257,7 @@ export function CheckoutSheet({
               {deliveryFee === 0 ? "FREE" : formatCurrency(deliveryFee)}
             </span>
           </div>
-          <div className="my-3 border-t border-dashed border-line" />
+          <div className="my-3 border-t border-dashed border-line/60" />
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold text-fg">To pay</span>
             <span className="text-lg font-extrabold text-fg">{formatCurrency(total)}</span>
@@ -260,12 +268,10 @@ export function CheckoutSheet({
           <ShieldCheck className="h-4 w-4 text-brand-500" />
           Quality checked · easy returns on bad stock
         </p>
-
-        {shownError && <p className="text-center text-sm text-red-600">{shownError}</p>}
       </div>
 
       {/* Sticky CTA */}
-      <div className="sticky bottom-0 border-t border-line bg-canvas/95 p-4 backdrop-blur">
+      <div className="sticky bottom-0 border-t border-line/60 bg-canvas/95 p-4 backdrop-blur">
         <Button size="lg" fullWidth loading={busy} disabled={disabled} onClick={handleSubmit}>
           {busy
             ? "Placing order…"
@@ -277,7 +283,7 @@ export function CheckoutSheet({
         </Button>
       </div>
 
-      {/* Change / add address — map picker on top of the order sheet */}
+      {/* Address picker */}
       <Sheet
         open={changeOpen}
         onClose={() => setChangeOpen(false)}

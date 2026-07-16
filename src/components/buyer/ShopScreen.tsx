@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Clock, Phone, Search, SearchX } from "lucide-react";
+import { Clock, Headphones, Search, SearchX } from "lucide-react";
 import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
@@ -11,7 +11,7 @@ import { getStoreStatus } from "@/lib/store-hours";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
-import { useLang } from "@/lib/i18n";
+import { useLang, LANGS } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader, Spinner } from "@/components/ui/Spinner";
 import { BuyerHeader } from "./BuyerHeader";
+import { PromoBanner } from "./PromoBanner";
 import { ProductListItem } from "./ProductListItem";
 import { StickyCartBar } from "./StickyCartBar";
 import { BuyerBottomNav } from "./BuyerBottomNav";
@@ -27,8 +28,7 @@ import { CheckoutSheet } from "./CheckoutSheet";
 import { PaymentSheet } from "./PaymentSheet";
 import { SuccessOverlay } from "./SuccessOverlay";
 
-// TODO: replace with your real support number (E.164). "Call support" opens the
-// phone's dialer with this number prefilled.
+// TODO: replace with your real support number (E.164).
 const SUPPORT_PHONE = "+918000000000";
 
 export function ShopScreen() {
@@ -64,8 +64,7 @@ export function ShopScreen() {
 
   const pricesPublished = isDailyPriceUpdatePublished(settings?.publishedAt);
 
-  // Re-evaluate store open/closed status every minute so the catalog hides
-  // automatically after 11:45 PM IST and reappears at 8:00 AM IST.
+  // Re-evaluate store open/closed status every minute.
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -90,7 +89,6 @@ export function ShopScreen() {
     city: user?.city ?? "",
     address: user?.address ?? "",
     pincode: user?.pincode ?? "",
-    // Conditional so we never write `undefined` (Firestore rejects it).
     ...(user?.lat != null ? { lat: user.lat } : {}),
     ...(user?.lng != null ? { lng: user.lng } : {}),
     ...(user?.addressLabel ? { label: user.addressLabel } : {}),
@@ -138,6 +136,8 @@ export function ShopScreen() {
     }
   }
 
+  const banner = !settingsLoading && !pricesPublished && storeStatus.isOpen;
+
   return (
     <AppShell
       header={<BuyerHeader />}
@@ -149,16 +149,40 @@ export function ShopScreen() {
       }
       sidebar={<BuyerSidebar />}
     >
+      {/* Language bar — compact, outside the sticky search area */}
+      <div className="border-b border-line/60 bg-surface px-4 py-2">
+        <div className="fc-scroll -mx-4 flex items-center gap-1.5 overflow-x-auto px-4">
+          <span className="mr-1 text-[11px] font-medium text-fg-subtle uppercase tracking-wide">
+            Language
+          </span>
+          {LANGS.map((l) => (
+            <button
+              key={l.code}
+              type="button"
+              onClick={() => setLang(l.code)}
+              className={cn(
+                "shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                lang === l.code
+                  ? "bg-brand-500 text-white"
+                  : "text-fg-muted hover:bg-raised"
+              )}
+            >
+              {l.native}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Sticky search + category rail */}
-      <div className="sticky top-0 z-20 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur">
+      <div className="sticky top-0 z-20 border-b border-line/60 bg-canvas/95 px-4 py-3 backdrop-blur">
         {/* Daily price-update banner */}
         {!settingsLoading && !pricesPublished && storeStatus.isOpen && (
-          <div className="mb-3 -mt-1 rounded-lg border border-amber-500/30 bg-amber-500/15 px-3 py-2 text-center">
+          <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-center">
             <p className="flex items-center justify-center gap-2 text-sm font-bold text-amber-100">
               <Clock className="h-4 w-4 text-amber-400" aria-hidden />
               Getting best live prices for you
             </p>
-            <p className="text-xs text-amber-200/80">Orders open after 7 AM daily price update</p>
+            <p className="text-xs text-amber-200/70">Orders open after 7 AM daily price update</p>
           </div>
         )}
 
@@ -170,6 +194,9 @@ export function ShopScreen() {
               Gathering best prices across Hyderabad
             </p>
             <p className="text-xs text-brand-200/80">Will be online at 8 AM everyday</p>
+=======
+            <p className="text-xs text-amber-200/70">Orders open after 7 AM daily price update</p>
+>>>>>>> a02b807 (feat: enhance FreshKart UI/UX, checkout, payment, returns, and add desktop UI tests)
           </div>
         )}
 
@@ -180,11 +207,11 @@ export function ShopScreen() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("searchProduce")}
-            className="pl-9"
+            className="h-11 pl-9"
             aria-label={t("searchProduce")}
           />
         </div>
-        <div className="fc-scroll -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
+        <div className="fc-scroll -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-0.5">
           <Chip active={category === "all"} onClick={() => setCategory("all")}>
             {t("all")}
           </Chip>
@@ -196,44 +223,59 @@ export function ShopScreen() {
         </div>
       </div>
 
-      <div className="p-4">
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <Spinner className="h-7 w-7" />
+      <div className="p-4 lg:p-6">
+        {/* Hero */}
+        <section className="mb-6">
+          <div className="mb-4">
+            <h1 className="text-2xl font-bold text-fg">
+              {user?.businessName ? `${user.businessName}` : user?.name ? `Hello, ${user.name}` : "Welcome back"}
+            </h1>
+            <p className="text-sm text-fg-subtle">Fresh wholesale produce delivered to your business.</p>
           </div>
-        ) : error ? (
-          <EmptyState icon={SearchX} title={t("couldntLoad")} subtitle={error} />
-        ) : !storeStatus.isOpen ? (
+          <PromoBanner />
+        </section>
+
+        {/* Closed state */}
+        {!storeStatus.isOpen ? (
           <EmptyState
             icon={Clock}
             title="Gathering best prices across Hyderabad"
             subtitle="Will be online at 8 AM everyday. Come back tomorrow!"
           />
+        ) : loading ? (
+          <div className="flex justify-center py-16">
+            <Spinner className="h-7 w-7" />
+          </div>
+        ) : error ? (
+          <EmptyState icon={SearchX} title={t("couldntLoad")} subtitle={error} />
         ) : visible.length === 0 ? (
           <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
         ) : (
-          <div className="product-grid mt-3">
-            {visible.map((p) => (
-              <ProductListItem key={p.id} product={p} />
-            ))}
-          </div>
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-bold text-fg">{tCategory(category === "all" ? "All" : CATEGORIES.find((c) => c.id === category)?.name ?? "Products")}</h2>
+              <span className="text-xs text-fg-subtle">{visible.length} items</span>
+            </div>
+            <div className="product-grid mt-3">
+              {visible.map((p) => (
+                <ProductListItem key={p.id} product={p} />
+              ))}
+            </div>
+          </section>
         )}
       </div>
 
-      {/* Call support — floating 3D dialer button (opens the phone dialer) */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-app lg:left-[var(--sidebar-width)] lg:right-0 lg:mx-0 lg:max-w-none">
-        <a
-          href={`tel:${SUPPORT_PHONE}`}
-          aria-label={t("callSupport")}
-          className={cn(
-            "animate-float pointer-events-auto absolute right-4 flex items-center gap-2 rounded-full bg-gradient-to-b from-brand-400 to-brand-600 px-4 py-3 text-sm font-extrabold text-white shadow-[0_8px_0_-2px_#a81824,0_16px_26px_-8px_rgba(0,0,0,.5)] transition-all active:translate-y-1 active:shadow-[0_4px_0_-2px_#a81824,0_8px_16px_-8px_rgba(0,0,0,.4)] motion-reduce:animate-none",
-            lines.length > 0 ? "bottom-40" : "bottom-24"
-          )}
-        >
-          <Phone className="h-5 w-5" />
-          {t("callSupport")}
-        </a>
-      </div>
+      {/* Subtle support button */}
+      <a
+        href={`tel:${SUPPORT_PHONE}`}
+        aria-label={t("callSupport")}
+        className={cn(
+          "fixed right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-surface text-brand-500 shadow-card border border-line transition-all hover:shadow-card-hover hover:scale-105 active:scale-95",
+          lines.length > 0 ? "bottom-32" : "bottom-24"
+        )}
+      >
+        <Headphones className="h-5 w-5" />
+      </a>
 
       {/* Overlays */}
       <CheckoutSheet

@@ -18,6 +18,8 @@ import { RETURN_REASON_LABELS } from "@/lib/returns";
 import type { ReturnReason, ReturnImage } from "@/lib/returns";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
+import { BuyerBottomNav } from "@/components/buyer/BuyerBottomNav";
+import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FullScreenLoader } from "@/components/ui/Spinner";
@@ -137,7 +139,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
 
   if (!ready || loading) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />} sidebar={<BuyerSidebar />}>
         <FullScreenLoader />
       </AppShell>
     );
@@ -145,7 +147,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
 
   if (!order) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />} sidebar={<BuyerSidebar />}>
         <div className="flex h-full items-center justify-center">
           <p className="text-fg-muted">Order not found</p>
         </div>
@@ -196,7 +198,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
 
   if (submitted) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />} sidebar={<BuyerSidebar />}>
         <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
             <CheckCircle2 className="h-8 w-8 text-emerald-500" />
@@ -225,7 +227,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
   }
 
   return (
-    <AppShell header={<BuyerHeader />}>
+    <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />} sidebar={<BuyerSidebar />}>
       <div className="flex flex-col gap-3 p-4">
         <button onClick={() => router.back()} className="flex w-fit items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg-muted">
           <ArrowLeft className="h-3.5 w-3.5" /> Back to order

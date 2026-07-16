@@ -4,8 +4,10 @@ import { useState } from "react";
 import { CreditCard, Lock, Smartphone } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
 import { Field, Input } from "@/components/ui/Field";
 import { Sheet } from "@/components/ui/Sheet";
+import { Spinner } from "@/components/ui/Spinner";
 import { cn } from "@/lib/utils";
 
 type Tab = "card" | "upi";
@@ -44,8 +46,9 @@ export function PaymentSheet({
       if (card.replace(/\s/g, "").length !== 16) return "Enter a valid 16-digit card number.";
       if (!/^\d{2}\/\d{2}$/.test(expiry)) return "Enter expiry as MM/YY.";
       if (!/^\d{3}$/.test(cvv)) return "Enter a valid 3-digit CVV.";
+      if (!name.trim()) return "Enter the name on card.";
     } else {
-      if (!/^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(upi)) return "Enter a valid UPI id (e.g. name@okbank).";
+      if (!/[\w.\-]{2,}@[a-zA-Z]{2,}/.test(upi)) return "Enter a valid UPI id (e.g. name@okbank).";
     }
     return null;
   }
@@ -58,7 +61,6 @@ export function PaymentSheet({
     }
     setError(null);
     setProcessing(true);
-    // Simulated gateway round-trip.
     setTimeout(() => {
       setProcessing(false);
       onPaid();
@@ -83,17 +85,23 @@ export function PaymentSheet({
       }
     >
       {processing ? (
-        <div className="flex flex-col items-center justify-center gap-3 px-6 py-20 text-center">
-          <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-brand-500/20 border-t-brand-500" />
-          <p className="text-base font-bold text-fg">
-            Processing {formatCurrency(amount)}…
-          </p>
-          <p className="text-sm text-fg-subtle">Do not close this screen.</p>
+        <div className="flex flex-col items-center justify-center gap-4 px-6 py-24 text-center">
+          <Spinner className="h-10 w-10" />
+          <div>
+            <p className="text-base font-bold text-fg">Processing {formatCurrency(amount)}…</p>
+            <p className="text-sm text-fg-subtle">Do not close this screen.</p>
+          </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-4 p-5">
+        <div className="flex flex-col gap-5 p-5">
+          {/* Amount card */}
+          <div className="rounded-2xl bg-brand-500 p-5 text-white">
+            <p className="text-sm font-medium text-white/80">Amount to pay</p>
+            <p className="mt-1 text-3xl font-bold">{formatCurrency(amount)}</p>
+          </div>
+
           {/* Tabs */}
-          <div className="grid grid-cols-2 gap-1 rounded-lg bg-raised p-1">
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-raised p-1">
             {(["card", "upi"] as Tab[]).map((t) => (
               <button
                 key={t}
@@ -103,24 +111,21 @@ export function PaymentSheet({
                   setError(null);
                 }}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 rounded-md py-2 text-sm font-semibold transition-colors",
-                  tab === t ? "bg-surface text-fg shadow-sm" : "text-fg-subtle"
+                  "flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold transition-colors",
+                  tab === t ? "bg-surface text-fg shadow-sm" : "text-fg-subtle hover:text-fg"
                 )}
               >
-                {t === "card" ? (
-                  <CreditCard className="h-4 w-4" />
-                ) : (
-                  <Smartphone className="h-4 w-4" />
-                )}
+                {t === "card" ? <CreditCard className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />}
                 {t === "card" ? "Card" : "UPI"}
               </button>
             ))}
           </div>
 
           {tab === "card" ? (
-            <div className="flex flex-col gap-3">
-              <Field label="Card number">
+            <div className="flex flex-col gap-4">
+              <Field label="Card number" htmlFor="pay-card">
                 <Input
+                  id="pay-card"
                   flavor="field"
                   inputMode="numeric"
                   value={card}
@@ -128,17 +133,19 @@ export function PaymentSheet({
                   placeholder="1234 5678 9012 3456"
                 />
               </Field>
-              <Field label="Name on card">
+              <Field label="Name on card" htmlFor="pay-name">
                 <Input
+                  id="pay-name"
                   flavor="field"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Suresh Kumar"
                 />
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Expiry (MM/YY)">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Expiry (MM/YY)" htmlFor="pay-expiry">
                   <Input
+                    id="pay-expiry"
                     flavor="field"
                     inputMode="numeric"
                     value={expiry}
@@ -146,8 +153,9 @@ export function PaymentSheet({
                     placeholder="MM/YY"
                   />
                 </Field>
-                <Field label="CVV">
+                <Field label="CVV" htmlFor="pay-cvv">
                   <Input
+                    id="pay-cvv"
                     flavor="field"
                     inputMode="numeric"
                     type="password"
@@ -158,14 +166,13 @@ export function PaymentSheet({
                   />
                 </Field>
               </div>
-              <p className="text-xs text-fg-subtle">
-                Test card pre-filled — no real charge is made.
-              </p>
+              <p className="text-xs text-fg-subtle">Test card pre-filled — no real charge is made.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
-              <Field label="UPI id">
+            <div className="flex flex-col gap-4">
+              <Field label="UPI id" htmlFor="pay-upi">
                 <Input
+                  id="pay-upi"
                   flavor="field"
                   value={upi}
                   onChange={(e) => setUpi(e.target.value)}
@@ -176,7 +183,7 @@ export function PaymentSheet({
                 {["GPay", "PhonePe", "Paytm"].map((p) => (
                   <span
                     key={p}
-                    className="rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-fg-muted"
+                    className="rounded-full border border-line/60 bg-surface px-3 py-1 text-xs font-semibold text-fg-muted"
                   >
                     {p}
                   </span>
@@ -185,13 +192,13 @@ export function PaymentSheet({
             </div>
           )}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <Alert variant="error">{error}</Alert>}
 
           <Button size="lg" fullWidth onClick={handlePay} leadingIcon={<Lock className="h-4 w-4" />}>
             Pay {formatCurrency(amount)}
           </Button>
           <p className="text-center text-xs text-fg-subtle">
-            ✓ Simulated gateway · PCI-safe demo
+            Simulated gateway · PCI-safe demo
           </p>
         </div>
       )}
