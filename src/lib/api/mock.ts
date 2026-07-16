@@ -114,9 +114,6 @@ export class MockDataSource implements DataSource {
 
   // --- Orders -------------------------------------------------------------
   async createOrder(buyerId: string, input: CreateOrderInput): Promise<Order> {
-    if (input.paymentMethod === "CREDIT") {
-      throw new ApiError("Business credit is not available.");
-    }
     if (!isDailyPriceUpdatePublished(store.get().dailyPrices?.publishedAt)) {
       throw new ApiError(
         "Getting best live prices for you. Orders open after today's prices are published."

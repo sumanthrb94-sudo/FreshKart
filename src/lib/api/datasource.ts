@@ -100,7 +100,7 @@ export interface DataSource {
   /** Bulk update status for multiple orders at once (morning delivery batch processing). */
   bulkUpdateOrderStatus(ids: string[], status: OrderStatus): Promise<Order[]>;
   cancelOrder(id: string): Promise<Order>;
-  /** Admin: mark an order paid / unpaid (COD / credit settlement). */
+  /** Admin: mark an order paid / unpaid (COD settlement). */
   setOrderPaid(id: string, paid: boolean): Promise<Order>;
 
   // --- Admin --------------------------------------------------------------

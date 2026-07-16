@@ -34,7 +34,7 @@ All shapes are defined in [`src/lib/types.ts`](../src/lib/types.ts). Summary:
 
 **Enums**
 - `OrderStatus`: `PENDING → CONFIRMED → PACKED → SHIPPED → DELIVERED`, plus `CANCELLED`
-- `PaymentMethod`: `COD | CREDIT | ONLINE` (`CREDIT` is kept for legacy orders but new orders must use `COD` or `ONLINE`)
+- `PaymentMethod`: `COD | ONLINE`
 - `PaymentStatus`: `UNPAID | PAID`
 
 **Conventions**
@@ -154,9 +154,7 @@ message (e.g. `"Getting best live prices for you. Orders open after today's pric
 create type role as enum ('BUYER','ADMIN','SELLER');
 create type unit as enum ('kg','pc');
 create type order_status as enum ('PENDING','CONFIRMED','PACKED','SHIPPED','DELIVERED','CANCELLED');
-create type payment_method as enum ('COD','CREDIT','ONLINE');
--- Note: application code rejects new orders using 'CREDIT'; keep the enum value
--- so existing legacy orders still load correctly.
+create type payment_method as enum ('COD','ONLINE');
 create type payment_status as enum ('UNPAID','PAID');
 
 create table daily_prices_settings (

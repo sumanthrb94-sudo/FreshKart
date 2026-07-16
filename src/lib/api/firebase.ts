@@ -473,10 +473,6 @@ export class FirebaseDataSource implements DataSource {
         `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`
       );
     }
-    if (input.paymentMethod === "CREDIT") {
-      throw new ApiError("Business credit is not available.");
-    }
-
     const settingsSnap = await readDoc(doc(db, COL.settings, "dailyPrices"));
     const settings = settingsSnap.exists()
       ? (settingsSnap.data() as DailyPricesSettings)

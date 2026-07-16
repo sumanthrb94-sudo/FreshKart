@@ -18,7 +18,7 @@ export type OrderStatus =
   | "DELIVERED"
   | "CANCELLED";
 
-export type PaymentMethod = "COD" | "CREDIT" | "ONLINE";
+export type PaymentMethod = "COD" | "ONLINE";
 
 export type PaymentStatus = "UNPAID" | "PAID";
 

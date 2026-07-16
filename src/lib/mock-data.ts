@@ -212,7 +212,7 @@ export const ORDERS: Order[] = [
     orderNumber: "ORD-20260623-MN44Xy",
     buyerId: "user-buyer-2",
     status: "PENDING",
-    paymentMethod: "CREDIT",
+    paymentMethod: "COD",
     createdAt: "2026-06-23T05:45:00.000Z",
     items: [
       { productId: "carrot", qty: 20 },

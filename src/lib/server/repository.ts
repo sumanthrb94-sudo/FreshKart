@@ -84,9 +84,6 @@ export const repository = {
   },
 
   createOrder(buyerId: string, input: CreateOrderInput): Order {
-    if (input.paymentMethod === "CREDIT") {
-      throw new RepoError("Business credit is not available.");
-    }
     if (!isDailyPriceUpdatePublished(dailyPrices?.publishedAt)) {
       throw new RepoError(
         "Getting best live prices for you. Orders open after today's prices are published."

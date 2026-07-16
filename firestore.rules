@@ -196,9 +196,6 @@ service cloud.firestore {
                         && hasOnlyOrderFields()
                         && request.resource.data.buyerId == request.auth.uid
                         && request.resource.data.status in ['CONFIRMED']
-                        // Business credit is discontinued — buyers may only pay
-                        // COD or online. (CREDIT is still a valid stored value
-                        // on pre-existing orders; this only blocks new ones.)
                         && request.resource.data.paymentMethod in ['COD', 'ONLINE']
                         && validateOrderItems(request.resource.data.items)
                         && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items)

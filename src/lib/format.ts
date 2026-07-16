@@ -109,12 +109,10 @@ export const TRACKING_STAGES: TimelineStage[] = [
 
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   COD: "Cash on delivery",
-  CREDIT: "Business credit",
   ONLINE: "Online payment",
 };
 
 export const PAYMENT_LONG: Record<PaymentMethod, string> = {
   COD: "Cash on delivery",
-  CREDIT: "Credit (pay later)",
   ONLINE: "Pay online",
 };
