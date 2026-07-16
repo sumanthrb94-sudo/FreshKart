@@ -87,7 +87,7 @@ export function AddressPicker({
   useEffect(() => {
     let cancelled = false;
     let ro: ResizeObserver | null = null;
-    const timers: ReturnType<typeof setTimeout>[] = [];
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     (async () => {
       const L = await import("leaflet");
       if (cancelled || !mapEl.current || mapRef.current) return;
@@ -111,14 +111,24 @@ export function AddressPicker({
       });
       mapRef.current = map;
       // Sheets animate in, so the container can be mid-resize when the map
-      // mounts — re-measure on a few ticks AND whenever it actually resizes,
-      // else Leaflet paints into a stale/zero-size box and the tiles come up
-      // gray (the "map not loading when changing address" bug).
-      [60, 250, 500, 900].forEach((t) =>
-        timers.push(setTimeout(() => map.invalidateSize(), t))
-      );
+      // mounts. Re-measure once things settle — but through a SINGLE
+      // debounced call, not a burst of independent timers/ResizeObserver
+      // firings. Each invalidateSize() re-derives Leaflet's pixel origin and
+      // (by default) animates a re-pan to keep the same center; firing it
+      // repeatedly while tiles from the previous call are still loading lets
+      // two different pan generations of tiles land and stay on screen at
+      // once — a torn, double-exposed-looking map. `animate: false` also
+      // drops the re-pan animation itself, which was the other half of that
+      // same race.
+      const scheduleInvalidate = () => {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (!cancelled) map.invalidateSize({ animate: false });
+        }, 120);
+      };
+      scheduleInvalidate();
       if (typeof ResizeObserver !== "undefined" && mapEl.current) {
-        ro = new ResizeObserver(() => map.invalidateSize());
+        ro = new ResizeObserver(scheduleInvalidate);
         ro.observe(mapEl.current);
       }
       if (!initial?.address) reverseGeocode(center.lat, center.lng);
@@ -136,7 +146,7 @@ export function AddressPicker({
     return () => {
       cancelled = true;
       ro?.disconnect();
-      timers.forEach(clearTimeout);
+      if (resizeTimer) clearTimeout(resizeTimer);
       if (geoTimer.current) clearTimeout(geoTimer.current);
       mapRef.current?.remove();
       mapRef.current = null;
@@ -361,6 +371,8 @@ export function AddressMapPreview({
 
   useEffect(() => {
     let cancelled = false;
+    let ro: ResizeObserver | null = null;
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     (async () => {
       const L = await import("leaflet");
       if (cancelled || !el.current) return;
@@ -379,18 +391,29 @@ export function AddressMapPreview({
           maxZoom: 19,
         }).addTo(map);
         mapRef.current = map;
-        // Re-measure across the sheet's open animation so tiles aren't gray.
-        [80, 300, 600].forEach((t) =>
-          setTimeout(() => {
-            if (mapRef.current === map) map.invalidateSize();
-          }, t)
-        );
+        // Re-measure across the sheet's open animation, debounced to a single
+        // call (see the main AddressPicker map above) — an un-debounced
+        // burst of invalidateSize() calls can leave two different pan
+        // generations of tiles on screen at once, a torn/double-exposed map.
+        const scheduleInvalidate = () => {
+          if (resizeTimer) clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => {
+            if (!cancelled && mapRef.current === map) map.invalidateSize({ animate: false });
+          }, 120);
+        };
+        scheduleInvalidate();
+        if (typeof ResizeObserver !== "undefined" && el.current) {
+          ro = new ResizeObserver(scheduleInvalidate);
+          ro.observe(el.current);
+        }
       } else {
         mapRef.current.setView([lat, lng], 16);
       }
     })();
     return () => {
       cancelled = true;
+      ro?.disconnect();
+      if (resizeTimer) clearTimeout(resizeTimer);
     };
   }, [lat, lng]);
 
