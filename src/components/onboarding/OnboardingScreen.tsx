@@ -164,7 +164,13 @@ export function OnboardingScreen() {
 
   useEffect(() => {
     let mounted = true;
-    if (step === "mobile" && firebaseConfigured) {
+    // Wait for the redirect check to finish — until then, BrandSplash is
+    // rendered instead of the mobile-step markup, so the #recaptcha-container
+    // div this needs doesn't exist in the DOM yet. Firing anyway used to throw
+    // "The sign-in widget could not load", and since this effect only re-runs
+    // on `step` changes (which stays "mobile" the whole time), the widget
+    // never got a second chance to actually mount.
+    if (step === "mobile" && firebaseConfigured && !checkingRedirect) {
       setRecaptchaReady(false);
       renderRecaptcha(
         RECAPTCHA_ID,
@@ -182,7 +188,7 @@ export function OnboardingScreen() {
       mounted = false;
       if (step !== "mobile") resetRecaptcha();
     };
-  }, [step]);
+  }, [step, checkingRedirect]);
 
   // Tick down the resend cooldown.
   useEffect(() => {
