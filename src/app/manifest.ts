@@ -13,7 +13,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Green Basket — Wholesale B2B",
     short_name: "Green Basket",
     description:
-      "B2B wholesale fresh-produce marketplace. Live rates · order in bulk · pay COD, credit or online.",
+      "B2B wholesale fresh-produce marketplace. Live rates · order in bulk · pay COD or online.",
     start_url: "/",
     scope: "/",
     display: "standalone",

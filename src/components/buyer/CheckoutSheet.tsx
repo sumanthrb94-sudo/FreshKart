@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Banknote, CreditCard, MapPin, Pencil, Receipt, ShieldCheck, Wallet } from "lucide-react";
+import { Banknote, CreditCard, MapPin, Pencil, ShieldCheck, Wallet } from "lucide-react";
 import type { DeliveryDetails, PaymentMethod } from "@/lib/types";
 import { formatCurrency, pricePerUnit, MIN_ORDER_TOTAL_QTY, PAYMENT_LABELS, PAYMENT_LONG } from "@/lib/format";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -21,7 +21,6 @@ import { cn } from "@/lib/utils";
 
 const PAYMENT_OPTIONS: { method: PaymentMethod; icon: typeof Wallet }[] = [
   { method: "COD", icon: Banknote },
-  { method: "CREDIT", icon: Receipt },
   { method: "ONLINE", icon: CreditCard },
 ];
 

@@ -374,8 +374,7 @@ function buildInvoiceHTML(order: Order): string {
         <div class="info-block">
           <p>1. All prices are in Indian Rupees (Rs.) and are exclusive of GST unless stated.</p>
           <p>2. Goods once sold will not be taken back or exchanged.</p>
-          <p>3. Payment is due within 7 days for credit orders.</p>
-          <p>4. For disputes, contact: support@green-basket.in</p>
+          <p>3. For disputes, contact: support@green-basket.in</p>
         </div>
       </div>
     </div>

@@ -15,7 +15,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Green Basket — Wholesale B2B · per kg",
   description:
-    "B2B wholesale fresh-produce marketplace. Live B2B rates · order in bulk · pay COD, credit or online · 1–2 day delivery.",
+    "B2B wholesale fresh-produce marketplace. Live B2B rates · order in bulk · pay COD or online · 1–2 day delivery.",
   applicationName: "Green Basket",
   manifest: "/manifest.json",
   appleWebApp: {

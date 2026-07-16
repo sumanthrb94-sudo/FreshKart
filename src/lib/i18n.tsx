@@ -55,10 +55,10 @@ const STRINGS: Record<string, Dict> = {
     mr: "घाऊक फळे आणि भाज्या",
   },
   promoSub: {
-    en: "Live B2B rates · order in bulk · pay COD, credit or online.",
-    hi: "लाइव B2B रेट · थोक में ऑर्डर · COD, क्रेडिट या ऑनलाइन भुगतान।",
-    te: "లైవ్ B2B రేట్లు · బల్క్‌గా ఆర్డర్ · COD, క్రెడిట్ లేదా ఆన్‌లైన్ చెల్లింపు.",
-    mr: "लाइव्ह B2B दर · घाऊक ऑर्डर · COD, क्रेडिट किंवा ऑनलाइन पेमेंट.",
+    en: "Live B2B rates · order in bulk · pay COD or online.",
+    hi: "लाइव B2B रेट · थोक में ऑर्डर · COD या ऑनलाइन भुगतान।",
+    te: "లైవ్ B2B రేట్లు · బల్క్‌గా ఆర్డర్ · COD లేదా ఆన్‌లైన్ చెల్లింపు.",
+    mr: "लाइव्ह B2B दर · घाऊक ऑर्डर · COD किंवा ऑनलाइन पेमेंट.",
   },
   callSupport: {
     en: "Call support",
