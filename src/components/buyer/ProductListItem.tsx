@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { formatCurrency, unitLabel } from "@/lib/format";
 import { useCart } from "@/components/providers/CartProvider";
@@ -42,10 +42,6 @@ export function ProductListItem({ product }: { product: Product }) {
       <div className="flex min-w-0 flex-1 flex-col md:p-3">
         <p className="line-clamp-2 text-sm font-bold leading-snug text-fg">
           {tProduct(product.name)}
-        </p>
-        <p className="mt-0.5 flex items-center gap-1 text-[11px] text-fg-subtle">
-          <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-          <span className="truncate">{product.origin}</span>
         </p>
 
         <div className="mt-auto flex items-end justify-between gap-2 pt-2">
