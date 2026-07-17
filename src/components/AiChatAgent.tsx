@@ -15,6 +15,7 @@ export function AiChatAgent() {
   const [isOpen, setIsOpen] = useState(false);
   const [ticket, setTicket] = useState<SupportTicket | null>(null);
   const [ticketLoading, setTicketLoading] = useState(false);
+  const [ticketError, setTicketError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const contextRef = useRef<ChatSession["context"]>("general");
@@ -56,6 +57,7 @@ export function AiChatAgent() {
   const loadTicket = useCallback(async () => {
     if (!user) return;
     setTicketLoading(true);
+    setTicketError(null);
     try {
       const t = await api.getOrCreateSupportTicket({
         buyerId: user.id,
@@ -64,6 +66,8 @@ export function AiChatAgent() {
         buyerName: user.name,
       });
       setTicket(t);
+    } catch (e) {
+      setTicketError(e instanceof Error ? e.message : "Couldn't load chat. Please try again.");
     } finally {
       setTicketLoading(false);
     }
@@ -77,10 +81,14 @@ export function AiChatAgent() {
         // closed shows up, instead of only refetching on first load.
         if (ticket) {
           setTicketLoading(true);
-          api.getSupportTicket(ticket.id).then((fresh) => {
-            if (fresh) setTicket(fresh);
-            setTicketLoading(false);
-          });
+          api.getSupportTicket(ticket.id)
+            .then((fresh) => {
+              if (fresh) setTicket(fresh);
+            })
+            .catch((e) => {
+              setTicketError(e instanceof Error ? e.message : "Couldn't refresh chat.");
+            })
+            .finally(() => setTicketLoading(false));
         } else if (!ticketLoading) {
           loadTicket();
         }
@@ -93,58 +101,76 @@ export function AiChatAgent() {
     if (!input.trim() || !ticket) return;
     const userText = input.trim();
     setInput("");
+    setTicketError(null);
 
-    if (userText === TALK_TO_HUMAN) {
+    try {
+      if (userText === TALK_TO_HUMAN) {
+        setTyping(true);
+        const updated = await api.addSupportTicketMessage(ticket.id, "buyer", userText);
+        const escalated = await api.escalateSupportTicket(updated.id);
+        setTicket(escalated);
+        return;
+      }
+
       setTyping(true);
-      const updated = await api.addSupportTicketMessage(ticket.id, "buyer", userText);
-      const escalated = await api.escalateSupportTicket(updated.id);
-      setTicket(escalated);
-      setTyping(false);
-      return;
-    }
+      const afterBuyer = await api.addSupportTicketMessage(ticket.id, "buyer", userText);
+      setTicket(afterBuyer);
 
-    setTyping(true);
-    const afterBuyer = await api.addSupportTicketMessage(ticket.id, "buyer", userText);
-    setTicket(afterBuyer);
+      const lower = userText.toLowerCase();
+      if (lower.includes("return") || lower.includes("refund")) contextRef.current = "returns";
+      else if (lower.includes("order") || lower.includes("track")) contextRef.current = "order_help";
+      else if (lower.includes("price") || lower.includes("cost")) contextRef.current = "pricing";
 
-    const lower = userText.toLowerCase();
-    if (lower.includes("return") || lower.includes("refund")) contextRef.current = "returns";
-    else if (lower.includes("order") || lower.includes("track")) contextRef.current = "order_help";
-    else if (lower.includes("price") || lower.includes("cost")) contextRef.current = "pricing";
-
-    setTimeout(async () => {
       const { text, suggestions } = generateAIResponse(userText, contextRef.current);
-      const afterAssistant = await api.addSupportTicketMessage(afterBuyer.id, "assistant", text, suggestions);
+      const afterAssistant = await new Promise<SupportTicket>((resolve, reject) => {
+        setTimeout(() => {
+          api.addSupportTicketMessage(afterBuyer.id, "assistant", text, suggestions).then(resolve, reject);
+        }, 500);
+      });
       setTicket(afterAssistant);
+    } catch (e) {
+      setTicketError(e instanceof Error ? e.message : "Message didn't send. Please try again.");
+    } finally {
       setTyping(false);
-    }, 500);
+    }
   };
 
   const handleQuickAction = async (query: string) => {
     if (!ticket) return;
-    if (query === TALK_TO_HUMAN) {
+    setTicketError(null);
+    try {
+      if (query === TALK_TO_HUMAN) {
+        setTyping(true);
+        const afterBuyer = await api.addSupportTicketMessage(ticket.id, "buyer", query);
+        const escalated = await api.escalateSupportTicket(afterBuyer.id);
+        setTicket(escalated);
+        return;
+      }
       setTyping(true);
       const afterBuyer = await api.addSupportTicketMessage(ticket.id, "buyer", query);
-      const escalated = await api.escalateSupportTicket(afterBuyer.id);
-      setTicket(escalated);
-      setTyping(false);
-      return;
-    }
-    setTyping(true);
-    const afterBuyer = await api.addSupportTicketMessage(ticket.id, "buyer", query);
-    setTicket(afterBuyer);
-    setTimeout(async () => {
+      setTicket(afterBuyer);
       const { text, suggestions } = generateAIResponse(query, contextRef.current);
-      const afterAssistant = await api.addSupportTicketMessage(afterBuyer.id, "assistant", text, suggestions);
+      const afterAssistant = await new Promise<SupportTicket>((resolve, reject) => {
+        setTimeout(() => {
+          api.addSupportTicketMessage(afterBuyer.id, "assistant", text, suggestions).then(resolve, reject);
+        }, 400);
+      });
       setTicket(afterAssistant);
+    } catch (e) {
+      setTicketError(e instanceof Error ? e.message : "Message didn't send. Please try again.");
+    } finally {
       setTyping(false);
-    }, 400);
+    }
   };
 
   const handleEndChat = async () => {
     if (!ticket) return;
-    const closed = await api.closeSupportTicket(ticket.id);
-    setTicket(closed);
+    try {
+      const closed = await api.closeSupportTicket(ticket.id);
+      setTicket(closed);
+    } catch (e) {
+      setTicketError(e instanceof Error ? e.message : "Couldn't end the chat. Please try again.");
+    }
   };
 
   const handleStartNew = () => {
@@ -238,6 +264,19 @@ export function AiChatAgent() {
               </div>
             )}
 
+            {!ticketLoading && !ticket && ticketError && (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                <p className="text-sm font-semibold text-fg">Couldn&apos;t load chat</p>
+                <p className="max-w-[240px] text-xs text-fg-subtle">{ticketError}</p>
+                <button
+                  onClick={loadTicket}
+                  className="mt-1 rounded-full bg-brand-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+
             {ticket?.thread.map((msg) => (
               <ChatBubble key={msg.id} message={msg} />
             ))}
@@ -286,6 +325,9 @@ export function AiChatAgent() {
             </div>
           ) : (
             <div className="border-t border-line bg-surface px-3 py-2">
+              {ticket && ticketError && (
+                <p className="mb-1.5 text-center text-[11px] font-medium text-red-500">{ticketError}</p>
+              )}
               <div className="flex items-center gap-2 rounded-xl border border-line bg-raised px-3 py-2">
                 <input
                   ref={inputRef}
