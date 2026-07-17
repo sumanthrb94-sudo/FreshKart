@@ -68,11 +68,17 @@ const RAW: SeedProduct[] = [
   { name: "Spring Onion", category: "leafy-greens", unit: "kg", price: 60, minOrderQty: 1, stock: 26, origin: "Pune, Maharashtra" },
 ];
 
-export const PRODUCTS: Product[] = RAW.map((p) => ({
-  ...p,
-  id: p.id ?? slug(p.name),
-  active: p.active ?? true,
-}));
+export const PRODUCTS: Product[] = RAW.map((p) => {
+  const id = p.id ?? slug(p.name);
+  return {
+    ...p,
+    id,
+    active: p.active ?? true,
+    // Every seed product has a matching cropped photo in public/produce/,
+    // named by its own slug (see git history for the extraction script).
+    imageUrl: p.imageUrl ?? `/produce/${id}.jpg`,
+  };
+});
 
 
 export const DEMO_PASSWORD = "password123";
