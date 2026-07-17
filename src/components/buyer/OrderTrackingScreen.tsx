@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -21,6 +21,7 @@ import {
   PAYMENT_LONG,
 } from "@/lib/format";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
+import type { Order } from "@/lib/types";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
 import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
@@ -35,11 +36,59 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { PackageX } from "lucide-react";
 
+/** Live order-by-id for the buyer: subscribes so status changes, refunds,
+ *  and invoice adjustments (e.g. once a return is refunded) show up
+ *  immediately, without the buyer needing to reload the page. Falls back to
+ *  a one-time fetch for backends that don't support subscriptions. Scoping
+ *  the subscription to `buyerId` also means a buyer only ever sees their
+ *  own order, whatever the id in the URL. */
+function useLiveOrder(id: string, buyerId: string | undefined) {
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!buyerId) return;
+    let active = true;
+
+    if (typeof api.subscribeOrders !== "function") {
+      setLoading(true);
+      api
+        .getOrder(id)
+        .then((o) => {
+          if (active) setOrder(o);
+        })
+        .catch((e: unknown) => {
+          if (active) setError(e instanceof Error ? e.message : "Failed to load order.");
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }
+
+    const unsubscribe = api.subscribeOrders(buyerId, (orders) => {
+      if (!active) return;
+      setOrder(orders.find((o) => o.id === id) ?? null);
+      setLoading(false);
+      setError(null);
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [id, buyerId]);
+
+  return { order, loading, error };
+}
+
 export function OrderTrackingScreen({ id }: { id: string }) {
   const { ready, user } = useRequireAuth({ callbackUrl: `/orders/${id}` });
   const params = useSearchParams();
   const justPlaced = params.get("placed") === "1";
-  const { data: order, loading, refetch } = useAsync(() => api.getOrder(id), [id]);
+  const { order, loading } = useLiveOrder(id, user?.id);
   const { data: returns } = useAsync(() => api.listReturns(user?.id), [user?.id]);
   const [cancelling, setCancelling] = useState(false);
 
@@ -48,7 +97,8 @@ export function OrderTrackingScreen({ id }: { id: string }) {
     try {
       await api.cancelOrder(id);
       if (order) notifyOrderCancelled(order.orderNumber);
-      refetch();
+      // The live order subscription above picks up the cancellation
+      // automatically — no manual refetch needed.
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not cancel order. Please try again.";
       toast.error("Cancel failed", message);

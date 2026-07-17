@@ -75,6 +75,22 @@ function notify() {
 
 let _state = load();
 
+// The `notify()` above only reaches listeners registered in THIS tab's JS
+// realm — admin and buyer are always different tabs/devices in practice, so
+// without this, one side's mutation (e.g. an admin processing a refund)
+// would never reach the other's subscribeOrders/subscribeReturns callbacks.
+// The browser's `storage` event fires in every OTHER same-origin tab
+// whenever localStorage changes (never the tab that made the change), so
+// this is exactly the cross-tab signal needed: reload from localStorage and
+// re-notify this tab's own listeners.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key !== null && e.key !== LS_KEY) return;
+    _state = load();
+    notify();
+  });
+}
+
 export const store = {
   get(): MockStore {
     return _state;

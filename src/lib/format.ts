@@ -101,6 +101,12 @@ export function canBuyerCancel(status: OrderStatus): boolean {
   return status === "PENDING" || status === "CONFIRMED";
 }
 
+/** Invoices are only issued once an order has actually been delivered —
+ *  never for a cancelled order, which has nothing to invoice. */
+export function canDownloadInvoice(status: OrderStatus): boolean {
+  return status === "DELIVERED";
+}
+
 // 5-stage buyer tracking timeline (brief §9.3)
 export interface TimelineStage {
   status: OrderStatus;

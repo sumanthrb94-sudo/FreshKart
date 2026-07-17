@@ -361,10 +361,25 @@ export class MockDataSource implements DataSource {
     store.mutate((s) => {
       const r = s.returns.find((x) => x.id === id);
       if (!r) return;
+      const now = new Date().toISOString();
       r.status = status;
-      r.updatedAt = new Date().toISOString();
+      r.updatedAt = now;
       if ((["REJECTED", "REFUNDED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
-        r.resolvedAt = new Date().toISOString();
+        r.resolvedAt = now;
+      }
+      // When a refund is processed, adjust the parent order's total so the
+      // customer's invoice reflects the refund immediately — mirrors
+      // FirebaseDataSource.updateReturnStatus's transactional order patch.
+      if (status === "REFUNDED") {
+        const order = s.orders.find((o) => o.id === r.orderId);
+        if (order) {
+          const originalTotal = order.subtotal + order.deliveryFee;
+          order.refundAmount = r.totalRefund;
+          order.refundedAt = now;
+          order.adjustedInvoiceNumber = r.adjustedInvoiceNumber;
+          order.total = Math.max(0, originalTotal - r.totalRefund);
+          order.updatedAt = now;
+        }
       }
       updated = r;
     });

@@ -1,13 +1,14 @@
 "use client";
 
-import { useRef, useCallback, useState } from "react";
-import { FileText, Loader2, CheckCircle2 } from "lucide-react";
+import { useCallback, useState } from "react";
+import { FileText, CheckCircle2, Clock, Ban } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import {
   formatCurrency,
   formatDate,
   PAYMENT_LONG,
   ORDER_STATUS_META,
+  canDownloadInvoice,
 } from "@/lib/format";
 import type { Order } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,36 @@ export function InvoiceDownloader({
       setTimeout(() => setStatus("idle"), 3000);
     }, 400);
   }, [order]);
+
+  // No invoice for a cancelled order — there's nothing to bill.
+  if (order.status === "CANCELLED") {
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-center gap-2 rounded-lg border border-line bg-raised px-3 py-2.5 text-xs font-medium text-fg-subtle",
+          className
+        )}
+      >
+        <Ban className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        No invoice — order was cancelled
+      </div>
+    );
+  }
+
+  // Invoices are only issued once the order is actually delivered.
+  if (!canDownloadInvoice(order.status)) {
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-center gap-2 rounded-lg border border-line bg-raised px-3 py-2.5 text-xs font-medium text-fg-subtle",
+          className
+        )}
+      >
+        <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        Invoice available after delivery
+      </div>
+    );
+  }
 
   return (
     <Button

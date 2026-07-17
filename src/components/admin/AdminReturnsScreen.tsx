@@ -39,6 +39,17 @@ const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: 
   COMPLETED: { label: "Completed", color: "bg-brand-500/10 text-brand-500", icon: CheckCircle2, nextAction: "" },
 };
 
+/** Label for the button that moves a return INTO the given status — keyed by
+ *  the transition's target, so "Process Refund" really sets REFUNDED (the old
+ *  `STATUS_CONFIG[next].nextAction` labels were one step ahead of the click). */
+const TRANSITION_LABELS: Partial<Record<ReturnStatus, string>> = {
+  APPROVED: "Approve",
+  REJECTED: "Reject",
+  PICKED_UP: "Mark Picked Up",
+  REFUNDED: "Process Refund",
+  COMPLETED: "Mark Complete",
+};
+
 export function AdminReturnsScreen() {
   const { data: returns, loading, error, refetch } = useAsync(() => api.listReturns(), []);
   const [filter, setFilter] = useState<ReturnStatus | "all">("all");
@@ -289,7 +300,7 @@ function ReturnDetail({
                 onClick={() => onStatusChange(returnReq.id, nextStatus)}
                 className="rounded-lg bg-brand-500 px-4 py-2 text-xs font-bold text-white hover:bg-brand-600"
               >
-                {STATUS_CONFIG[nextStatus].nextAction || nextStatus}
+                {TRANSITION_LABELS[nextStatus] ?? nextStatus}
               </button>
             ))}
           </div>

@@ -11,6 +11,11 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL || "http://localhost:3100",
     headless: true,
+    // Use the environment's pre-installed Chromium when the pinned
+    // @playwright/test version's own browser build isn't downloaded.
+    ...(process.env.PLAYWRIGHT_CHROMIUM_PATH
+      ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } }
+      : {}),
     viewport: { width: 1280, height: 1600 },
     screenshot: "only-on-failure",
     trace: "off",
