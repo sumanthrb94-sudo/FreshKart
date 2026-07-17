@@ -17,8 +17,19 @@ service cloud.firestore {
              && request.auth.token.email in ['sumanthbolla97@gmail.com', 'sivakishore43@gmail.com'];
     }
 
+    // Reading `.data` off a get() for a document that doesn't exist throws —
+    // and an error anywhere in a rule evaluation is treated as an automatic
+    // deny for the WHOLE rule, not just this check. So any signed-in user
+    // whose users/{uid} doc is missing (incomplete onboarding, deleted
+    // profile, any other edge case) would get "Missing or insufficient
+    // permissions" on every single write, including their own orders —
+    // isAdmin() is evaluated first in nearly every allow clause in this
+    // file. Guard with exists() so a missing profile just resolves to "not
+    // admin" instead of blowing up the whole request.
     function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+             ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+             : null;
     }
 
     function isAdmin() {
@@ -64,6 +75,17 @@ service cloud.firestore {
              && request.resource.data.stock >= resource.data.stock - 10000;
     }
 
+    // Same defensive pattern as userRole(): guard against settings/priceSheet
+    // ever being missing (shouldn't happen in normal use, but a raw get()
+    // here would error — and therefore deny — every single order if it
+    // ever were). Falls back to an empty map, which cleanly fails every
+    // item's `productId in prices` check instead of erroring.
+    function priceSheetPrices() {
+      return exists(/databases/$(database)/documents/settings/priceSheet)
+             ? get(/databases/$(database)/documents/settings/priceSheet).data.prices
+             : {};
+    }
+
     // Helper to validate a single order item's price and line total integrity.
     // `prices` is the pre-fetched settings/priceSheet map — passed in so this
     // makes ZERO get() calls of its own, unlike the old per-item
@@ -71,7 +93,11 @@ service cloud.firestore {
     // that used to be forced by Firestore's get()-call budget per rule
     // evaluation (10 for a single doc, 20 inside a transaction).
     function validateItem(item, prices) {
-      return item.price == prices[item.productId]
+      // Indexing a map with a key it doesn't have also throws in Firestore's
+      // rules language — guard with `in` first so an untracked productId
+      // cleanly denies that order instead of erroring the whole request.
+      return item.productId in prices
+             && item.price == prices[item.productId]
              && item.lineTotal == item.price * item.qty;
     }
 
@@ -240,7 +266,7 @@ service cloud.firestore {
                         && request.resource.data.paymentMethod in ['COD', 'ONLINE']
                         && validateOrderItems(
                              request.resource.data.items,
-                             get(/databases/$(database)/documents/settings/priceSheet).data.prices)
+                             priceSheetPrices())
                         && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items)
                         && request.resource.data.deliveryFee == getExpectedDeliveryFee(request.resource.data.subtotal)
                         && request.resource.data.total == request.resource.data.subtotal + request.resource.data.deliveryFee);
