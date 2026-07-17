@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
+import { notifyOrderCancelled } from "@/lib/in-app-notifications";
 import { cn } from "@/lib/utils";
 import {
   canBuyerCancel,
@@ -46,7 +47,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
     setCancelling(true);
     try {
       await api.cancelOrder(id);
-      toast.success("Order cancelled", "Your order has been cancelled and stock released.");
+      if (order) notifyOrderCancelled(order.orderNumber);
       refetch();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not cancel order. Please try again.";

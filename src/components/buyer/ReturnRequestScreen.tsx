@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/Button";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { formatCurrency } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { notifyReturnRequested } from "@/lib/in-app-notifications";
 
 export function ReturnRequestScreen({ orderId }: { orderId: string }) {
   const { ready, user } = useRequireAuth({ callbackUrl: `/orders/${orderId}/return` });
@@ -125,7 +126,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
         images,
       });
 
-      toast.success("Return request submitted!", `Refund of ${formatCurrency(returnReq.totalRefund)} will be processed in 3-5 days`);
+      notifyReturnRequested(order.orderNumber, returnReq.id, returnReq.totalRefund);
 
       setReturnId(returnReq.id);
       setSubmitted(true);

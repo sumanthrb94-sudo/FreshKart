@@ -8,6 +8,7 @@ export type InAppNotificationType =
   | "order_packed"
   | "order_delivered"
   | "order_cancelled"
+  | "return_requested"
   | "return_approved"
   | "return_rejected"
   | "return_refunded"
@@ -145,6 +146,15 @@ export function notifyOrderCancelled(orderNumber: string, reason?: string) {
     "Order Cancelled",
     `Your order ${orderNumber} was cancelled. ${reason || "Any amount paid will be refunded within 5-7 business days."}`,
     { actionUrl: "/orders" }
+  );
+}
+
+export function notifyReturnRequested(orderNumber: string, returnId: string, refundAmount: number) {
+  return addInAppNotification(
+    "return_requested",
+    "Return Request Submitted",
+    `Refund of Rs. ${refundAmount} for order ${orderNumber} will be processed in 3-5 days. Our team will review within 24 hours.`,
+    { actionUrl: `/returns/${returnId}` }
   );
 }
 
