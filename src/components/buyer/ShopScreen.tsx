@@ -235,8 +235,7 @@ export function ShopScreen() {
             <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
           ) : (
             <section>
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-base font-bold text-fg">{tCategory(category === "all" ? "All" : CATEGORIES.find((c) => c.id === category)?.name ?? "Products")}</h2>
+              <div className="mb-2 flex items-center justify-end">
                 <span className="text-xs text-fg-subtle">{visible.length} items</span>
               </div>
               <div className="product-grid mt-2">
