@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, ShieldCheck, Store, ShoppingBag, Radio, RotateCcw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { LogOut, ShieldCheck, Store, ShoppingBag, Radio, RotateCcw, ChevronDown } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
@@ -10,9 +11,27 @@ import { AdminBottomNav } from "./AdminBottomNav";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { api } from "@/lib/api";
 import { useEffect, useState, useRef } from "react";
+import type { Order } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { NotificationBell } from "@/components/NotificationDrawer";
+
+/** 5:42 PM — clock time, for "when did this order land" context. */
+function formatClockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+}
+
+/** "2m ago" / "3h ago" / "1d ago" */
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
 
 /** Web Audio API new-order chime — no external files needed. */
 function playNewOrderSound() {
@@ -66,7 +85,7 @@ function playNewReturnSound() {
 
 /** Hook for real-time order count + new-order alerts in admin header */
 function useAdminOrderAlerts() {
-  const [confirmedCount, setConfirmedCount] = useState(0);
+  const [confirmedOrders, setConfirmedOrders] = useState<Order[]>([]);
   const [isLive, setIsLive] = useState(false);
   const previousIds = useRef<Set<string>>(new Set());
   const hasInit = useRef(false);
@@ -76,7 +95,7 @@ function useAdminOrderAlerts() {
       // HTTP backend — not live
       api.listOrders()
         .then((orders) => {
-          setConfirmedCount(orders.filter((o) => o.status === "CONFIRMED").length);
+          setConfirmedOrders(orders.filter((o) => o.status === "CONFIRMED"));
         })
         .catch(() => {});
       return;
@@ -84,7 +103,11 @@ function useAdminOrderAlerts() {
 
     setIsLive(true);
     const unsubscribe = api.subscribeOrders(undefined, (orders) => {
-      setConfirmedCount(orders.filter((o) => o.status === "CONFIRMED").length);
+      setConfirmedOrders(
+        orders
+          .filter((o) => o.status === "CONFIRMED")
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      );
 
       if (hasInit.current) {
         const currentIds = new Set(orders.map((o) => o.id));
@@ -109,7 +132,7 @@ function useAdminOrderAlerts() {
     return () => unsubscribe();
   }, []);
 
-  return { confirmedCount, isLive };
+  return { confirmedOrders, isLive };
 }
 
 /** Hook for real-time pending-return count + new-return alerts in admin header */
@@ -162,9 +185,101 @@ function useAdminReturnAlerts() {
   return { pendingCount, isLive };
 }
 
+/** Clickable "N new" badge — expands into a dropdown of confirmed orders,
+ *  most recently placed first, so admins can see what just came in without
+ *  leaving the current screen. */
+function NewOrdersBadge({ orders }: { orders: Order[] }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (panelRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClick);
+      return () => document.removeEventListener("mousedown", handleClick);
+    }
+  }, [open]);
+
+  if (orders.length === 0) return null;
+
+  function openOrder(id: string) {
+    setOpen(false);
+    router.push(`/admin/orders?status=CONFIRMED&open=${id}`);
+  }
+
+  return (
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "mr-1 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-colors",
+          open ? "bg-amber-500/20 text-amber-500" : "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+        )}
+      >
+        {orders.length} new
+        <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
+          <div
+            ref={panelRef}
+            className="fixed right-2 top-16 z-[61] w-[calc(100vw-1rem)] max-w-80 overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-line px-3.5 py-2.5">
+              <p className="text-sm font-bold text-fg">New orders</p>
+              <p className="text-xs text-fg-subtle">{orders.length} awaiting packing</p>
+            </div>
+            <div className="max-h-80 overflow-y-auto p-2">
+              {orders.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => openOrder(o.id)}
+                  className="flex w-full items-start justify-between gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-raised"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-fg">{o.businessName}</p>
+                    <p className="text-xs text-fg-subtle">{o.orderNumber}</p>
+                    <p className="mt-0.5 text-2xs text-fg-subtle">
+                      {formatClockTime(o.createdAt)} · {timeAgo(o.createdAt)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-sm font-bold text-fg">{formatCurrency(o.total)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="border-t border-line p-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  router.push("/admin/orders?status=CONFIRMED");
+                }}
+                className="w-full rounded-lg py-2 text-center text-xs font-semibold text-brand-500 hover:bg-brand-500/10"
+              >
+                View all in Orders
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AdminHeader() {
   const { logout } = useAuth();
-  const { confirmedCount, isLive } = useAdminOrderAlerts();
+  const { confirmedOrders, isLive } = useAdminOrderAlerts();
   const { pendingCount: pendingReturnCount } = useAdminReturnAlerts();
 
   async function handleLogout() {
@@ -199,11 +314,7 @@ function AdminHeader() {
           )}
 
           {/* New orders badge */}
-          {confirmedCount > 0 && (
-            <span className="mr-1 flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
-              {confirmedCount} new
-            </span>
-          )}
+          <NewOrdersBadge orders={confirmedOrders} />
 
           {/* Pending returns badge */}
           {pendingReturnCount > 0 && (
