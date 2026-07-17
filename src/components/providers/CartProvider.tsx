@@ -6,17 +6,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
-import type { CartLine, Product } from "@/lib/types";
+import type { CartLine, Product, StoredCartLine } from "@/lib/types";
 import { calculateDeliveryFee } from "@/lib/delivery";
-
-const CART_KEY = "green-basket.cart.v1";
-
-interface StoredLine {
-  product: Product;
-  qty: number;
-}
+import { useAuth } from "./AuthProvider";
+import { api } from "@/lib/api";
 
 interface CartContextValue {
   lines: CartLine[];
@@ -51,27 +47,79 @@ function clampStep(product: Product, qty: number): number {
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const { user, updateProfile } = useAuth();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const lastUid = useRef<string | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Cart lives ONLY in this account's own Firestore doc (users/{uid}.cart) —
+  // never in localStorage. Re-hydrate whenever the signed-in account changes
+  // (sign-in, sign-out, or switching accounts on the same device/browser) so
+  // two accounts on the same device can never see each other's cart.
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(CART_KEY);
-      if (raw) setLines(JSON.parse(raw) as StoredLine[]);
-    } catch {
-      /* ignore */
-    }
-    setHydrated(true);
-  }, []);
+    const uid = user?.id ?? null;
+    if (uid === lastUid.current) return;
+    lastUid.current = uid;
+    setHydrated(false);
 
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      window.localStorage.setItem(CART_KEY, JSON.stringify(lines));
-    } catch {
-      /* ignore */
+    if (!uid) {
+      setLines([]);
+      setHydrated(true);
+      return;
     }
-  }, [lines, hydrated]);
+
+    const stored: StoredCartLine[] = user?.cart ?? [];
+    if (!stored.length) {
+      setLines([]);
+      setHydrated(true);
+      return;
+    }
+
+    let cancelled = false;
+    api
+      .listProducts()
+      .then((products) => {
+        if (cancelled) return;
+        const byId = new Map(products.map((p) => [p.id, p]));
+        const restored: CartLine[] = [];
+        for (const s of stored) {
+          const product = byId.get(s.productId);
+          if (product) restored.push({ product, qty: s.qty });
+        }
+        setLines(restored);
+        setHydrated(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLines([]);
+          setHydrated(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Persist to this account's Firestore doc (debounced) whenever the cart
+  // changes post-hydration.
+  const uid = user?.id ?? null;
+  useEffect(() => {
+    if (!hydrated || !uid) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      const payload: StoredCartLine[] = lines.map((l) => ({
+        productId: l.product.id,
+        qty: l.qty,
+      }));
+      updateProfile({ cart: payload }).catch(() => {});
+    }, 500);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines, hydrated, uid]);
 
   const setProductQty = useCallback((product: Product, qty: number) => {
     setLines((prev) => {

@@ -76,6 +76,16 @@ export interface User {
   addressLabel?: string;
   gstin?: string;
   createdAt: string;
+  /** Cart contents, synced to this account only — never shared across
+   *  accounts on the same device (see CartProvider). */
+  cart?: StoredCartLine[];
+}
+
+/** Cart line as persisted server-side: just the productId + qty, rehydrated
+ *  against the live catalog on load so price/stock are never stale. */
+export interface StoredCartLine {
+  productId: string;
+  qty: number;
 }
 
 /** Address payload captured during onboarding / address edit (map picker). */
