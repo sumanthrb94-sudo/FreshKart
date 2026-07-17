@@ -19,7 +19,7 @@ import type {
 import { RETURN_REASON_LABELS, generateAdjustedInvoiceNumber } from "@/lib/returns";
 import { generateOrderNumber, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
-import { isDailyPriceUpdatePublished } from "@/lib/time";
+import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
 import { DataSource, ApiError } from "./datasource";
 import { store } from "./mock-store";
 
@@ -212,6 +212,14 @@ export class MockDataSource implements DataSource {
   async listOrders(buyerId?: string): Promise<Order[]> {
     const all = store.get().orders;
     const list = buyerId ? all.filter((o) => o.buyerId === buyerId) : all;
+    const sorted = [...list].sort(
+      (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+    );
+    return delay(structuredClone(sorted));
+  }
+
+  async listOrdersByRange(startIso: string, endIso: string): Promise<Order[]> {
+    const list = filterOrdersByRange(store.get().orders, startIso, endIso);
     const sorted = [...list].sort(
       (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
     );

@@ -275,13 +275,6 @@ export function generateInvoiceReportPerCustomer(
 
 // ─── CSV Export ─────────────────────────────────────────────────
 
-export function reportToCSV(headers: string[], rows: (string | number)[][]): string {
-  const escape = (v: string | number) => {
-    const s = String(v);
-    if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-      return `"${s.replace(/"/g, '""')}"`;
-    }
-    return s;
-  };
-  return [headers.join(","), ...rows.map((r) => r.map(escape).join(","))].join("\n");
-}
+// Moved to ./csv so callers can serialise without pulling in this module's
+// mock-store import. Re-exported here to keep existing call sites working.
+export { reportToCSV } from "./csv";

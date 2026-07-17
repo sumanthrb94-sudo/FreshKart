@@ -70,6 +70,7 @@ Base URL = `NEXT_PUBLIC_API_BASE_URL`. All bodies are JSON. Errors return
 |--------|------|------|---------|
 | POST | `/orders` | `{ buyerId, items: [{productId, qty}], delivery, paymentMethod, paid }` | `Order` (validates stock and daily price-update gate) |
 | GET | `/orders?buyerId=…` | — | `Order[]` (omit `buyerId` ⇒ all, for admin) |
+| GET | `/orders?from=…&to=…` | — | `Order[]` where `from <= createdAt < to` (admin daily reports; both bounds UTC ISO-8601) |
 | GET | `/orders/:id` | — | `Order \| null` |
 | PATCH | `/orders/:id/status` | `{ status }` | `Order` |
 | POST | `/orders/:id/cancel` | — | `Order` (releases stock) |

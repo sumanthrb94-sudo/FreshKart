@@ -597,6 +597,26 @@ export class FirebaseDataSource implements DataSource {
     return orders.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
   }
 
+  /**
+   * `createdAt` is always written as `new Date().toISOString()` — fixed-width
+   * and Z-suffixed — so lexicographic order is chronological order and a string
+   * range is exact. The range and the orderBy sit on the same single field,
+   * which Firestore indexes automatically: no composite index is needed, and
+   * only that day's docs are read rather than the whole collection.
+   */
+  async listOrdersByRange(startIso: string, endIso: string): Promise<Order[]> {
+    await this.ready();
+    const snap = await getDocs(
+      query(
+        collection(getDb(), COL.orders),
+        where("createdAt", ">=", startIso),
+        where("createdAt", "<", endIso),
+        orderBy("createdAt", "desc")
+      )
+    );
+    return snap.docs.map((d) => ({ ...(d.data() as Omit<Order, "id">), id: d.id }));
+  }
+
   async getOrder(id: string): Promise<Order | null> {
     await this.ready();
     const snap = await getDoc(doc(getDb(), COL.orders, id));

@@ -104,6 +104,11 @@ export class HttpDataSource implements DataSource {
     return this.request<Order[]>(`/orders${qs}`);
   }
 
+  listOrdersByRange(startIso: string, endIso: string) {
+    const qs = `?from=${encodeURIComponent(startIso)}&to=${encodeURIComponent(endIso)}`;
+    return this.request<Order[]>(`/orders${qs}`);
+  }
+
   getOrder(id: string) {
     return this.request<Order | null>(`/orders/${id}`);
   }

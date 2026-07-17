@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -19,12 +19,19 @@ import {
 import type { OrderStatus } from "@/lib/types";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate, ORDER_STATUS_META, STATUS_FLOW } from "@/lib/format";
-import { isDailyPriceUpdatePublished } from "@/lib/time";
+import {
+  formatIstDateLabel,
+  getIstBusinessDayRange,
+  getIstToday,
+  isDailyPriceUpdatePublished,
+} from "@/lib/time";
+import { generateDailyPackingReport } from "@/lib/packing";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { AdminShell } from "./AdminShell";
 import { StatCard } from "@/components/ui/StatCard";
+import { DayPicker } from "@/components/ui/DayPicker";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { OrderStatusBadge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -47,6 +54,20 @@ export function AdminOverviewScreen() {
     refetch: refetchSettings,
   } = useAsync(() => api.getDailyPricesSettings(), []);
   const [publishing, setPublishing] = useState(false);
+
+  // Day totals — scoped to one IST business day, fetched with a date-range
+  // query rather than the all-time scan the stats below still do.
+  const [day, setDay] = useState(() => getIstToday());
+  const { startIso, endIso } = useMemo(() => getIstBusinessDayRange(day), [day]);
+  const {
+    data: dayOrders,
+    loading: dayLoading,
+    error: dayError,
+  } = useAsync(() => api.listOrdersByRange(startIso, endIso), [startIso, endIso]);
+  const dayReport = useMemo(
+    () => (dayOrders ? generateDailyPackingReport(dayOrders, day) : null),
+    [dayOrders, day]
+  );
 
   if (statsLoading || ordersLoading) {
     return (
@@ -226,7 +247,80 @@ export function AdminOverviewScreen() {
           </CardBody>
         </Card>
 
+        {/* Day totals */}
+        <Card>
+          <CardHeader className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-sm font-bold text-fg">
+              <ClipboardList className="h-4 w-4 text-brand-400" aria-hidden />
+              Day totals
+            </h2>
+            <Link
+              href="/admin/reports"
+              className="text-xs font-semibold text-brand-400 hover:underline"
+            >
+              Packing report
+            </Link>
+          </CardHeader>
+          <CardBody className="flex flex-col gap-3">
+            <DayPicker value={day} onChange={setDay} />
+
+            {day === getIstToday() && !settingsLoading && !settingsError && !publishedToday && (
+              <p className="text-xs text-fg-subtle">
+                Today&apos;s prices aren&apos;t published yet — orders open after you publish.
+              </p>
+            )}
+
+            {dayError ? (
+              <Alert variant="error">{dayError}</Alert>
+            ) : dayLoading || !dayReport ? (
+              <div className="flex items-center gap-2 py-4 text-sm text-fg-subtle">
+                <Spinner className="h-4 w-4" /> Loading {formatIstDateLabel(day)}…
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                <StatCard
+                  label="Orders"
+                  value={dayReport.totals.orderCount}
+                  hint={
+                    dayReport.totals.cancelledOrderCount > 0
+                      ? `${dayReport.totals.cancelledOrderCount} cancelled`
+                      : formatIstDateLabel(day)
+                  }
+                  icon={ShoppingCart}
+                  tone="brand"
+                />
+                <StatCard
+                  label="Items to pack"
+                  value={`${dayReport.totals.totalKg} kg`}
+                  hint={`${dayReport.totals.totalPieces} pieces`}
+                  icon={Package}
+                  tone="brand"
+                />
+                <StatCard
+                  label="Revenue"
+                  value={formatCurrency(dayReport.totals.revenue)}
+                  hint={
+                    dayReport.totals.refundedAmount > 0
+                      ? `${formatCurrency(dayReport.totals.refundedAmount)} refunded`
+                      : "Non-cancelled"
+                  }
+                  icon={IndianRupee}
+                  tone="gray"
+                />
+                <StatCard
+                  label="Customers"
+                  value={dayReport.totals.customerCount}
+                  hint={`${dayReport.slips.length} ${dayReport.slips.length === 1 ? "drop" : "drops"}`}
+                  icon={Users}
+                  tone="gray"
+                />
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
         {/* Stats */}
+        <h2 className="mt-1 text-xs font-bold uppercase tracking-wide text-fg-muted">All time</h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
           <StatCard
             label="Revenue"

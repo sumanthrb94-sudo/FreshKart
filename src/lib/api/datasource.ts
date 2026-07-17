@@ -90,6 +90,16 @@ export interface DataSource {
   /** buyerId omitted → all orders (admin). */
   listOrders(buyerId?: string): Promise<Order[]>;
   /**
+   * Admin: orders created in the half-open instant range [startIso, endIso).
+   * Both bounds are UTC ISO-8601 strings as produced by `getIstBusinessDayRange()`.
+   * Powers the daily dashboard totals and the packing report.
+   *
+   * Deliberately does NOT filter by status: adding one would turn the
+   * single-field range into a composite query (manual index required) for a
+   * result set already small enough to filter in JS.
+   */
+  listOrdersByRange(startIso: string, endIso: string): Promise<Order[]>;
+  /**
    * Real-time subscription to order changes. Fires immediately with current
    * data, then on every create/update/delete. Used by admin dashboard for
    * instant new-order notifications without page refresh.

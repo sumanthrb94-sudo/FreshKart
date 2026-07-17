@@ -16,15 +16,16 @@ import {
 import {
   generateInventoryReport,
   generatePurchaseReport,
-  generatePackagingReport,
   generateInvoiceReportPerCustomer,
   reportToCSV,
 } from "@/lib/reports";
+import { AdminPackingView } from "./AdminPackingView";
 
-type ReportTab = "inventory" | "purchase" | "packaging" | "invoices";
+type ReportTab = "packing" | "inventory" | "purchase" | "invoices";
 
 export function AdminReportsHub() {
-  const [activeTab, setActiveTab] = useState<ReportTab>("inventory");
+  // Packing is the daily-driver report — it opens first.
+  const [activeTab, setActiveTab] = useState<ReportTab>("packing");
   const [downloaded, setDownloaded] = useState(false);
 
   const downloadCSV = useCallback(() => {
@@ -50,15 +51,9 @@ export function AdminReportsHub() {
         filename = `green-basket-purchase-${new Date().toISOString().split("T")[0]}.csv`;
         break;
       }
-      case "packaging": {
-        const r = generatePackagingReport();
-        csv = reportToCSV(
-          ["Product", "Unit", "Orders", "Total Qty", "Packaging Type", "Est. Cost"],
-          r.lines.map((l) => [l.productName, l.unit, l.orderCount, l.totalQty, l.packagingType, l.estPackagingCost])
-        );
-        filename = `green-basket-packaging-${new Date().toISOString().split("T")[0]}.csv`;
-        break;
-      }
+      case "packing":
+        // The packing view owns its own exports (it has two).
+        return;
       case "invoices": {
         const r = generateInvoiceReportPerCustomer();
         const rows: (string | number)[][] = [];
@@ -87,9 +82,9 @@ export function AdminReportsHub() {
   }, [activeTab]);
 
   const tabs: { key: ReportTab; label: string; icon: React.ElementType }[] = [
+    { key: "packing", label: "Packing", icon: Package },
     { key: "inventory", label: "Inventory", icon: ClipboardList },
     { key: "purchase", label: "Purchase", icon: ShoppingCart },
-    { key: "packaging", label: "Packaging", icon: Package },
     { key: "invoices", label: "Invoices", icon: FileText },
   ];
 
@@ -99,19 +94,21 @@ export function AdminReportsHub() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-extrabold text-fg">Reports</h1>
-            <p className="text-xs text-fg-subtle">Inventory, purchase, packaging & invoices</p>
+            <p className="text-xs text-fg-subtle">Packing, inventory, purchase & invoices</p>
           </div>
-          <button
-            onClick={downloadCSV}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
-              downloaded
-                ? "bg-emerald-500 text-white"
-                : "bg-brand-500 text-white hover:bg-brand-600"
-            }`}
-          >
-            <Download className="h-3.5 w-3.5" />
-            {downloaded ? "Downloaded!" : "Download CSV"}
-          </button>
+          {activeTab !== "packing" && (
+            <button
+              onClick={downloadCSV}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
+                downloaded
+                  ? "bg-emerald-500 text-white"
+                  : "bg-brand-500 text-white hover:bg-brand-600"
+              }`}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {downloaded ? "Downloaded!" : "Download CSV"}
+            </button>
+          )}
         </div>
 
         <div className="mt-2 flex gap-1">
@@ -134,9 +131,9 @@ export function AdminReportsHub() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
+        {activeTab === "packing" && <AdminPackingView />}
         {activeTab === "inventory" && <InventoryReportView />}
         {activeTab === "purchase" && <PurchaseReportView />}
-        {activeTab === "packaging" && <PackagingReportView />}
         {activeTab === "invoices" && <InvoicesReportView />}
       </div>
     </div>
@@ -204,27 +201,6 @@ function PurchaseReportView() {
               {l.trend}
             </p>
           </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function PackagingReportView() {
-  const r = generatePackagingReport();
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <SummaryCard icon={Package} label="Total Cost" value={`Rs. ${r.totalPackagingCost}`} color="text-emerald-500" />
-        <SummaryCard icon={ShoppingCart} label="Orders" value={r.totalOrders} color="text-blue-500" />
-      </div>
-      {r.lines.filter((l) => l.totalQty > 0).map((l) => (
-        <div key={l.productId} className="flex items-center justify-between rounded-xl border border-line bg-surface px-4 py-3">
-          <div>
-            <p className="text-sm font-bold text-fg">{l.productName}</p>
-            <p className="text-[10px] text-fg-subtle">{l.packagingType} · {l.totalQty} {l.unit}</p>
-          </div>
-          <p className="text-sm font-extrabold text-fg">Rs. {l.estPackagingCost}</p>
         </div>
       ))}
     </div>
