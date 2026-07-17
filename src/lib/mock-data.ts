@@ -50,10 +50,10 @@ const RAW: SeedProduct[] = [
   { name: "Broad Beans (Chikkudu)", category: "vegetables", unit: "kg", price: 90, minOrderQty: 1, stock: 16, origin: "Chittoor, Andhra Pradesh" },
   { name: "Cluster Beans (Gokar)", category: "vegetables", unit: "kg", price: 48, minOrderQty: 1, stock: 75, origin: "Kolar, Karnataka" },
   { name: "Bitter Gourd", category: "vegetables", unit: "kg", price: 45, minOrderQty: 1, stock: 85, origin: "Kolar, Karnataka" },
-  { name: "Raw Banana", category: "vegetables", unit: "pc", price: 9, minOrderQty: 1, stock: 480, origin: "Theni, Tamil Nadu" },
+  { name: "Raw Banana", category: "vegetables", unit: "kg", price: 9, minOrderQty: 1, stock: 480, origin: "Theni, Tamil Nadu" },
   { name: "Raw Mango", category: "vegetables", unit: "kg", price: 50, minOrderQty: 1, stock: 90, origin: "Krishnagiri, Tamil Nadu" },
   { name: "Lemon", category: "vegetables", unit: "kg", price: 150, minOrderQty: 1, stock: 55, origin: "Vijayawada, Andhra Pradesh" },
-  { name: "Beetroot", category: "vegetables", unit: "pc", price: 35, minOrderQty: 1, stock: 180, origin: "Ooty, Tamil Nadu" },
+  { name: "Beetroot", category: "vegetables", unit: "kg", price: 35, minOrderQty: 1, stock: 180, origin: "Ooty, Tamil Nadu" },
   { name: "Drumstick", category: "vegetables", unit: "kg", price: 60, minOrderQty: 1, stock: 40, origin: "Theni, Tamil Nadu" },
   { name: "Radish", category: "vegetables", unit: "kg", price: 50, minOrderQty: 1, stock: 95, origin: "Pune, Maharashtra" },
 
