@@ -17,7 +17,7 @@ export function ProductListItem({ product }: { product: Product }) {
   return (
     <div
       data-testid="product-card"
-      className="group flex flex-row items-center gap-3 overflow-hidden rounded-xl border border-line bg-surface p-3 shadow-card transition-shadow hover:shadow-card-hover md:flex-col md:items-stretch md:p-0"
+      className="group flex flex-row items-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface p-2.5 shadow-card transition-shadow hover:shadow-card-hover md:flex-col md:items-stretch md:p-0"
     >
       {/* Thumbnail: fixed square on mobile, full-width aspect-square on desktop.
           The size must live on THIS wrapper, not on ProductThumb's className —
@@ -44,7 +44,7 @@ export function ProductListItem({ product }: { product: Product }) {
           {tProduct(product.name)}
         </p>
 
-        <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+        <div className="mt-1.5 flex items-end justify-between gap-2 md:mt-auto">
           <div className="min-w-0">
             <div className="flex items-baseline gap-1">
               <span className="text-lg font-extrabold text-fg">
