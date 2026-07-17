@@ -6,7 +6,16 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { NotificationBell } from "@/components/NotificationDrawer";
 
-export function BuyerHeader({ searchSlot }: { searchSlot?: React.ReactNode }) {
+export function BuyerHeader({
+  searchSlot,
+  showWordmark = false,
+}: {
+  searchSlot?: React.ReactNode;
+  /** Shows the "Green Basket" text next to the logo — for inner screens
+   *  (Orders, Account) that don't have the hero's branding context the
+   *  shop screen does. */
+  showWordmark?: boolean;
+}) {
   const { isAuthenticated, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -14,10 +23,13 @@ export function BuyerHeader({ searchSlot }: { searchSlot?: React.ReactNode }) {
     <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface">
       <div className="flex items-center justify-between gap-2 px-3 py-2">
         <div className="flex shrink-0 items-center gap-1.5">
-          <Link href="/" aria-label="Green Basket" className="flex items-center">
+          <Link href="/" aria-label="Green Basket" className="flex items-center gap-1.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-white">
               <Sprout className="h-4 w-4" />
             </span>
+            {showWordmark && (
+              <span className="text-sm font-extrabold text-fg">Green Basket</span>
+            )}
           </Link>
 
           <button

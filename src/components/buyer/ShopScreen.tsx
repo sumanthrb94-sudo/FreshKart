@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Clock, Headphones, Search, SearchX } from "lucide-react";
+import { Clock, Search, SearchX } from "lucide-react";
 import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
@@ -12,7 +12,6 @@ import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { useLang } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Chip } from "@/components/ui/Chip";
@@ -26,9 +25,6 @@ import { BuyerBottomNav } from "./BuyerBottomNav";
 import { CheckoutSheet } from "./CheckoutSheet";
 import { PaymentSheet } from "./PaymentSheet";
 import { SuccessOverlay } from "./SuccessOverlay";
-
-// TODO: replace with your real support number (E.164).
-const SUPPORT_PHONE = "+918000000000";
 
 export function ShopScreen() {
   const router = useRouter();
@@ -245,18 +241,6 @@ export function ShopScreen() {
           )}
         </div>
       </div>
-
-      {/* Subtle support button */}
-      <a
-        href={`tel:${SUPPORT_PHONE}`}
-        aria-label={t("callSupport")}
-        className={cn(
-          "fixed right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-surface text-brand-500 shadow-card border border-line transition-all hover:shadow-card-hover hover:scale-105 active:scale-95",
-          lines.length > 0 ? "bottom-32" : "bottom-24"
-        )}
-      >
-        <Headphones className="h-5 w-5" />
-      </a>
 
       {/* Overlays */}
       <CheckoutSheet

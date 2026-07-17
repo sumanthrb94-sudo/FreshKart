@@ -106,7 +106,7 @@ export function AccountScreen() {
 
   if (!ready || !user) {
     return (
-      <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
+      <AppShell header={<BuyerHeader showWordmark />} sidebar={<BuyerSidebar />}>
         <FullScreenLoader />
       </AppShell>
     );
@@ -114,7 +114,7 @@ export function AccountScreen() {
 
   return (
     <AppShell
-      header={<BuyerHeader />}
+      header={<BuyerHeader showWordmark />}
       footer={<BuyerBottomNav />}
       sidebar={<BuyerSidebar />}
     >
