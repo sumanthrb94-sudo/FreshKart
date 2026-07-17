@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BadgeCheck, Clock, Headphones, SearchX } from "lucide-react";
+import { Clock, Headphones, Search, SearchX } from "lucide-react";
 import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
@@ -145,7 +145,23 @@ export function ShopScreen() {
 
   return (
     <AppShell
-      header={<BuyerHeader />}
+      header={
+        <BuyerHeader
+          searchSlot={
+            <label className="flex items-center gap-2 rounded-full bg-raised px-3 py-1.5">
+              <Search className="h-3.5 w-3.5 shrink-0 text-fg-subtle" aria-hidden />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("searchProduce")}
+                aria-label={t("searchProduce")}
+                className="min-w-0 flex-1 bg-transparent text-sm font-medium text-fg outline-none placeholder:text-fg-subtle"
+              />
+            </label>
+          }
+        />
+      }
       footer={
         <>
           <StickyCartBar onReview={handleReview} disabled={!canOrder} />
@@ -157,9 +173,6 @@ export function ShopScreen() {
       <ShopHero
         greeting={greeting}
         itemCount={visible.length}
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder={t("searchProduce")}
         liveStatusLabel={liveStatusLabel}
       />
 
@@ -170,7 +183,7 @@ export function ShopScreen() {
             variant split, so the same classes render in both themes and
             need to work in both. */}
         {!settingsLoading && !pricesPublished && storeStatus.isOpen && (
-          <div className="mx-4 mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2.5 text-center">
+          <div className="mx-4 mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2.5 text-center">
             <p className="flex items-center justify-center gap-2 text-sm font-bold text-amber-600">
               <Clock className="h-4 w-4 text-amber-500" aria-hidden />
               Getting best live prices for you
@@ -181,7 +194,7 @@ export function ShopScreen() {
 
         {/* Store closed banner — catalog hidden between 11:45 PM and 8:00 AM IST */}
         {!storeStatus.isOpen && (
-          <div className="mx-4 mt-4 rounded-xl border border-brand-500/30 bg-brand-500/15 px-3 py-3 text-center">
+          <div className="mx-4 mt-3 rounded-xl border border-brand-500/30 bg-brand-500/15 px-3 py-3 text-center">
             <p className="flex items-center justify-center gap-2 text-sm font-bold text-brand-600">
               <Clock className="h-4 w-4 text-brand-500" aria-hidden />
               Gathering best prices across Hyderabad
@@ -190,16 +203,8 @@ export function ShopScreen() {
           </div>
         )}
 
-        {/* Reassurance banner once today's rates are live — mirrors the pending/closed banners above. */}
-        {!settingsLoading && pricesPublished && storeStatus.isOpen && settings?.publishedAt && (
-          <div className="mx-4 mt-4 flex items-center gap-2 rounded-xl border border-brand-500/20 bg-brand-500/10 px-3 py-2.5 text-xs font-semibold text-brand-600">
-            <BadgeCheck className="h-4 w-4 shrink-0 text-brand-500" aria-hidden />
-            Today&apos;s rates published {formatLastPublished(settings.publishedAt)} — prices locked for the day
-          </div>
-        )}
-
         {/* Sticky category rail */}
-        <div className="sticky top-0 z-20 bg-canvas px-4 pb-2 pt-4">
+        <div className="sticky top-0 z-20 bg-canvas px-4 pb-1 pt-3">
           <div className="fc-scroll flex gap-2 overflow-x-auto pb-0.5">
             <Chip active={category === "all"} onClick={() => setCategory("all")}>
               {t("all")}
@@ -230,11 +235,11 @@ export function ShopScreen() {
             <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
           ) : (
             <section>
-              <div className="mb-3 flex items-center justify-between pt-1">
+              <div className="mb-2 flex items-center justify-between">
                 <h2 className="text-base font-bold text-fg">{tCategory(category === "all" ? "All" : CATEGORIES.find((c) => c.id === category)?.name ?? "Products")}</h2>
                 <span className="text-xs text-fg-subtle">{visible.length} items</span>
               </div>
-              <div className="product-grid mt-3">
+              <div className="product-grid mt-2">
                 {visible.map((p) => (
                   <ProductListItem key={p.id} product={p} />
                 ))}
