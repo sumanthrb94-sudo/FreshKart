@@ -17,6 +17,8 @@ import type {
   ReturnMessage,
 } from "@/lib/returns";
 import { RETURN_REASON_LABELS, generateAdjustedInvoiceNumber } from "@/lib/returns";
+import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
+import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
 import { generateOrderNumber, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
@@ -399,6 +401,82 @@ export class MockDataSource implements DataSource {
       updated = r;
     });
     if (!updated) throw new ApiError("Return request not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  // --- Support tickets ------------------------------------------------------
+  async listSupportTickets(buyerId?: string): Promise<SupportTicket[]> {
+    const all = store.get().supportTickets;
+    const list = buyerId ? all.filter((t) => t.buyerId === buyerId) : all;
+    const sorted = [...list].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+    return delay(structuredClone(sorted));
+  }
+
+  async getSupportTicket(id: string): Promise<SupportTicket | null> {
+    const t = store.get().supportTickets.find((x) => x.id === id) ?? null;
+    return delay(t ? structuredClone(t) : null);
+  }
+
+  async getOrCreateSupportTicket(input: CreateSupportTicketInput): Promise<SupportTicket> {
+    const existing = store.get().supportTickets.find(
+      (t) => t.buyerId === input.buyerId && t.status === "OPEN"
+    );
+    if (existing) return delay(structuredClone(existing));
+
+    let created: SupportTicket | null = null;
+    store.mutate((s) => {
+      const ticket = { ...openNewTicket(input), id: `TCK-${Date.now()}-${s.supportTickets.length + 1}` };
+      s.supportTickets.unshift(ticket);
+      created = ticket;
+    });
+    return delay(structuredClone(created!), 200);
+  }
+
+  async addSupportTicketMessage(
+    id: string,
+    sender: Extract<TicketSender, "buyer" | "admin" | "assistant">,
+    text: string,
+    suggestions?: string[]
+  ): Promise<SupportTicket> {
+    let updated: SupportTicket | null = null;
+    store.mutate((s) => {
+      const t = s.supportTickets.find((x) => x.id === id);
+      if (!t) return;
+      t.thread.push(buildTicketMessage(sender, text, suggestions));
+      if (sender === "admin") t.needsHuman = false;
+      t.updatedAt = new Date().toISOString();
+      updated = t;
+    });
+    if (!updated) throw new ApiError("Support ticket not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async escalateSupportTicket(id: string): Promise<SupportTicket> {
+    let updated: SupportTicket | null = null;
+    store.mutate((s) => {
+      const t = s.supportTickets.find((x) => x.id === id);
+      if (!t) return;
+      t.thread.push(buildTicketMessage("system", ESCALATION_NOTICE));
+      t.needsHuman = true;
+      t.updatedAt = new Date().toISOString();
+      updated = t;
+    });
+    if (!updated) throw new ApiError("Support ticket not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async closeSupportTicket(id: string): Promise<SupportTicket> {
+    let updated: SupportTicket | null = null;
+    store.mutate((s) => {
+      const t = s.supportTickets.find((x) => x.id === id);
+      if (!t) return;
+      const now = new Date().toISOString();
+      t.status = "CLOSED";
+      t.closedAt = now;
+      t.updatedAt = now;
+      updated = t;
+    });
+    if (!updated) throw new ApiError("Support ticket not found.", 404);
     return delay(structuredClone(updated));
   }
 

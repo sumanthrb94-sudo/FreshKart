@@ -314,6 +314,50 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Allowed top-level fields on a new support ticket document.
+    function hasOnlySupportTicketFields() {
+      return request.resource.data.keys().hasOnly([
+        'buyerId', 'businessName', 'buyerPhone', 'status', 'needsHuman',
+        'thread', 'createdAt', 'updatedAt', 'closedAt'
+      ]);
+    }
+
+    // Buyer reply / escalation: only thread, updatedAt, and needsHuman may
+    // change, and the thread must grow by exactly one message.
+    function isBuyerTicketReply() {
+      return resource.data.buyerId == request.auth.uid
+             && resource.data.status == 'OPEN'
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['thread', 'updatedAt', 'needsHuman'])
+             && request.resource.data.thread.size() == resource.data.thread.size() + 1;
+    }
+
+    // Buyer ends their own open ticket — status flips to CLOSED and nothing
+    // else changes besides the close timestamps.
+    function isBuyerTicketClose() {
+      return resource.data.buyerId == request.auth.uid
+             && resource.data.status == 'OPEN'
+             && request.resource.data.status == 'CLOSED'
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'closedAt']);
+    }
+
+    // --- Support tickets: buyer creates/reads/replies/closes their own; admins manage all. ---
+    match /supportTickets/{ticketId} {
+      allow read: if isSignedIn()
+                  && (resource.data.buyerId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.status == 'OPEN'
+                    && hasOnlySupportTicketFields()
+                    && request.resource.data.thread.size() <= 1;
+
+      allow update: if isAdmin()
+                    || isBuyerTicketReply()
+                    || isBuyerTicketClose();
+
+      allow delete: if isAdmin();
+    }
+
     // --- Orders: a buyer creates/reads/cancels their own; admins manage all. ---
     match /orders/{orderId} {
       allow read: if isSignedIn()

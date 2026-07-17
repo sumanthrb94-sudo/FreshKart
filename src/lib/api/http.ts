@@ -10,6 +10,7 @@ import type {
   User,
 } from "@/lib/types";
 import type { CreateReturnInput, ReturnRequest, ReturnStatus } from "@/lib/returns";
+import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
 import { DataSource, ApiError } from "./datasource";
 
 /**
@@ -197,5 +198,42 @@ export class HttpDataSource implements DataSource {
       method: "PATCH",
       body: JSON.stringify({ adminNotes: notes }),
     });
+  }
+
+  // --- Support tickets (stubbed until a REST backend implements the endpoints) --
+  listSupportTickets(buyerId?: string) {
+    const qs = buyerId ? `?buyerId=${encodeURIComponent(buyerId)}` : "";
+    return this.request<SupportTicket[]>(`/support-tickets${qs}`);
+  }
+
+  getSupportTicket(id: string) {
+    return this.request<SupportTicket | null>(`/support-tickets/${id}`);
+  }
+
+  getOrCreateSupportTicket(input: CreateSupportTicketInput) {
+    return this.request<SupportTicket>("/support-tickets", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  addSupportTicketMessage(
+    id: string,
+    sender: Extract<TicketSender, "buyer" | "admin" | "assistant">,
+    text: string,
+    suggestions?: string[]
+  ) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ sender, text, suggestions }),
+    });
+  }
+
+  escalateSupportTicket(id: string) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/escalate`, { method: "POST" });
+  }
+
+  closeSupportTicket(id: string) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/close`, { method: "POST" });
   }
 }

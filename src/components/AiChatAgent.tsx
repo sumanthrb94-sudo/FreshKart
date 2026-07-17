@@ -1,18 +1,23 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
-import { MessageCircle, X, Send, Bot, User, Sparkles } from "lucide-react";
+import { MessageCircle, X, Send, Bot, User, Sparkles, LogOut, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { createChatSession, processUserMessage } from "@/lib/ai-chat";
-import type { ChatSession, ChatMessage } from "@/lib/ai-chat";
+import { api } from "@/lib/api";
+import { generateAIResponse } from "@/lib/ai-chat";
+import type { ChatSession } from "@/lib/ai-chat";
+import { TALK_TO_HUMAN, canBuyerMessage } from "@/lib/support-tickets";
+import type { SupportTicket, TicketMessage } from "@/lib/support-tickets";
 
 export function AiChatAgent() {
   const [isOpen, setIsOpen] = useState(false);
-  const [session, setSession] = useState<ChatSession>(createChatSession);
+  const [ticket, setTicket] = useState<SupportTicket | null>(null);
+  const [ticketLoading, setTicketLoading] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const contextRef = useRef<ChatSession["context"]>("general");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -36,50 +41,115 @@ export function AiChatAgent() {
   }, [isOpen]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [session.messages, typing]);
+    // isOpen is also a dependency: reopening the panel with an unchanged
+    // thread (no new messages since it was last open) wouldn't otherwise
+    // re-run this — the panel would render still scrolled to wherever it
+    // was left, or its unmount/remount default (top), instead of the
+    // latest message.
+    if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+  }, [ticket?.thread.length, typing, isOpen]);
 
   useEffect(() => {
-    if (isOpen) inputRef.current?.focus();
-  }, [isOpen]);
+    if (isOpen && ticket) inputRef.current?.focus();
+  }, [isOpen, ticket]);
 
-  // Personalize welcome message with user's name when authenticated
-  useEffect(() => {
-    if (user?.name && session.messages.length === 1 && session.messages[0].role === "assistant") {
-      const welcomeMsg = session.messages[0];
-      if (!welcomeMsg.text.includes(user.name)) {
-        setSession((prev) => ({
-          ...prev,
-          messages: [
-            {
-              ...welcomeMsg,
-              text: `Hello ${user.name}! I am Green Basket Assistant. I can help you with orders, returns, delivery, payments, and store policies. What can I help you with today?`,
-            },
-          ],
-        }));
-      }
+  const loadTicket = useCallback(async () => {
+    if (!user) return;
+    setTicketLoading(true);
+    try {
+      const t = await api.getOrCreateSupportTicket({
+        buyerId: user.id,
+        businessName: user.businessName || user.name,
+        buyerPhone: user.phone,
+        buyerName: user.name,
+      });
+      setTicket(t);
+    } finally {
+      setTicketLoading(false);
     }
-  }, [user?.name]);
+  }, [user]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    const userText = input.trim();
-    setInput("");
-    setTyping(true);
-    setTimeout(() => {
-      const { updatedSession } = processUserMessage(session, userText);
-      setSession(updatedSession);
-      setTyping(false);
-    }, 600);
+  const handleOpen = () => {
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        // Opening: refresh so any admin reply sent while the panel was
+        // closed shows up, instead of only refetching on first load.
+        if (ticket) {
+          setTicketLoading(true);
+          api.getSupportTicket(ticket.id).then((fresh) => {
+            if (fresh) setTicket(fresh);
+            setTicketLoading(false);
+          });
+        } else if (!ticketLoading) {
+          loadTicket();
+        }
+      }
+      return next;
+    });
   };
 
-  const handleQuickAction = (query: string) => {
+  const handleSend = async () => {
+    if (!input.trim() || !ticket) return;
+    const userText = input.trim();
+    setInput("");
+
+    if (userText === TALK_TO_HUMAN) {
+      setTyping(true);
+      const updated = await api.addSupportTicketMessage(ticket.id, "buyer", userText);
+      const escalated = await api.escalateSupportTicket(updated.id);
+      setTicket(escalated);
+      setTyping(false);
+      return;
+    }
+
     setTyping(true);
-    setTimeout(() => {
-      const { updatedSession } = processUserMessage(session, query);
-      setSession(updatedSession);
+    const afterBuyer = await api.addSupportTicketMessage(ticket.id, "buyer", userText);
+    setTicket(afterBuyer);
+
+    const lower = userText.toLowerCase();
+    if (lower.includes("return") || lower.includes("refund")) contextRef.current = "returns";
+    else if (lower.includes("order") || lower.includes("track")) contextRef.current = "order_help";
+    else if (lower.includes("price") || lower.includes("cost")) contextRef.current = "pricing";
+
+    setTimeout(async () => {
+      const { text, suggestions } = generateAIResponse(userText, contextRef.current);
+      const afterAssistant = await api.addSupportTicketMessage(afterBuyer.id, "assistant", text, suggestions);
+      setTicket(afterAssistant);
+      setTyping(false);
+    }, 500);
+  };
+
+  const handleQuickAction = async (query: string) => {
+    if (!ticket) return;
+    if (query === TALK_TO_HUMAN) {
+      setTyping(true);
+      const afterBuyer = await api.addSupportTicketMessage(ticket.id, "buyer", query);
+      const escalated = await api.escalateSupportTicket(afterBuyer.id);
+      setTicket(escalated);
+      setTyping(false);
+      return;
+    }
+    setTyping(true);
+    const afterBuyer = await api.addSupportTicketMessage(ticket.id, "buyer", query);
+    setTicket(afterBuyer);
+    setTimeout(async () => {
+      const { text, suggestions } = generateAIResponse(query, contextRef.current);
+      const afterAssistant = await api.addSupportTicketMessage(afterBuyer.id, "assistant", text, suggestions);
+      setTicket(afterAssistant);
       setTyping(false);
     }, 400);
+  };
+
+  const handleEndChat = async () => {
+    if (!ticket) return;
+    const closed = await api.closeSupportTicket(ticket.id);
+    setTicket(closed);
+  };
+
+  const handleStartNew = () => {
+    setTicket(null);
+    loadTicket();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -100,12 +170,15 @@ export function AiChatAgent() {
 
   if (!shouldShowChat) return null;
 
+  const canReply = ticket ? canBuyerMessage(ticket.status) : false;
+  const lastMessage = ticket?.thread[ticket.thread.length - 1];
+
   return (
     <>
       {/* Floating Chat Button - always shows MessageCircle */}
       <button
         data-chat-button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleOpen}
         className={cn(
           "fixed bottom-20 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-300 md:bottom-8 hover:scale-105",
           isOpen
@@ -123,7 +196,7 @@ export function AiChatAgent() {
           ref={panelRef}
           className="fixed bottom-36 right-4 z-50 flex h-[480px] w-[calc(100vw-2rem)] max-w-[360px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl md:bottom-24"
         >
-          {/* Header - single close button in top-right */}
+          {/* Header */}
           <div className="flex items-center gap-3 border-b border-line bg-brand-500 px-4 py-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
               <Bot className="h-4 w-4 text-white" />
@@ -134,6 +207,16 @@ export function AiChatAgent() {
                 <Sparkles className="h-3 w-3" /> AI Powered
               </p>
             </div>
+            {ticket && canReply && (
+              <button
+                onClick={handleEndChat}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30"
+                title="End chat"
+                aria-label="End chat"
+              >
+                <LogOut className="h-3.5 w-3.5 text-white" />
+              </button>
+            )}
             <button
               onClick={() => setIsOpen(false)}
               className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30"
@@ -145,7 +228,17 @@ export function AiChatAgent() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {session.messages.map((msg) => (
+            {ticketLoading && !ticket && (
+              <div className="flex h-full items-center justify-center">
+                <div className="flex gap-1">
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-fg-subtle" style={{ animationDelay: "0ms" }} />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-fg-subtle" style={{ animationDelay: "150ms" }} />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-fg-subtle" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+            )}
+
+            {ticket?.thread.map((msg) => (
               <ChatBubble key={msg.id} message={msg} />
             ))}
 
@@ -164,63 +257,82 @@ export function AiChatAgent() {
               </div>
             )}
 
-            {!typing && session.messages.length > 0 &&
-              session.messages[session.messages.length - 1].role === "assistant" &&
-              session.messages[session.messages.length - 1].suggestions && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {session.messages[session.messages.length - 1].suggestions!.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      onClick={() => handleQuickAction(suggestion)}
-                      className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:bg-brand-500/10 hover:text-brand-500 hover:border-brand-500/30"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              )}
+            {!typing && canReply && lastMessage?.sender === "assistant" && lastMessage.suggestions && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {lastMessage.suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => handleQuickAction(suggestion)}
+                    className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:bg-brand-500/10 hover:text-brand-500 hover:border-brand-500/30"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          <div className="border-t border-line bg-surface px-3 py-2">
-            <div className="flex items-center gap-2 rounded-xl border border-line bg-raised px-3 py-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask about orders, returns..."
-                className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
-              />
+          {/* Input / closed state */}
+          {ticket && !canReply ? (
+            <div className="border-t border-line bg-surface px-3 py-3 text-center">
+              <p className="text-xs text-fg-subtle">This conversation has ended.</p>
               <button
-                onClick={handleSend}
-                disabled={!input.trim() || typing}
-                className={cn(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all",
-                  input.trim() && !typing
-                    ? "bg-brand-500 text-white hover:bg-brand-600"
-                    : "bg-line text-fg-subtle"
-                )}
+                onClick={handleStartNew}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-brand-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600"
               >
-                <Send className="h-3.5 w-3.5" />
+                <RotateCcw className="h-3.5 w-3.5" /> Start a new conversation
               </button>
             </div>
-            <p className="mt-1.5 text-center text-[9px] text-fg-subtle">
-              Powered by Green Basket AI
-            </p>
-          </div>
+          ) : (
+            <div className="border-t border-line bg-surface px-3 py-2">
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-raised px-3 py-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask about orders, returns..."
+                  disabled={!ticket}
+                  className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle disabled:opacity-50"
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || typing || !ticket}
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all",
+                    input.trim() && !typing && ticket
+                      ? "bg-brand-500 text-white hover:bg-brand-600"
+                      : "bg-line text-fg-subtle"
+                  )}
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p className="mt-1.5 text-center text-[9px] text-fg-subtle">
+                Powered by Green Basket AI
+              </p>
+            </div>
+          )}
         </div>
       )}
     </>
   );
 }
 
-function ChatBubble({ message }: { message: ChatMessage }) {
-  const isUser = message.role === "user";
-  const isSystem = message.role === "system";
-  if (isSystem) return null;
+function ChatBubble({ message }: { message: TicketMessage }) {
+  const isUser = message.sender === "buyer";
+  const isSystem = message.sender === "system";
+  if (isSystem) {
+    return (
+      <div className="flex justify-center">
+        <div className="max-w-[90%] rounded-lg bg-raised px-3 py-1.5 text-center text-xs text-fg-subtle">
+          {message.text}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={cn("flex items-start gap-2", isUser ? "flex-row-reverse" : "flex-row")}>
       <div className={cn(

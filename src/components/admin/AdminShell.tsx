@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, ShieldCheck, Store, ShoppingBag, Radio, RotateCcw, ChevronDown } from "lucide-react";
+import { LogOut, ShieldCheck, Store, ShoppingBag, Radio, RotateCcw, ChevronDown, MessageCircle } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
@@ -185,6 +185,30 @@ function useAdminReturnAlerts() {
   return { pendingCount, isLive };
 }
 
+/** Hook for pending "needs a human" support-ticket count in admin header */
+function useAdminTicketAlerts() {
+  const [needsHumanCount, setNeedsHumanCount] = useState(0);
+
+  useEffect(() => {
+    if (typeof api.subscribeSupportTickets !== "function") {
+      api.listSupportTickets()
+        .then((tickets) => {
+          setNeedsHumanCount(tickets.filter((t) => t.needsHuman).length);
+        })
+        .catch(() => {});
+      return;
+    }
+
+    const unsubscribe = api.subscribeSupportTickets(undefined, (tickets) => {
+      setNeedsHumanCount(tickets.filter((t) => t.needsHuman).length);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return { needsHumanCount };
+}
+
 /** Clickable "N new" badge — expands into a dropdown of confirmed orders,
  *  most recently placed first, so admins can see what just came in without
  *  leaving the current screen. */
@@ -281,6 +305,7 @@ function AdminHeader() {
   const { logout } = useAuth();
   const { confirmedOrders, isLive } = useAdminOrderAlerts();
   const { pendingCount: pendingReturnCount } = useAdminReturnAlerts();
+  const { needsHumanCount } = useAdminTicketAlerts();
 
   async function handleLogout() {
     await logout();
@@ -322,6 +347,17 @@ function AdminHeader() {
               <RotateCcw className="h-3 w-3" />
               {pendingReturnCount} returns
             </span>
+          )}
+
+          {/* Support chats needing a human reply */}
+          {needsHumanCount > 0 && (
+            <Link
+              href="/admin/support"
+              className="mr-1 flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-400 transition-colors hover:bg-blue-500/20"
+            >
+              <MessageCircle className="h-3 w-3" />
+              {needsHumanCount} chats
+            </Link>
           )}
 
           <NotificationBell />

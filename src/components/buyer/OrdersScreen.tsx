@@ -80,11 +80,13 @@ export function OrdersScreen() {
       </div>
 
       {/* Subtle support button — left side, since the AI chat bubble already
-          occupies bottom-right on every non-home screen. */}
+          occupies bottom-right on every non-home screen. Same bottom-20 /
+          md:bottom-8 offsets as AiChatAgent's button so the two sit at
+          exactly the same height, mirrored left/right. */}
       <a
         href={`tel:${SUPPORT_PHONE}`}
         aria-label={t("callSupport")}
-        className="fixed bottom-24 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-brand-500 shadow-card transition-all hover:scale-105 hover:shadow-card-hover active:scale-95"
+        className="fixed bottom-20 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-brand-500 shadow-card transition-all hover:scale-105 hover:shadow-card-hover active:scale-95 md:bottom-8"
       >
         <Headphones className="h-5 w-5" />
       </a>

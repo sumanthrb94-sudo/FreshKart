@@ -49,6 +49,12 @@ import type {
   ReturnStatus,
   ReturnMessage,
 } from "@/lib/returns";
+import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
+import type {
+  CreateSupportTicketInput,
+  SupportTicket,
+  TicketSender,
+} from "@/lib/support-tickets";
 import { generateOrderNumber, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
@@ -60,6 +66,7 @@ const COL = {
   products: "products",
   orders: "orders",
   returns: "returns",
+  supportTickets: "supportTickets",
   settings: "settings",
   emailIndex: "emailIndex",
   phoneIndex: "phoneIndex",
@@ -953,6 +960,125 @@ export class FirebaseDataSource implements DataSource {
     const snap = await getDoc(ref);
     if (!snap.exists()) throw new ApiError("Return request not found.", 404);
     return { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
+  }
+
+  // --- Support tickets ------------------------------------------------------
+  subscribeSupportTickets(buyerId?: string, cb?: (tickets: SupportTicket[]) => void): () => void {
+    const db = getDb();
+    const base = collection(db, COL.supportTickets);
+    const q = buyerId
+      ? query(base, where("buyerId", "==", buyerId))
+      : query(base, orderBy("updatedAt", "desc"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const tickets = snap.docs.map((d) => ({
+          ...(d.data() as Omit<SupportTicket, "id">),
+          id: d.id,
+        }));
+        const sorted = tickets.sort(
+          (a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)
+        );
+        cb?.(sorted);
+      },
+      (err) => {
+        console.warn("Support tickets subscription error:", err.message);
+      }
+    );
+
+    return unsubscribe;
+  }
+
+  async listSupportTickets(buyerId?: string): Promise<SupportTicket[]> {
+    await this.ready();
+    const base = collection(getDb(), COL.supportTickets);
+    const snap = buyerId
+      ? await getDocs(query(base, where("buyerId", "==", buyerId)))
+      : await getDocs(query(base, orderBy("updatedAt", "desc")));
+    const tickets = snap.docs.map((d) => ({
+      ...(d.data() as Omit<SupportTicket, "id">),
+      id: d.id,
+    }));
+    return tickets.sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+  }
+
+  async getSupportTicket(id: string): Promise<SupportTicket | null> {
+    await this.ready();
+    const snap = await getDoc(doc(getDb(), COL.supportTickets, id));
+    return snap.exists() ? { ...(snap.data() as Omit<SupportTicket, "id">), id: snap.id } : null;
+  }
+
+  async getOrCreateSupportTicket(input: CreateSupportTicketInput): Promise<SupportTicket> {
+    await this.ready();
+    const db = getDb();
+
+    const existingSnap = await getDocs(
+      query(
+        collection(db, COL.supportTickets),
+        where("buyerId", "==", input.buyerId),
+        where("status", "==", "OPEN")
+      )
+    );
+    if (!existingSnap.empty) {
+      const d = existingSnap.docs[0];
+      return { ...(d.data() as Omit<SupportTicket, "id">), id: d.id };
+    }
+
+    const ref = doc(collection(db, COL.supportTickets));
+    const ticket = { ...openNewTicket(input), id: ref.id };
+    const { id: _id, ...data } = ticket;
+    void _id;
+    await withFreshTokenRetry(() =>
+      setDoc(ref, Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) as DocumentData)
+    );
+    return ticket;
+  }
+
+  async addSupportTicketMessage(
+    id: string,
+    sender: Extract<TicketSender, "buyer" | "admin" | "assistant">,
+    text: string,
+    suggestions?: string[]
+  ): Promise<SupportTicket> {
+    await this.ready();
+    const ref = doc(getDb(), COL.supportTickets, id);
+    const message = buildTicketMessage(sender, text, suggestions);
+    const patch: DocumentData = { thread: arrayUnion(message), updatedAt: new Date().toISOString() };
+    // A human reply resolves the "needs a human" flag that got it here.
+    if (sender === "admin") patch.needsHuman = false;
+    await withFreshTokenRetry(() => updateDoc(ref, patch));
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Support ticket not found.", 404);
+    return { ...(snap.data() as Omit<SupportTicket, "id">), id: snap.id };
+  }
+
+  async escalateSupportTicket(id: string): Promise<SupportTicket> {
+    await this.ready();
+    const ref = doc(getDb(), COL.supportTickets, id);
+    const message = buildTicketMessage("system", ESCALATION_NOTICE);
+    await withFreshTokenRetry(() =>
+      updateDoc(ref, {
+        thread: arrayUnion(message),
+        needsHuman: true,
+        updatedAt: new Date().toISOString(),
+      })
+    );
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Support ticket not found.", 404);
+    return { ...(snap.data() as Omit<SupportTicket, "id">), id: snap.id };
+  }
+
+  async closeSupportTicket(id: string): Promise<SupportTicket> {
+    await this.ready();
+    const ref = doc(getDb(), COL.supportTickets, id);
+    const now = new Date().toISOString();
+    await withFreshTokenRetry(() =>
+      updateDoc(ref, { status: "CLOSED", closedAt: now, updatedAt: now })
+    );
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Support ticket not found.", 404);
+    return { ...(snap.data() as Omit<SupportTicket, "id">), id: snap.id };
   }
 
   // --- Admin --------------------------------------------------------------

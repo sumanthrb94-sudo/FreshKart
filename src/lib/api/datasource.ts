@@ -15,6 +15,11 @@ import type {
   ReturnRequest,
   ReturnStatus,
 } from "@/lib/returns";
+import type {
+  CreateSupportTicketInput,
+  SupportTicket,
+  TicketSender,
+} from "@/lib/support-tickets";
 
 /**
  * The contract every backend must satisfy. The UI depends ONLY on this
@@ -133,6 +138,32 @@ export interface DataSource {
   updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest>;
   addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest>;
   updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest>;
+
+  // --- Support tickets --------------------------------------------------------
+  /** buyerId omitted → all tickets (admin). */
+  listSupportTickets(buyerId?: string): Promise<SupportTicket[]>;
+  /**
+   * Real-time subscription to ticket changes, same shape as subscribeOrders /
+   * subscribeReturns. Used by admin for instant "needs a human" alerts.
+   */
+  subscribeSupportTickets?(buyerId?: string, cb?: (tickets: SupportTicket[]) => void): () => void;
+  getSupportTicket(id: string): Promise<SupportTicket | null>;
+  /**
+   * Returns the buyer's current OPEN ticket, creating one (seeded with the
+   * assistant greeting) if none exists. At most one OPEN ticket per buyer —
+   * this is the single entry point the AI chat widget calls on open.
+   */
+  getOrCreateSupportTicket(input: CreateSupportTicketInput): Promise<SupportTicket>;
+  addSupportTicketMessage(
+    id: string,
+    sender: Extract<TicketSender, "buyer" | "admin" | "assistant">,
+    text: string,
+    suggestions?: string[]
+  ): Promise<SupportTicket>;
+  /** Buyer-triggered: adds a system "connected to support" message and flags the ticket for a human. */
+  escalateSupportTicket(id: string): Promise<SupportTicket>;
+  /** Ends the conversation — locks the thread (mirrors return REJECTED/COMPLETED). */
+  closeSupportTicket(id: string): Promise<SupportTicket>;
 
   // --- Settings -------------------------------------------------------------
   /** Read the daily price-update gate status (world-readable). */

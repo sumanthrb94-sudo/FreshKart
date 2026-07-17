@@ -2,12 +2,14 @@ import type { DailyPricesSettings, Order, Product, User } from "@/lib/types";
 import { ORDERS, PRODUCTS, USERS, DEMO_PASSWORD } from "@/lib/mock-data";
 import type { ReturnRequest } from "@/lib/returns";
 import { demoReturnRequests } from "@/lib/returns";
+import type { SupportTicket } from "@/lib/support-tickets";
 
 interface MockStore {
   products: Product[];
   users: User[];
   orders: Order[];
   returns: ReturnRequest[];
+  supportTickets: SupportTicket[];
   dailyPrices: DailyPricesSettings | null;
   credentials: Record<string, string>;
 }
@@ -20,6 +22,7 @@ function seed(): MockStore {
     users: structuredClone(USERS),
     orders: structuredClone(ORDERS),
     returns: structuredClone(demoReturnRequests),
+    supportTickets: [],
     dailyPrices: null,
     credentials: {
       "customer@green-basket.in": DEMO_PASSWORD,
@@ -39,6 +42,7 @@ function load(): MockStore {
     // Ensure all required fields exist (migration from older store versions)
     if (!parsed.orders) parsed.orders = [];
     if (!parsed.returns) parsed.returns = seed().returns;
+    if (!parsed.supportTickets) parsed.supportTickets = [];
     if (!parsed.credentials) parsed.credentials = seed().credentials;
     if (!parsed.products || parsed.products.length === 0) parsed.products = seed().products;
     if (!parsed.users || parsed.users.length === 0) parsed.users = seed().users;
