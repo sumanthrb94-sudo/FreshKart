@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Clock, ImageIcon, Minus, Package, Pencil, Plus, Search, Sparkles, Upload, X } from "lucide-react";
 import type { Product, ProductInput, Unit } from "@/lib/types";
 import { api, ApiError, backendKind } from "@/lib/api";
@@ -698,6 +699,8 @@ function ProductTable({
 
 export function AdminProductsScreen() {
   const { user } = useAuth();
+  const router = useRouter();
+  const params = useSearchParams();
   const { data, loading, error, refetch } = useAsync(() => api.listProducts(), []);
   const {
     data: settings,
@@ -726,6 +729,18 @@ export function AdminProductsScreen() {
     const base = data ?? [];
     return base.map((p) => overrides[p.id] ?? p);
   }, [data, overrides]);
+
+  // Deep-link support: /admin/products?open=<id> — used by the dashboard
+  // search bar to jump straight to a specific product's edit sheet.
+  useEffect(() => {
+    if (!data) return;
+    const open = params.get("open");
+    if (!open) return;
+    const match = data.find((p) => p.id === open);
+    if (match) setEditing(match);
+    router.replace("/admin/products");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
