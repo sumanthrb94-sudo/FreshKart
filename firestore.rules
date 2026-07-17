@@ -12,8 +12,19 @@ service cloud.firestore {
 
     // Emails granted ADMIN regardless of their stored role. Keep in sync with
     // ADMIN_EMAILS in src/lib/api/firebase.ts.
+    //
+    // Phone-auth accounts have NO `email` claim on their token at all (not
+    // null — entirely absent), and reading a missing property throws in
+    // Firestore's rules language instead of returning false. isAdminEmail()
+    // is evaluated first in nearly every allow clause in this file (via
+    // isAdmin()), so this denied EVERY write from EVERY phone-only signed-in
+    // user — the real explanation for "some accounts, not all" (Google
+    // sign-in always carries an email claim; phone OTP never does). Guard
+    // with `'email' in request.auth.token` (safe presence check, never
+    // errors) before reading the value.
     function isAdminEmail() {
       return isSignedIn()
+             && 'email' in request.auth.token
              && request.auth.token.email in ['sumanthbolla97@gmail.com', 'sivakishore43@gmail.com'];
     }
 
@@ -101,17 +112,69 @@ service cloud.firestore {
              && item.lineTotal == item.price * item.qty;
     }
 
-    // Validates every item in the cart in one pass via the `all()` CEL macro
-    // — no per-item unrolling, so price/lineTotal checks work for any array
-    // length. The `<= 50` below exists purely because getExpectedSubtotal()
-    // has to be hand-unrolled (Firestore rules have no loop/reduce construct
-    // to sum an arbitrary-length array) — it is NOT a get()-budget limit
-    // anymore, and 50 is comfortably above the entire product catalog, so no
-    // real cart can ever hit it. The client mirrors the same number via
-    // MAX_ORDER_ITEM_TYPES in src/lib/format.ts.
+    // Validates every item in the cart. Firestore's rules language does
+    // NOT actually support the `all()` CEL macro despite it existing in
+    // standard CEL (confirmed against the Firestore emulator: "Function
+    // not found error: Name: [all]") — so like getExpectedSubtotal(),
+    // this has to be hand-unrolled. Each branch only costs a size check
+    // and one validateItem() call (no get() calls, since prices is
+    // pre-fetched), so unlike the old per-item get() approach this isn't
+    // bound by any call-budget limit — 50 is comfortably above the
+    // entire product catalog, so no real cart can ever hit it. The
+    // client mirrors the same number via MAX_ORDER_ITEM_TYPES in
+    // src/lib/format.ts.
     function validateOrderItems(items, prices) {
       return items.size() > 0 && items.size() <= 50
-             && items.all(item, validateItem(item, prices));
+             && (items.size() < 1 || validateItem(items[0], prices))
+             && (items.size() < 2 || validateItem(items[1], prices))
+             && (items.size() < 3 || validateItem(items[2], prices))
+             && (items.size() < 4 || validateItem(items[3], prices))
+             && (items.size() < 5 || validateItem(items[4], prices))
+             && (items.size() < 6 || validateItem(items[5], prices))
+             && (items.size() < 7 || validateItem(items[6], prices))
+             && (items.size() < 8 || validateItem(items[7], prices))
+             && (items.size() < 9 || validateItem(items[8], prices))
+             && (items.size() < 10 || validateItem(items[9], prices))
+             && (items.size() < 11 || validateItem(items[10], prices))
+             && (items.size() < 12 || validateItem(items[11], prices))
+             && (items.size() < 13 || validateItem(items[12], prices))
+             && (items.size() < 14 || validateItem(items[13], prices))
+             && (items.size() < 15 || validateItem(items[14], prices))
+             && (items.size() < 16 || validateItem(items[15], prices))
+             && (items.size() < 17 || validateItem(items[16], prices))
+             && (items.size() < 18 || validateItem(items[17], prices))
+             && (items.size() < 19 || validateItem(items[18], prices))
+             && (items.size() < 20 || validateItem(items[19], prices))
+             && (items.size() < 21 || validateItem(items[20], prices))
+             && (items.size() < 22 || validateItem(items[21], prices))
+             && (items.size() < 23 || validateItem(items[22], prices))
+             && (items.size() < 24 || validateItem(items[23], prices))
+             && (items.size() < 25 || validateItem(items[24], prices))
+             && (items.size() < 26 || validateItem(items[25], prices))
+             && (items.size() < 27 || validateItem(items[26], prices))
+             && (items.size() < 28 || validateItem(items[27], prices))
+             && (items.size() < 29 || validateItem(items[28], prices))
+             && (items.size() < 30 || validateItem(items[29], prices))
+             && (items.size() < 31 || validateItem(items[30], prices))
+             && (items.size() < 32 || validateItem(items[31], prices))
+             && (items.size() < 33 || validateItem(items[32], prices))
+             && (items.size() < 34 || validateItem(items[33], prices))
+             && (items.size() < 35 || validateItem(items[34], prices))
+             && (items.size() < 36 || validateItem(items[35], prices))
+             && (items.size() < 37 || validateItem(items[36], prices))
+             && (items.size() < 38 || validateItem(items[37], prices))
+             && (items.size() < 39 || validateItem(items[38], prices))
+             && (items.size() < 40 || validateItem(items[39], prices))
+             && (items.size() < 41 || validateItem(items[40], prices))
+             && (items.size() < 42 || validateItem(items[41], prices))
+             && (items.size() < 43 || validateItem(items[42], prices))
+             && (items.size() < 44 || validateItem(items[43], prices))
+             && (items.size() < 45 || validateItem(items[44], prices))
+             && (items.size() < 46 || validateItem(items[45], prices))
+             && (items.size() < 47 || validateItem(items[46], prices))
+             && (items.size() < 48 || validateItem(items[47], prices))
+             && (items.size() < 49 || validateItem(items[48], prices))
+             && (items.size() < 50 || validateItem(items[49], prices));
     }
     // Delivery fee slab based on subtotal (in rupees).
     function getExpectedDeliveryFee(subtotal) {
