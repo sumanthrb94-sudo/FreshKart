@@ -204,8 +204,8 @@ export function ShopScreen() {
         )}
 
         {/* Sticky category rail */}
-        <div className="sticky top-0 z-20 bg-canvas px-4 pb-1 pt-3">
-          <div className="fc-scroll flex gap-2 overflow-x-auto pb-0.5">
+        <div className="sticky top-0 z-20 flex items-center gap-2 bg-canvas px-4 pb-1 pt-3">
+          <div className="fc-scroll flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5">
             <Chip active={category === "all"} onClick={() => setCategory("all")}>
               {t("all")}
             </Chip>
@@ -215,6 +215,9 @@ export function ShopScreen() {
               </Chip>
             ))}
           </div>
+          {storeStatus.isOpen && !loading && !error && visible.length > 0 && (
+            <span className="shrink-0 text-xs text-fg-subtle">{visible.length} items</span>
+          )}
         </div>
 
         <div className="px-4 pb-4 lg:px-6">
@@ -234,16 +237,11 @@ export function ShopScreen() {
           ) : visible.length === 0 ? (
             <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
           ) : (
-            <section>
-              <div className="mb-2 flex items-center justify-end">
-                <span className="text-xs text-fg-subtle">{visible.length} items</span>
-              </div>
-              <div className="product-grid mt-2">
-                {visible.map((p) => (
-                  <ProductListItem key={p.id} product={p} />
-                ))}
-              </div>
-            </section>
+            <div className="product-grid mt-2">
+              {visible.map((p) => (
+                <ProductListItem key={p.id} product={p} />
+              ))}
+            </div>
           )}
         </div>
       </div>
