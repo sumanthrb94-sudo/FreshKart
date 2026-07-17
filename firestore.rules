@@ -38,12 +38,16 @@ service cloud.firestore {
     }
 
     // Signed-in buyers reserve/release stock during order/cancel transactions.
-    // The change must only touch `stock` and may move by at most 500 units
-    // (either direction), keeping catalog integrity without needing a backend.
+    // The change must only touch `stock` and may move by at most 10,000 units
+    // (either direction) — generous headroom above any realistic single bulk
+    // B2B order, while still blocking a wildly out-of-range write. (This was
+    // previously capped at 500, which a legitimate bulk order could exceed on
+    // its own — e.g. ordering 550kg of an item seeded with 600kg of stock —
+    // failing the whole checkout with "Missing or insufficient permissions".)
     function isStockChangeValid() {
       return request.resource.data.stock >= 0
-             && request.resource.data.stock <= resource.data.stock + 500
-             && request.resource.data.stock >= resource.data.stock - 500;
+             && request.resource.data.stock <= resource.data.stock + 10000
+             && request.resource.data.stock >= resource.data.stock - 10000;
     }
 
     // Helper to validate a single order item's price and line total integrity
