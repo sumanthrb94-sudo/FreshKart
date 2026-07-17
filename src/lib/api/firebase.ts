@@ -153,6 +153,33 @@ async function writeUserDoc(
 }
 
 /**
+ * Same token-refresh-and-retry idea as writeUserDoc(), generalized for any
+ * write (in particular runTransaction calls, which can't reuse writeUserDoc
+ * directly). Placing an order/cancelling/returning shortly after sign-in —
+ * or just after a long-idle tab wakes back up — can race Firestore's client
+ * ahead of a stale ID token, producing a spurious "Missing or insufficient
+ * permissions" for a perfectly legitimate write. Only retries on the
+ * Firestore SDK's own `permission-denied` code; app-level ApiErrors (out of
+ * stock, cart empty, etc.) always propagate immediately on first try.
+ */
+async function withFreshTokenRetry<T>(op: () => Promise<T>): Promise<T> {
+  const fbUser = getFirebaseAuth().currentUser;
+  if (fbUser) await fbUser.getIdToken();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await op();
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      if (code !== "permission-denied" || attempt === 1 || !fbUser) throw e;
+      await fbUser.getIdToken(true);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+  // Unreachable: the loop above always returns or throws.
+  throw new ApiError("Could not complete the request. Please try again.");
+}
+
+/**
  * Claim a unique value (email or phone) for this user via an index doc whose
  * ID is the normalized value itself. Firestore security rules only allow
  * `create` on a slot this user doesn't already own (see firestore.rules) —
@@ -513,7 +540,7 @@ export class FirebaseDataSource implements DataSource {
     const now = new Date();
     let built: Order | null = null;
 
-    await runTransaction(db, async (tx) => {
+    await withFreshTokenRetry(() => runTransaction(db, async (tx) => {
       const refs = input.items.map((i) => doc(db, COL.products, i.productId));
       const snaps = await Promise.all(refs.map((r) => tx.get(r)));
 
@@ -564,7 +591,7 @@ export class FirebaseDataSource implements DataSource {
       // redundant and breaks the security-rules field allow-list for buyers).
       const { id, ...orderData } = built;
       tx.set(orderRef, orderData as DocumentData);
-    });
+    }));
 
     return built!;
   }
@@ -650,7 +677,7 @@ export class FirebaseDataSource implements DataSource {
     const db = getDb();
     let updated: Order | null = null;
 
-    await runTransaction(db, async (tx) => {
+    await withFreshTokenRetry(() => runTransaction(db, async (tx) => {
       const oRef = doc(db, COL.orders, id);
       const oSnap = await tx.get(oRef);
       if (!oSnap.exists()) throw new ApiError("Order not found.", 404);
@@ -675,7 +702,7 @@ export class FirebaseDataSource implements DataSource {
 
       tx.update(oRef, patch);
       updated = { ...order, ...(patch as Partial<Order>) };
-    });
+    }));
 
     return updated!;
   }
@@ -840,9 +867,11 @@ export class FirebaseDataSource implements DataSource {
     // Also drop undefined optional fields so Firestore doesn't reject them.
     const { id: _id, ...data } = returnReq;
     void _id;
-    await setDoc(
-      ref,
-      Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) as DocumentData
+    await withFreshTokenRetry(() =>
+      setDoc(
+        ref,
+        Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) as DocumentData
+      )
     );
     return returnReq;
   }
