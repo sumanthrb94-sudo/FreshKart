@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import {
-  ArrowLeft,
-  RotateCcw,
   Clock,
   CheckCircle2,
   XCircle,
@@ -16,6 +14,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { BuyerBottomNav } from "@/components/buyer/BuyerBottomNav";
 import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
+import { PageHero } from "@/components/buyer/PageHero";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -58,16 +57,13 @@ export function BuyerReturnsScreen() {
       footer={<BuyerBottomNav />}
       sidebar={<BuyerSidebar />}
     >
-      <div className="flex flex-col gap-3 p-4">
-        <Link href="/orders" className="flex w-fit items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg-muted">
-          <ArrowLeft className="h-3.5 w-3.5" /> My orders
-        </Link>
-
-        <div>
-          <h1 className="text-lg font-extrabold text-fg">My Returns</h1>
-          <p className="text-xs text-fg-subtle">Track your return and refund requests</p>
-        </div>
-
+      <PageHero
+        title="My Returns"
+        subtitle="Track your return and refund requests"
+        backHref="/orders"
+        backLabel="My orders"
+      />
+      <div className="relative z-10 -mt-6 flex flex-col gap-3 rounded-t-[26px] bg-canvas p-4">
         {list.length === 0 ? (
           <EmptyState
             icon={PackageX}

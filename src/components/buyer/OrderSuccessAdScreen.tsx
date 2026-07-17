@@ -155,21 +155,25 @@ export function OrderSuccessAdScreen({
       footer={<BuyerBottomNav />}
       sidebar={<BuyerSidebar />}
     >
-      <div className="flex flex-col gap-3 p-4">
-        {/* Order Success Header */}
-        <div className="flex flex-col items-center py-6 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
-            <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+      {/* Order Success Header */}
+      <div className="relative overflow-hidden rounded-b-[28px] bg-gradient-to-br from-brand-500 via-brand-600 to-brand-700 px-5 pb-8 pt-6 text-center text-white lg:rounded-b-3xl">
+        <div className="pointer-events-none absolute -right-14 -top-16 h-44 w-44 rounded-full bg-white/10" />
+        <div className="pointer-events-none absolute -left-10 top-16 h-32 w-32 rounded-full bg-brand-300/20 blur-2xl" />
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/15">
+            <CheckCircle2 className="h-8 w-8 text-white" />
           </div>
-          <h1 className="mt-3 text-xl font-extrabold text-fg">Order Placed!</h1>
-          <p className="mt-1 text-sm text-fg-muted">
+          <h1 className="mt-3 text-xl font-extrabold">Order Placed!</h1>
+          <p className="mt-1 text-sm text-white/80">
             {orderNumber} &bull; {formatCurrency(total)}
           </p>
-          <p className="mt-1 text-xs text-fg-subtle">
+          <p className="mt-1 text-xs text-white/70">
             Your order will be delivered tomorrow. Track it below.
           </p>
         </div>
+      </div>
 
+      <div className="relative z-10 -mt-6 flex flex-col gap-3 rounded-t-[26px] bg-canvas p-4">
         {/* Order Actions */}
         <div className="flex flex-col gap-2">
           <Button fullWidth onClick={() => router.push(`/orders/${orderId}`)}>
@@ -253,16 +257,16 @@ export function OrderSuccessAdScreen({
         </div>
 
         {/* Referral Ad */}
-        <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
+        <Card className="border-amber-500/30 bg-amber-500/10">
           <CardBody className="p-4 text-center">
-            <p className="text-sm font-bold text-amber-800">Refer a Business Friend</p>
-            <p className="mt-1 text-xs text-amber-700">
+            <p className="text-sm font-bold text-amber-600">Refer a Business Friend</p>
+            <p className="mt-1 text-xs text-amber-600/80">
               Share Green Basket with other businesses and earn rewards on their first order!
             </p>
             <Button
               variant="outline"
               size="sm"
-              className="mt-2 border-amber-300 text-amber-800 hover:bg-amber-100"
+              className="mt-2 border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
               onClick={() => {
                 navigator.clipboard?.writeText("https://fresh-kart-six.vercel.app").catch(() => {});
                 toast.success("Link copied!", "Share it with your business friends", 2000);

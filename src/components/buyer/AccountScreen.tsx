@@ -12,6 +12,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
 import { BuyerBottomNav } from "./BuyerBottomNav";
 import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
+import { PageHero } from "./PageHero";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Field, Input } from "@/components/ui/Field";
@@ -117,12 +118,13 @@ export function AccountScreen() {
       footer={<BuyerBottomNav />}
       sidebar={<BuyerSidebar />}
     >
+      <PageHero
+        title="Your account"
+        subtitle={user.businessName || user.name || undefined}
+        right={<Badge className="bg-white/15 text-white">{user.role}</Badge>}
+      />
+      <div className="relative z-10 -mt-6 rounded-t-[26px] bg-canvas">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-fg">Your account</h1>
-          <Badge className="bg-brand-500/20 text-brand-300">{user.role}</Badge>
-        </div>
-
         {/* Language preference */}
         <Card>
           <CardBody className="flex items-center gap-3">
@@ -303,8 +305,10 @@ export function AccountScreen() {
         >
           Log out
         </Button>
+      </div>
+      </div>
 
-        <Sheet
+      <Sheet
           open={addrOpen}
           onClose={() => setAddrOpen(false)}
           title={
@@ -330,7 +334,6 @@ export function AccountScreen() {
             />
           </div>
         </Sheet>
-      </div>
     </AppShell>
   );
 }
