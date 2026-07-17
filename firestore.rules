@@ -56,9 +56,17 @@ service cloud.firestore {
              && item.lineTotal == item.price * item.qty;
     }
 
-    // Helper to validate order items array up to length of 10
+    // Helper to validate order items array up to length of 15. Firestore
+    // security rules cap get()/exists() calls per rule evaluation at 20 for a
+    // transaction/batched write (this order-create rule runs inside the order
+    // transaction) — validateItem() below makes one get() call per item, PLUS
+    // isAdmin() above already spends one call on userRole() for any non-admin-
+    // email caller, so 15 leaves 1 (isAdmin) + 15 (items) = 16 total, safely
+    // under the limit with margin. The client enforces the same cap before
+    // checkout (MAX_ORDER_ITEM_TYPES in src/lib/format.ts) so a buyer never
+    // reaches this rule with a cart that would be rejected.
     function validateOrderItems(items) {
-      return items.size() > 0 && items.size() <= 10
+      return items.size() > 0 && items.size() <= 15
              && (items.size() < 1 || validateItem(items[0]))
              && (items.size() < 2 || validateItem(items[1]))
              && (items.size() < 3 || validateItem(items[2]))
@@ -68,9 +76,13 @@ service cloud.firestore {
              && (items.size() < 7 || validateItem(items[6]))
              && (items.size() < 8 || validateItem(items[7]))
              && (items.size() < 9 || validateItem(items[8]))
-             && (items.size() < 10 || validateItem(items[9]));
+             && (items.size() < 10 || validateItem(items[9]))
+             && (items.size() < 11 || validateItem(items[10]))
+             && (items.size() < 12 || validateItem(items[11]))
+             && (items.size() < 13 || validateItem(items[12]))
+             && (items.size() < 14 || validateItem(items[13]))
+             && (items.size() < 15 || validateItem(items[14]));
     }
-
     // Delivery fee slab based on subtotal (in rupees).
     function getExpectedDeliveryFee(subtotal) {
       return subtotal <= 0 ? 0 :
@@ -90,7 +102,12 @@ service cloud.firestore {
              items.size() == 7 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal :
              items.size() == 8 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal :
              items.size() == 9 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal :
-             items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal + items[9].lineTotal;
+             items.size() == 10 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal + items[9].lineTotal :
+             items.size() == 11 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal + items[9].lineTotal + items[10].lineTotal :
+             items.size() == 12 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal + items[9].lineTotal + items[10].lineTotal + items[11].lineTotal :
+             items.size() == 13 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal + items[9].lineTotal + items[10].lineTotal + items[11].lineTotal + items[12].lineTotal :
+             items.size() == 14 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal + items[9].lineTotal + items[10].lineTotal + items[11].lineTotal + items[12].lineTotal + items[13].lineTotal :
+             items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal + items[9].lineTotal + items[10].lineTotal + items[11].lineTotal + items[12].lineTotal + items[13].lineTotal + items[14].lineTotal;
     }
 
     // Allowed top-level fields on a new order document. Prevents buyers from
@@ -180,7 +197,12 @@ service cloud.firestore {
                     && request.resource.data.status == 'REQUESTED'
                     && hasOnlyReturnFields()
                     && request.resource.data.items.size() > 0
-                    && request.resource.data.items.size() <= 10;
+                    // Matches the order item cap (MAX_ORDER_ITEM_TYPES) — a
+                    // return can never have more items than the order it's
+                    // for. No get()/exists() calls happen per return item
+                    // here (unlike orders), so this isn't bound by any
+                    // platform limit, just kept in sync with orders.
+                    && request.resource.data.items.size() <= 15;
 
       allow update: if isAdmin()
                     || isBuyerReturnReply();

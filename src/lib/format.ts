@@ -3,6 +3,16 @@ import type { OrderStatus, PaymentMethod, Unit, CartLine } from "./types";
 /** Whole-order minimum quantity (in kg / units). */
 export const MIN_ORDER_TOTAL_QTY = 10;
 
+/**
+ * Max distinct products in a single order. This isn't an arbitrary UX
+ * choice — it mirrors firestore.rules' validateOrderItems(), which is
+ * itself bounded by Firestore's own get()/exists() call limit per rule
+ * evaluation (each item costs one call to verify its price). Keep both in
+ * sync — raising one without the other either re-blocks legitimate carts
+ * or lets the client claim a cap the rules won't actually honor.
+ */
+export const MAX_ORDER_ITEM_TYPES = 15;
+
 /** Total cart quantity across all lines. */
 export function cartTotalQty(lines: CartLine[]): number {
   return lines.reduce((sum, l) => sum + l.qty, 0);

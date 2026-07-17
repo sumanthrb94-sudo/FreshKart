@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Banknote, CreditCard, MapPin, Pencil, ShieldCheck, Wallet } from "lucide-react";
 import type { DeliveryDetails, PaymentMethod } from "@/lib/types";
-import { formatCurrency, pricePerUnit, MIN_ORDER_TOTAL_QTY, PAYMENT_LABELS, PAYMENT_LONG } from "@/lib/format";
+import { formatCurrency, pricePerUnit, MIN_ORDER_TOTAL_QTY, MAX_ORDER_ITEM_TYPES, PAYMENT_LABELS, PAYMENT_LONG } from "@/lib/format";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { Button } from "@/components/ui/Button";
@@ -91,6 +91,12 @@ export function CheckoutSheet({
     }
     if (totalQty < MIN_ORDER_TOTAL_QTY) {
       setLocalError(`Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. Add ${MIN_ORDER_TOTAL_QTY - totalQty} more kg to continue.`);
+      return;
+    }
+    if (lines.length > MAX_ORDER_ITEM_TYPES) {
+      setLocalError(
+        `You can order up to ${MAX_ORDER_ITEM_TYPES} different products at a time — you have ${lines.length}. Remove ${lines.length - MAX_ORDER_ITEM_TYPES} to continue, or place a second order for the rest.`
+      );
       return;
     }
     setLocalError(null);
