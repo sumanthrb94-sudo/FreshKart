@@ -144,7 +144,7 @@ export function ShopScreen() {
       header={
         <BuyerHeader
           searchSlot={
-            <label className="flex items-center gap-2 rounded-full bg-raised px-3 py-1.5">
+            <label className="flex items-center gap-2 rounded-full bg-surface px-3 py-1.5">
               <Search className="h-3.5 w-3.5 shrink-0 text-fg-subtle" aria-hidden />
               <input
                 type="text"
@@ -173,13 +173,17 @@ export function ShopScreen() {
       />
 
       <div className="relative z-10 -mt-6 rounded-t-[26px] bg-canvas">
-        {/* Daily price-update banner. Text sits at the 600/700 weight of each
-            hue (not 100/light) so it reads on both a near-black AND a
-            near-white tinted background — this app has no dark:/light:
-            variant split, so the same classes render in both themes and
-            need to work in both. */}
+        {/* Daily price-update banner. Full-bleed strip flush against the hero's
+            curve, rounded to match the sheet's own top corners (rather than
+            clipping the sheet with overflow-hidden, which broke the sticky
+            category rail below) so it reads as a continuation of the hero
+            rather than a separate floating card. Text sits at the 600/700
+            weight of each hue (not 100/light) so it reads on both a
+            near-black AND a near-white tinted background — this app has no
+            dark:/light: variant split, so the same classes render in both
+            themes and need to work in both. */}
         {!settingsLoading && !pricesPublished && storeStatus.isOpen && (
-          <div className="mx-4 mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2.5 text-center">
+          <div className="rounded-t-[26px] bg-amber-500/10 px-4 py-2.5 text-center">
             <p className="flex items-center justify-center gap-2 text-sm font-bold text-amber-600">
               <Clock className="h-4 w-4 text-amber-500" aria-hidden />
               Getting best live prices for you
@@ -190,7 +194,7 @@ export function ShopScreen() {
 
         {/* Store closed banner — catalog hidden between 11:45 PM and 8:00 AM IST */}
         {!storeStatus.isOpen && (
-          <div className="mx-4 mt-3 rounded-xl border border-brand-500/30 bg-brand-500/15 px-3 py-3 text-center">
+          <div className="rounded-t-[26px] bg-brand-500/15 px-4 py-3 text-center">
             <p className="flex items-center justify-center gap-2 text-sm font-bold text-brand-600">
               <Clock className="h-4 w-4 text-brand-500" aria-hidden />
               Gathering best prices across Hyderabad

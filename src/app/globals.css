@@ -6,13 +6,14 @@
   --app-max: 480px;
   --sidebar-width: 16rem;
 
-  /* Dark mode (default). A deliberate, barely-there green cast instead of
-     pure grey — pure neutrals were reading as sterile/empty for a produce
-     brand whose color otherwise only showed up in buttons and chips. */
-  --color-canvas: #0d100e;
-  --color-surface: #171b18;
-  --color-raised: #1f2521;
-  --color-line: #2a332c;
+  /* Dark mode (default). A deliberate green cast instead of pure grey —
+     pure neutrals were reading as sterile/empty for a produce brand whose
+     color otherwise only showed up in buttons and chips. */
+  --color-canvas: #0c1410;
+  --color-surface: #142019;
+  --color-raised: #1c2b22;
+  --color-line: #28392f;
+  --color-header: #10251b;
   --color-fg: #f5f6f8;
   --color-fg-muted: #a6abb5;
   --color-fg-subtle: #74787f;
@@ -23,13 +24,14 @@
 
 /* Light mode */
 html.light {
-  --color-canvas: #f1f4f2;
-  --color-surface: #fcfdfc;
-  --color-raised: #eef2ee;
-  --color-line: #dfe6e1;
+  --color-canvas: #e6f1ea;
+  --color-surface: #f6fbf8;
+  --color-raised: #dcede2;
+  --color-line: #c3ddcb;
+  --color-header: #d7ecdf;
   --color-fg: #1a1a1e;
   --color-fg-muted: #5c5f66;
-  --color-fg-subtle: #8b8e96;
+  --color-fg-subtle: #71786f;
 }
 
 html {

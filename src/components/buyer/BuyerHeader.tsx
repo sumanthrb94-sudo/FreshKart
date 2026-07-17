@@ -20,7 +20,7 @@ export function BuyerHeader({
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface">
+    <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-header">
       <div className="flex items-center justify-between gap-2 px-3 py-2">
         <div className="flex shrink-0 items-center gap-1.5">
           <Link href="/" aria-label="Green Basket" className="flex items-center gap-1.5">
@@ -35,7 +35,7 @@ export function BuyerHeader({
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-raised text-fg-muted transition-colors hover:bg-line hover:text-fg"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-surface text-fg-muted transition-colors hover:bg-line hover:text-fg"
             title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >

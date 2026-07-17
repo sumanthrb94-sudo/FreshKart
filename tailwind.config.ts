@@ -50,6 +50,7 @@ const config: Config = {
         canvas: "var(--color-canvas)",
         surface: "var(--color-surface)",
         raised: "var(--color-raised)",
+        header: "var(--color-header)",
         line: "var(--color-line)",
         fg: {
           DEFAULT: "var(--color-fg)",
