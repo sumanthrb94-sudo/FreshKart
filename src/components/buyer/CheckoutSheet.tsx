@@ -276,7 +276,7 @@ export function CheckoutSheet({
       </div>
 
       {/* Sticky CTA */}
-      <div className="sticky bottom-0 border-t border-line/60 bg-canvas/95 p-4 backdrop-blur">
+      <div className="sticky bottom-0 border-t border-line/60 bg-canvas p-4">
         <Button size="lg" fullWidth loading={busy} disabled={disabled} onClick={handleSubmit}>
           {busy
             ? "Placing order…"

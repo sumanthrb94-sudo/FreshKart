@@ -13,7 +13,7 @@ export function StoreClosedOverlay() {
   if (status.isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm px-6">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 px-6">
       <div className="w-full max-w-sm rounded-2xl bg-surface p-6 shadow-2xl text-center">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-500/10">
           <Clock className="h-8 w-8 text-brand-500" />

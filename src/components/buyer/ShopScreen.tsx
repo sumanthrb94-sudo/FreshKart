@@ -163,7 +163,7 @@ export function ShopScreen() {
       sidebar={<BuyerSidebar />}
     >
       {/* Sticky category rail */}
-      <div className="sticky top-0 z-20 border-b border-line/60 bg-canvas/95 px-4 py-3 backdrop-blur">
+      <div className="sticky top-0 z-20 border-b border-line/60 bg-canvas px-4 py-3">
         {/* Daily price-update banner */}
         {!settingsLoading && !pricesPublished && storeStatus.isOpen && (
           <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-center">
@@ -283,7 +283,7 @@ export function ShopScreen() {
         onPaid={() => pending && placeOrder(pending.delivery, pending.method, true)}
       />
       {busy && !checkoutOpen && !paymentOpen && (
-        <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app items-center justify-center bg-canvas/95 backdrop-blur lg:left-[var(--sidebar-width)] lg:mx-0 lg:max-w-none">
+        <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app items-center justify-center bg-canvas lg:left-[var(--sidebar-width)] lg:mx-0 lg:max-w-none">
           <FullScreenLoader label="Placing order…" />
         </div>
       )}

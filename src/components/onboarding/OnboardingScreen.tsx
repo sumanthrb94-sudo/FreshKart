@@ -400,7 +400,7 @@ export function OnboardingScreen() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-colors hover:bg-white/25"
+            className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white transition-colors hover:bg-black/55"
             title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
