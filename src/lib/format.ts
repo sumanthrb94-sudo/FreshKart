@@ -4,14 +4,17 @@ import type { OrderStatus, PaymentMethod, Unit, CartLine } from "./types";
 export const MIN_ORDER_TOTAL_QTY = 10;
 
 /**
- * Max distinct products in a single order. This isn't an arbitrary UX
- * choice — it mirrors firestore.rules' validateOrderItems(), which is
- * itself bounded by Firestore's own get()/exists() call limit per rule
- * evaluation (each item costs one call to verify its price). Keep both in
- * sync — raising one without the other either re-blocks legitimate carts
- * or lets the client claim a cap the rules won't actually honor.
+ * Max distinct products in a single order. firestore.rules validates prices
+ * against a single pre-fetched price-sheet document (one get() call, not one
+ * per item), so this is no longer bounded by Firestore's get()-call budget —
+ * it only mirrors how far getExpectedSubtotal() in firestore.rules has been
+ * hand-unrolled (rules have no loop/reduce to sum an arbitrary-length
+ * array). 50 is comfortably above the entire product catalog, so in
+ * practice no buyer can ever hit this. Keep both in sync — raising one
+ * without the other either re-blocks legitimate carts or lets the client
+ * claim a cap the rules won't actually honor.
  */
-export const MAX_ORDER_ITEM_TYPES = 15;
+export const MAX_ORDER_ITEM_TYPES = 50;
 
 /** Total cart quantity across all lines. */
 export function cartTotalQty(lines: CartLine[]): number {

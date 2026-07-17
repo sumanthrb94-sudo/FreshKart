@@ -427,13 +427,26 @@ export class FirebaseDataSource implements DataSource {
       allowed.imageUrl = patch.imageUrl;
     }
     await updateDoc(doc(db, COL.products, id), allowed);
+    // Mirror any price change into settings/priceSheet — the order-create
+    // rule reads this single doc (one get() call, regardless of cart size)
+    // instead of one get() per line item, which is what let the item cap be
+    // lifted. Must stay in lockstep or orders start failing with
+    // "Missing or insufficient permissions" again.
+    if (patch.price !== undefined) {
+      await setDoc(
+        doc(db, COL.settings, "priceSheet"),
+        { prices: { [id]: patch.price } },
+        { merge: true }
+      );
+    }
     const snap = await getDoc(doc(db, COL.products, id));
     if (!snap.exists()) throw new ApiError("Product not found.", 404);
     return { ...(snap.data() as Omit<Product, "id">), id: snap.id };
   }
 
   async createProduct(input: ProductInput): Promise<Product> {
-    const ref = doc(collection(getDb(), COL.products));
+    const db = getDb();
+    const ref = doc(collection(db, COL.products));
     // Normalise minOrderQty so every product defaults to 1 kg/pc if omitted.
     const normalised: ProductInput = {
       ...input,
@@ -444,6 +457,11 @@ export class FirebaseDataSource implements DataSource {
       Object.entries(normalised).filter(([, v]) => v !== undefined)
     ) as DocumentData;
     await setDoc(ref, data);
+    await setDoc(
+      doc(db, COL.settings, "priceSheet"),
+      { prices: { [ref.id]: normalised.price } },
+      { merge: true }
+    );
     return { ...normalised, id: ref.id };
   }
 
@@ -452,9 +470,13 @@ export class FirebaseDataSource implements DataSource {
     const db = getDb();
     const batch = writeBatch(db);
     const refs = updates.map((u) => doc(db, COL.products, u.id));
+    const priceMap: Record<string, number> = {};
     for (let i = 0; i < updates.length; i++) {
       batch.update(refs[i], { price: updates[i].price });
+      priceMap[updates[i].id] = updates[i].price;
     }
+    // Same batch, same atomicity guarantee as the product price writes.
+    batch.set(doc(db, COL.settings, "priceSheet"), { prices: priceMap }, { merge: true });
     await batch.commit();
     const snaps = await Promise.all(refs.map((r) => getDoc(r)));
     return snaps
