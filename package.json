@@ -12,7 +12,6 @@
     "seed:firestore": "tsx scripts/seed-firestore.ts",
     "seed:firestore:client": "tsx scripts/seed-products-client.ts",
     "set-product-images": "tsx scripts/set-product-images.ts",
-    "build-price-sheet": "tsx scripts/build-price-sheet.ts",
     "test:e2e": "npx playwright test e2e/freshkart-ceo.spec.ts --headed --timeout=300000 --project=chrome-desktop",
     "test:e2e:report": "npx playwright show-report e2e/report"
   },
