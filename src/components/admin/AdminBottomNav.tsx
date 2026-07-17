@@ -35,14 +35,22 @@ export const ADMIN_TABS: AdminTab[] = [
   { href: "/admin/customers", label: "Buyers", icon: Users, isActive: (p) => p.startsWith("/admin/customers") },
 ];
 
-/** Admin bottom tab bar — Dashboard · Inventory · Prices · Orders · Returns · Reports · Coupons · Buyers. */
+// Mobile bottom bar shows only the 5 most-used sections — the full set
+// lives in the AdminOverviewScreen tile grid instead of a 9-item
+// horizontal-scrolling strip that only degrades on a phone. Desktop's
+// AdminSidebar still uses the full ADMIN_TABS list — it has the vertical
+// room a phone doesn't.
+const MOBILE_TAB_HREFS = ["/admin", "/admin/orders", "/admin/prices", "/admin/products", "/admin/support"];
+const MOBILE_TABS = ADMIN_TABS.filter((t) => MOBILE_TAB_HREFS.includes(t.href));
+
+/** Admin bottom tab bar — Dashboard · Orders · Prices · Inventory · Support (see AdminOverviewScreen for the rest). */
 export function AdminBottomNav() {
   const pathname = usePathname() || "/admin";
 
   return (
     <nav className="shrink-0 border-t border-line bg-surface">
-      <div className="flex items-center justify-around overflow-x-auto px-2 py-1">
-        {ADMIN_TABS.map((tab) => {
+      <div className="flex items-center justify-around px-2 py-1">
+        {MOBILE_TABS.map((tab) => {
           const active = tab.isActive(pathname);
           const Icon = tab.icon;
           return (

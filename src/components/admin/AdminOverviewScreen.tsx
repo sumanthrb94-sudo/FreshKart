@@ -4,17 +4,21 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
+  BadgePercent,
   CheckCircle2,
   ClipboardList,
   Clock,
+  FileText,
   IndianRupee,
+  MessageCircle,
   Package,
-  Plus,
+  RotateCcw,
   ScanLine,
   ShoppingCart,
   Sparkles,
   Tag,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import type { OrderStatus } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -54,6 +58,12 @@ export function AdminOverviewScreen() {
     refetch: refetchSettings,
   } = useAsync(() => api.getDailyPricesSettings(), []);
   const [publishing, setPublishing] = useState(false);
+
+  // Live counts for the nav tile badges below.
+  const { data: returns } = useAsync(() => api.listReturns(), []);
+  const { data: tickets } = useAsync(() => api.listSupportTickets(), []);
+  const pendingReturnsCount = returns?.filter((r) => r.status === "REQUESTED").length ?? 0;
+  const needsHumanCount = tickets?.filter((t) => t.needsHuman).length ?? 0;
 
   // Day totals — scoped to one IST business day, fetched with a date-range
   // query rather than the all-time scan the stats below still do.
@@ -162,39 +172,19 @@ export function AdminOverviewScreen() {
       )}
 
       <div className="flex flex-col gap-3 p-4">
-        {/* Quick actions */}
-        <div className="grid grid-cols-2 gap-3">
-          <Link
-            href="/admin/prices"
-            className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-bold text-white shadow-card transition-colors hover:bg-brand-600 active:bg-brand-600"
-          >
-            <Tag className="h-4 w-4" aria-hidden />
-            Update prices
-          </Link>
-          <Link
-            href="/admin/pos"
-            className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold text-fg shadow-card transition-colors hover:bg-raised"
-          >
-            <ScanLine className="h-4 w-4" aria-hidden />
-            New POS sale
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Link
-            href="/admin/products"
-            className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold text-fg shadow-card transition-colors hover:bg-raised"
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            Add product
-          </Link>
-          <Link
-            href="/admin/orders"
-            className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold text-fg shadow-card transition-colors hover:bg-raised"
-          >
-            <ClipboardList className="h-4 w-4" aria-hidden />
-            View orders
-          </Link>
+        {/* Manage — every admin section as a tappable tile, so mobile isn't
+            stuck relying on a 9-item scrolling bottom bar for navigation. */}
+        <h2 className="text-xs font-bold uppercase tracking-wide text-fg-muted">Manage</h2>
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-9">
+          <NavTile href="/admin/products" label="Inventory" icon={Package} tone="brand" count={stats.lowStockCount} />
+          <NavTile href="/admin/prices" label="Prices" icon={Tag} tone="amber" attention={!publishedToday} />
+          <NavTile href="/admin/orders" label="Orders" icon={ClipboardList} tone="blue" count={stats.ordersByStatus.PENDING} />
+          <NavTile href="/admin/pos" label="POS Sale" icon={ScanLine} tone="violet" />
+          <NavTile href="/admin/returns" label="Returns" icon={RotateCcw} tone="rose" count={pendingReturnsCount} />
+          <NavTile href="/admin/support" label="Support" icon={MessageCircle} tone="indigo" count={needsHumanCount} />
+          <NavTile href="/admin/reports" label="Reports" icon={FileText} tone="teal" />
+          <NavTile href="/admin/coupons" label="Coupons" icon={BadgePercent} tone="pink" />
+          <NavTile href="/admin/customers" label="Buyers" icon={Users} tone="cyan" />
         </div>
 
         {/* Daily price gate */}
@@ -441,5 +431,58 @@ export function AdminOverviewScreen() {
 
       </div>
     </AdminShell>
+  );
+}
+
+type Tone = "brand" | "amber" | "blue" | "violet" | "rose" | "indigo" | "teal" | "pink" | "cyan";
+
+const TONE_CLASSES: Record<Tone, string> = {
+  brand: "bg-brand-500/15 text-brand-500",
+  amber: "bg-amber-500/15 text-amber-500",
+  blue: "bg-blue-500/15 text-blue-500",
+  violet: "bg-violet-500/15 text-violet-500",
+  rose: "bg-rose-500/15 text-rose-500",
+  indigo: "bg-indigo-500/15 text-indigo-500",
+  teal: "bg-teal-500/15 text-teal-500",
+  pink: "bg-pink-500/15 text-pink-500",
+  cyan: "bg-cyan-500/15 text-cyan-500",
+};
+
+/** One tappable tile in the "Manage" grid — icon, label, and an optional
+ *  live count badge (or a plain attention dot when a count doesn't apply,
+ *  e.g. "prices not published yet"). */
+function NavTile({
+  href,
+  label,
+  icon: Icon,
+  tone,
+  count,
+  attention,
+}: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  tone: Tone;
+  count?: number;
+  attention?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex flex-col items-center gap-2 rounded-2xl border border-line bg-surface p-3 text-center shadow-card transition-all hover:-translate-y-0.5 hover:shadow-card-hover active:scale-95"
+    >
+      <span className={cn("relative flex h-12 w-12 items-center justify-center rounded-2xl transition-transform group-hover:scale-105", TONE_CLASSES[tone])}>
+        <Icon className="h-5 w-5" aria-hidden />
+        {!!count && count > 0 && (
+          <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-extrabold leading-none text-white ring-2 ring-surface">
+            {count > 99 ? "99+" : count}
+          </span>
+        )}
+        {attention && !count && (
+          <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-red-500 ring-2 ring-surface" />
+        )}
+      </span>
+      <span className="text-xs font-bold leading-tight text-fg">{label}</span>
+    </Link>
   );
 }
