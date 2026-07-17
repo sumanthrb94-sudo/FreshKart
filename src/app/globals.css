@@ -6,11 +6,13 @@
   --app-max: 480px;
   --sidebar-width: 16rem;
 
-  /* Dark mode (default) */
-  --color-canvas: #0d0d0f;
-  --color-surface: #18181b;
-  --color-raised: #222227;
-  --color-line: #2c2d33;
+  /* Dark mode (default). A deliberate, barely-there green cast instead of
+     pure grey — pure neutrals were reading as sterile/empty for a produce
+     brand whose color otherwise only showed up in buttons and chips. */
+  --color-canvas: #0d100e;
+  --color-surface: #171b18;
+  --color-raised: #1f2521;
+  --color-line: #2a332c;
   --color-fg: #f5f6f8;
   --color-fg-muted: #a6abb5;
   --color-fg-subtle: #74787f;
@@ -21,10 +23,10 @@
 
 /* Light mode */
 html.light {
-  --color-canvas: #f2f2f5;
-  --color-surface: #ffffff;
-  --color-raised: #f0f0f3;
-  --color-line: #e2e2e6;
+  --color-canvas: #f1f4f2;
+  --color-surface: #fcfdfc;
+  --color-raised: #eef2ee;
+  --color-line: #dfe6e1;
   --color-fg: #1a1a1e;
   --color-fg-muted: #5c5f66;
   --color-fg-subtle: #8b8e96;

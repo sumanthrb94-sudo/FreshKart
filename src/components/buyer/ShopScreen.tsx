@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Clock, Headphones, Search, SearchX } from "lucide-react";
+import { BadgeCheck, Clock, Headphones, SearchX } from "lucide-react";
 import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
-import { isDailyPriceUpdatePublished } from "@/lib/time";
+import { formatLastPublished, isDailyPriceUpdatePublished } from "@/lib/time";
 import { getStoreStatus } from "@/lib/store-hours";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -16,10 +16,10 @@ import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Chip } from "@/components/ui/Chip";
-import { Input } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader, Spinner } from "@/components/ui/Spinner";
 import { BuyerHeader } from "./BuyerHeader";
+import { ShopHero } from "./ShopHero";
 import { ProductListItem } from "./ProductListItem";
 import { StickyCartBar } from "./StickyCartBar";
 import { BuyerBottomNav } from "./BuyerBottomNav";
@@ -135,25 +135,17 @@ export function ShopScreen() {
     }
   }
 
-  const banner = !settingsLoading && !pricesPublished && storeStatus.isOpen;
-
-  const searchSlot = (
-    <div className="relative">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-subtle" />
-      <Input
-        flavor="field"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t("searchProduce")}
-        className="h-9 pl-8 text-sm"
-        aria-label={t("searchProduce")}
-      />
-    </div>
-  );
+  const greetingPrefix = now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening";
+  const greetingName = user?.businessName || user?.name;
+  const greeting = greetingName ? `${greetingPrefix}, ${greetingName}` : "Welcome to Green Basket";
+  const liveStatusLabel =
+    pricesPublished && settings?.publishedAt
+      ? `Live prices · ${formatLastPublished(settings.publishedAt).split(",")[0]}`
+      : undefined;
 
   return (
     <AppShell
-      header={<BuyerHeader searchSlot={searchSlot} />}
+      header={<BuyerHeader />}
       footer={
         <>
           <StickyCartBar onReview={handleReview} disabled={!canOrder} />
@@ -162,93 +154,94 @@ export function ShopScreen() {
       }
       sidebar={<BuyerSidebar />}
     >
-      {/* Sticky category rail */}
-      <div className="sticky top-0 z-20 border-b border-line/60 bg-canvas px-4 py-3">
-        {/* Daily price-update banner */}
+      <ShopHero
+        greeting={greeting}
+        itemCount={visible.length}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder={t("searchProduce")}
+        liveStatusLabel={liveStatusLabel}
+      />
+
+      <div className="relative z-10 -mt-6 rounded-t-[26px] bg-canvas">
+        {/* Daily price-update banner. Text sits at the 600/700 weight of each
+            hue (not 100/light) so it reads on both a near-black AND a
+            near-white tinted background — this app has no dark:/light:
+            variant split, so the same classes render in both themes and
+            need to work in both. */}
         {!settingsLoading && !pricesPublished && storeStatus.isOpen && (
-          <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-center">
-            <p className="flex items-center justify-center gap-2 text-sm font-bold text-amber-100">
-              <Clock className="h-4 w-4 text-amber-400" aria-hidden />
+          <div className="mx-4 mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2.5 text-center">
+            <p className="flex items-center justify-center gap-2 text-sm font-bold text-amber-600">
+              <Clock className="h-4 w-4 text-amber-500" aria-hidden />
               Getting best live prices for you
             </p>
-            <p className="text-xs text-amber-200/70">Orders open after 7 AM daily price update</p>
+            <p className="text-xs text-amber-600/80">Orders open after 7 AM daily price update</p>
           </div>
         )}
 
         {/* Store closed banner — catalog hidden between 11:45 PM and 8:00 AM IST */}
         {!storeStatus.isOpen && (
-          <div className="mb-3 -mt-1 rounded-lg border border-brand-500/30 bg-brand-500/15 px-3 py-3 text-center">
-            <p className="flex items-center justify-center gap-2 text-sm font-bold text-brand-100">
-              <Clock className="h-4 w-4 text-brand-400" aria-hidden />
+          <div className="mx-4 mt-4 rounded-xl border border-brand-500/30 bg-brand-500/15 px-3 py-3 text-center">
+            <p className="flex items-center justify-center gap-2 text-sm font-bold text-brand-600">
+              <Clock className="h-4 w-4 text-brand-500" aria-hidden />
               Gathering best prices across Hyderabad
             </p>
-            <p className="text-xs text-brand-200/80">Will be online at 8 AM everyday</p>
+            <p className="text-xs text-brand-600/80">Will be online at 8 AM everyday</p>
           </div>
         )}
 
-        {/* Search — shown here only on desktop; the mobile header hosts it instead
-            (there is no visible header at the lg: breakpoint, only the sidebar). */}
-        <div className="relative mb-3 hidden lg:block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
-          <Input
-            flavor="field"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("searchProduce")}
-            className="h-11 pl-9"
-            aria-label={t("searchProduce")}
-          />
-        </div>
+        {/* Reassurance banner once today's rates are live — mirrors the pending/closed banners above. */}
+        {!settingsLoading && pricesPublished && storeStatus.isOpen && settings?.publishedAt && (
+          <div className="mx-4 mt-4 flex items-center gap-2 rounded-xl border border-brand-500/20 bg-brand-500/10 px-3 py-2.5 text-xs font-semibold text-brand-600">
+            <BadgeCheck className="h-4 w-4 shrink-0 text-brand-500" aria-hidden />
+            Today&apos;s rates published {formatLastPublished(settings.publishedAt)} — prices locked for the day
+          </div>
+        )}
 
-        <div className="fc-scroll -mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5">
-          <Chip active={category === "all"} onClick={() => setCategory("all")}>
-            {t("all")}
-          </Chip>
-          {CATEGORIES.map((c) => (
-            <Chip key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
-              {tCategory(c.name)}
+        {/* Sticky category rail */}
+        <div className="sticky top-0 z-20 bg-canvas px-4 pb-2 pt-4">
+          <div className="fc-scroll flex gap-2 overflow-x-auto pb-0.5">
+            <Chip active={category === "all"} onClick={() => setCategory("all")}>
+              {t("all")}
             </Chip>
-          ))}
-        </div>
-      </div>
-
-      <div className="p-4 lg:p-6">
-        {/* Hero */}
-        <section className="mb-6">
-          <h1 className="text-2xl font-bold text-fg">
-            {user?.businessName ? `${user.businessName}` : user?.name ? `Hello, ${user.name}` : "Welcome back"}
-          </h1>
-          <p className="text-sm text-fg-subtle">Fresh wholesale produce delivered to your business.</p>
-        </section>
-
-        {/* Closed state */}
-        {!storeStatus.isOpen ? (
-          <EmptyState
-            icon={Clock}
-            title="Gathering best prices across Hyderabad"
-            subtitle="Will be online at 8 AM everyday. Come back tomorrow!"
-          />
-        ) : loading ? (
-          <div className="flex justify-center py-16">
-            <Spinner className="h-7 w-7" />
+            {CATEGORIES.map((c) => (
+              <Chip key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
+                {tCategory(c.name)}
+              </Chip>
+            ))}
           </div>
-        ) : error ? (
-          <EmptyState icon={SearchX} title={t("couldntLoad")} subtitle={error} />
-        ) : visible.length === 0 ? (
-          <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
-        ) : (
-          <section>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-bold text-fg">{tCategory(category === "all" ? "All" : CATEGORIES.find((c) => c.id === category)?.name ?? "Products")}</h2>
-              <span className="text-xs text-fg-subtle">{visible.length} items</span>
+        </div>
+
+        <div className="px-4 pb-4 lg:px-6">
+          {/* Closed state */}
+          {!storeStatus.isOpen ? (
+            <EmptyState
+              icon={Clock}
+              title="Gathering best prices across Hyderabad"
+              subtitle="Will be online at 8 AM everyday. Come back tomorrow!"
+            />
+          ) : loading ? (
+            <div className="flex justify-center py-16">
+              <Spinner className="h-7 w-7" />
             </div>
-            <div className="product-grid mt-3">
-              {visible.map((p) => (
-                <ProductListItem key={p.id} product={p} />
-              ))}
-            </div>
-          </section>
-        )}
+          ) : error ? (
+            <EmptyState icon={SearchX} title={t("couldntLoad")} subtitle={error} />
+          ) : visible.length === 0 ? (
+            <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
+          ) : (
+            <section>
+              <div className="mb-3 flex items-center justify-between pt-1">
+                <h2 className="text-base font-bold text-fg">{tCategory(category === "all" ? "All" : CATEGORIES.find((c) => c.id === category)?.name ?? "Products")}</h2>
+                <span className="text-xs text-fg-subtle">{visible.length} items</span>
+              </div>
+              <div className="product-grid mt-3">
+                {visible.map((p) => (
+                  <ProductListItem key={p.id} product={p} />
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
       </div>
 
       {/* Subtle support button */}
