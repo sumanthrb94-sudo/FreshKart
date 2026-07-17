@@ -1,22 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { LayoutDashboard, ShoppingCart, Sprout, Sun, Moon } from "lucide-react";
+import { LayoutDashboard, Sprout, Sun, Moon } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { useCart } from "@/components/providers/CartProvider";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { NotificationBell } from "@/components/NotificationDrawer";
-import { cn } from "@/lib/utils";
-
-const ICON_BTN =
-  "flex h-8 w-8 items-center justify-center rounded-full bg-raised text-fg-muted transition-colors hover:bg-line hover:text-fg";
 
 export function BuyerHeader({ searchSlot }: { searchSlot?: React.ReactNode }) {
   const { isAuthenticated, isAdmin } = useAuth();
-  const { itemCount } = useCart();
   const { theme, toggleTheme } = useTheme();
-  const router = useRouter();
 
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface">
@@ -55,20 +47,6 @@ export function BuyerHeader({ searchSlot }: { searchSlot?: React.ReactNode }) {
               )}
               {/* Notification bell */}
               <NotificationBell />
-              {/* Cart */}
-              <button
-                type="button"
-                aria-label={`Your cart (${itemCount})`}
-                onClick={() => router.push("/?cart=1")}
-                className={cn("relative", ICON_BTN)}
-              >
-                <ShoppingCart className="h-4 w-4" />
-                {itemCount > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-extrabold leading-none text-white ring-2 ring-surface">
-                    {itemCount}
-                  </span>
-                )}
-              </button>
             </>
           )}
         </div>
