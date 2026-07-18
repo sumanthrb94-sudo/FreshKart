@@ -53,6 +53,7 @@ export function ProductThumb({
       aria-hidden
       className={cn(
         "flex shrink-0 items-center justify-center overflow-hidden bg-raised",
+        fill && "h-full w-full",
         radius,
         className
       )}

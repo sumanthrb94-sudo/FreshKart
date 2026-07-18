@@ -50,6 +50,19 @@ html.light {
     --color-fg-muted: #5c5f66;
     --color-fg-subtle: #71786f;
   }
+
+  /* text-brand-300/400 (badges, chips, nav active states, "+ ADD" labels)
+     were tuned to pop against the dark theme's near-black canvas — on this
+     forced-light desktop canvas they read as washed-out, low-contrast green.
+     Darken them here rather than touching every call site (18 files use
+     these two utilities as "brand accent text on a tinted background").
+     Mobile is untouched: this block only applies past the breakpoint. */
+  .text-brand-300 {
+    color: #065f46 !important; /* brand-700 */
+  }
+  .text-brand-400 {
+    color: #047857 !important; /* brand-600 */
+  }
 }
 
 html {
@@ -116,7 +129,9 @@ a:active {
 }
 @media (min-width: 768px) {
   .product-grid {
-    grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+    /* 176px was tight for the price + "Min order" chip + Add button stack —
+       200px gives the card's action row room without wrapping/overlapping. */
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
 }
 

@@ -44,7 +44,15 @@ export function ProductListItem({ product }: { product: Product }) {
           {tProduct(product.name)}
         </p>
 
-        <div className="mt-1.5 flex items-end justify-between gap-2 md:mt-auto">
+        {/* Price/chip and the action control (Add / stepper) sit side-by-side
+            on mobile, where the card is wide enough (image is a small fixed
+            square, not the whole card width). On the md+ grid, cards narrow
+            to ~180-200px — cramming a ~120px quantity stepper next to the
+            price+chip there left no room for either and they visibly
+            overlapped. Stacking them (price row, then a full-width action
+            row) fixes that regardless of exactly how narrow the column
+            gets. */}
+        <div className="mt-1.5 flex items-end justify-between gap-2 md:mt-auto md:flex-col md:items-stretch md:gap-1.5">
           <div className="min-w-0">
             <div className="flex items-baseline gap-1">
               <span className="text-lg font-extrabold text-fg">
@@ -57,9 +65,9 @@ export function ProductListItem({ product }: { product: Product }) {
             </span>
           </div>
 
-          <div className="shrink-0">
+          <div className="shrink-0 md:w-full">
             {outOfStock ? (
-              <span className="rounded-full bg-raised px-2.5 py-1.5 text-xs font-semibold text-fg-subtle">
+              <span className="block rounded-full bg-raised px-2.5 py-1.5 text-center text-xs font-semibold text-fg-subtle">
                 {t("outOfStock")}
               </span>
             ) : qty === 0 ? (
@@ -67,13 +75,13 @@ export function ProductListItem({ product }: { product: Product }) {
                 type="button"
                 data-testid="add-to-cart-btn"
                 onClick={() => add(product)}
-                className="flex items-center gap-1 rounded-full border border-brand-500 bg-brand-500/10 px-3 py-1.5 text-sm font-bold text-brand-400 transition-colors hover:bg-brand-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                className="flex items-center gap-1 rounded-full border border-brand-500 bg-brand-500/10 px-3 py-1.5 text-sm font-bold text-brand-400 transition-colors hover:bg-brand-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 md:w-full md:justify-center"
               >
                 <Plus className="h-4 w-4" />
                 {t("add")}
               </button>
             ) : (
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-end gap-1 md:w-full md:flex-row md:items-center md:justify-between">
                 <QuantityStepper
                   product={product}
                   qty={qty}
