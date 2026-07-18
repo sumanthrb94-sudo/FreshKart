@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { MessageCircle, X, Send, Bot, User, Sparkles, LogOut, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -23,6 +23,7 @@ export function AiChatAgent() {
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
   const { isAuthenticated, isAdmin, user } = useAuth();
 
   // Close chat when clicking outside
@@ -185,16 +186,31 @@ export function AiChatAgent() {
     }
   };
 
-  // Only show chat for authenticated buyers. Hide for:
-  // - Guests (not logged in)
-  // - Admins
-  // - Login page (double safety)
-  // - Admin pages (double safety)
+  // Show the bubble for every signed-in user on buyer-facing pages. Hidden on
+  // "/" (sign-in / shop home, where the cart bar owns that corner) and on
+  // /admin/* (the admin shell has its own navigation). For ADMINS browsing
+  // buyer pages the bubble stays visible but jumps to the Support inbox —
+  // opening the buyer chat panel would file a ticket from the admin to
+  // themselves, and silently hiding it just looks broken.
   const isLoginPage = pathname === "/" || pathname === "";
   const isAdminPage = pathname?.startsWith("/admin");
-  const shouldShowChat = isAuthenticated && !isAdmin && !isLoginPage && !isAdminPage;
+  const shouldShowChat = isAuthenticated && !isLoginPage && !isAdminPage;
 
   if (!shouldShowChat) return null;
+
+  if (isAdmin) {
+    return (
+      <button
+        data-chat-button
+        onClick={() => router.push("/admin/support")}
+        className="fixed bottom-20 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-brand-500 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:bg-brand-600 md:bottom-8"
+        aria-label="Open support inbox"
+        title="Support inbox"
+      >
+        <MessageCircle className="h-5 w-5" />
+      </button>
+    );
+  }
 
   const canReply = ticket ? canBuyerMessage(ticket.status) : false;
   const lastMessage = ticket?.thread[ticket.thread.length - 1];
