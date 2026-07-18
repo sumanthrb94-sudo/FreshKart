@@ -11,21 +11,88 @@ import {
   AlertTriangle,
   CheckCircle2,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, ApiError, backendKind } from "@/lib/api";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { RETURN_REASON_LABELS } from "@/lib/returns";
 import type { ReturnReason, ReturnImage } from "@/lib/returns";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getFirebaseStorage } from "@/lib/firebase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { BuyerBottomNav } from "@/components/buyer/BuyerBottomNav";
 import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { FullScreenLoader } from "@/components/ui/Spinner";
+import { FullScreenLoader, Spinner } from "@/components/ui/Spinner";
 import { formatCurrency } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { notifyReturnRequested } from "@/lib/in-app-notifications";
+
+const MAX_PHOTOS = 4;
+const MAX_INPUT_SIZE = 15 * 1024 * 1024; // reject absurd files before decoding
+const MAX_DIMENSION = 1280; // longest edge after downscale
+const JPEG_QUALITY = 0.8;
+
+/** Downscale + re-encode a photo so it's cheap to store and fast to load.
+ *  Phone camera shots are 5–10 MB; the admin only needs enough to judge
+ *  produce damage. Falls back to the original file when the browser can't
+ *  decode it (e.g. exotic formats) — Storage rules still cap size at 5 MB. */
+async function compressPhoto(file: File): Promise<Blob> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    return await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("encode failed"))),
+        "image/jpeg",
+        JPEG_QUALITY
+      )
+    );
+  } catch {
+    if (file.size >= 5 * 1024 * 1024) {
+      throw new ApiError("Could not process this image. Please use a photo under 5 MB.");
+    }
+    return file;
+  }
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Could not read image."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Persist a return photo somewhere the ADMIN can actually load it from:
+ *  Firebase Storage in production (a real https download URL), a data URL in
+ *  demo mode. Never a blob: object URL — those are pointers into this tab's
+ *  memory and die the moment anyone else (or a reload) tries to view them. */
+async function persistReturnPhoto(file: File, buyerId: string): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new ApiError("Please select an image file.");
+  }
+  if (file.size > MAX_INPUT_SIZE) {
+    throw new ApiError("Image is too large. Please use a photo under 15 MB.");
+  }
+  const blob = await compressPhoto(file);
+  if (backendKind === "firebase") {
+    const path = `returns/${buyerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+    const storageRef = ref(getFirebaseStorage(), path);
+    await uploadBytes(storageRef, blob, { contentType: blob.type || "image/jpeg" });
+    return getDownloadURL(storageRef);
+  }
+  return blobToDataUrl(blob);
+}
 
 export function ReturnRequestScreen({ orderId }: { orderId: string }) {
   const { ready, user } = useRequireAuth({ callbackUrl: `/orders/${orderId}/return` });
@@ -36,6 +103,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
   const [reason, setReason] = useState<ReturnReason>("OTHER");
   const [notes, setNotes] = useState("");
   const [images, setImages] = useState<ReturnImage[]>([]);
+  const [uploadingCount, setUploadingCount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [returnId, setReturnId] = useState("");
@@ -55,20 +123,38 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
     });
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach((file) => {
-      const url = URL.createObjectURL(file);
-      const newImage: ReturnImage = {
-        id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        url,
-        filename: file.name,
-        uploadedAt: new Date().toISOString(),
-      };
-      setImages((prev) => [...prev, newImage]);
-    });
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Snapshot before resetting the input — e.target.files is a LIVE FileList
+    // that empties the moment value is cleared.
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
+    if (files.length === 0 || !user) return;
+    const room = MAX_PHOTOS - images.length;
+    if (room <= 0) {
+      toast.warning("Photo limit reached", `You can attach up to ${MAX_PHOTOS} photos.`);
+      return;
+    }
+    const batch = files.slice(0, room);
+    setUploadingCount((c) => c + batch.length);
+    for (const file of batch) {
+      try {
+        const url = await persistReturnPhoto(file, user.id);
+        setImages((prev) => [
+          ...prev,
+          {
+            id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            url,
+            filename: file.name,
+            uploadedAt: new Date().toISOString(),
+          },
+        ]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Could not upload photo.";
+        toast.error("Photo upload failed", message);
+      } finally {
+        setUploadingCount((c) => c - 1);
+      }
+    }
   };
 
   const removeImage = (id: string) => {
@@ -335,19 +421,30 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
                   <img src={img.url} alt={img.filename} className="h-full w-full object-cover" />
                   <button
                     onClick={() => removeImage(img.id)}
+                    aria-label={`Remove ${img.filename}`}
                     className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ))}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line bg-surface text-fg-subtle hover:bg-raised"
-              >
-                <Camera className="h-5 w-5" />
-                <span className="text-[10px] font-medium">Add photo</span>
-              </button>
+              {Array.from({ length: uploadingCount }).map((_, i) => (
+                <div
+                  key={`uploading-${i}`}
+                  className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed border-line bg-surface"
+                >
+                  <Spinner className="h-5 w-5" />
+                </div>
+              ))}
+              {images.length + uploadingCount < MAX_PHOTOS && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line bg-surface text-fg-subtle hover:bg-raised"
+                >
+                  <Camera className="h-5 w-5" />
+                  <span className="text-[10px] font-medium">Add photo</span>
+                </button>
+              )}
             </div>
           </CardBody>
         </Card>
@@ -366,10 +463,10 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
         <Button
           fullWidth
           loading={submitting}
-          disabled={!hasAnyReturn || submitting}
+          disabled={!hasAnyReturn || submitting || uploadingCount > 0}
           onClick={handleSubmit}
         >
-          Submit Return Request
+          {uploadingCount > 0 ? "Uploading photos…" : "Submit Return Request"}
         </Button>
 
         <p className="text-center text-xs text-fg-subtle">

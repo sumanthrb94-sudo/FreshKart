@@ -248,7 +248,7 @@ export const demoReturnRequests: ReturnRequest[] = [
     totalRefund: 220,
     adjustedInvoiceNumber: "INV-20260620-7HK2Q2-ADJ01",
     images: [
-      { id: "img-1", url: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400", filename: "tomato-damage-1.jpg", uploadedAt: "2026-06-21T10:05:00.000Z" },
+      { id: "img-1", url: "/produce/tomato.jpg", filename: "tomato-damage-1.jpg", uploadedAt: "2026-06-21T10:05:00.000Z" },
     ],
     thread: [
       { id: "msg-1", sender: "system", text: "Return request RET-20260701-001 created for order ORD-20260620-7HK2Q2. Status: REQUESTED. Reason: Quality not as expected. Estimated refund: Rs. 220.", sentAt: "2026-06-21T10:00:00.000Z" },
@@ -274,7 +274,7 @@ export const demoReturnRequests: ReturnRequest[] = [
     totalRefund: 96,
     adjustedInvoiceNumber: "INV-20260622-9KL4M5-ADJ01",
     images: [
-      { id: "img-2", url: "https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?w=400", filename: "onion-damage.jpg", uploadedAt: "2026-07-02T08:35:00.000Z" },
+      { id: "img-2", url: "/produce/onion-big.jpg", filename: "onion-damage.jpg", uploadedAt: "2026-07-02T08:35:00.000Z" },
     ],
     thread: [
       { id: "msg-4", sender: "system", text: "Return request RET-20260702-002 created for order ORD-20260622-9KL4M5. Status: REQUESTED. Reason: Damaged in transit. Estimated refund: Rs. 96.", sentAt: "2026-07-02T08:30:00.000Z" },

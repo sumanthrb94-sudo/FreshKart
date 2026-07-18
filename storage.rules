@@ -1,7 +1,9 @@
 rules_version = '2';
 
-// Green Basket Cloud Storage rules — product imagery.
-// Public read (catalog images); only admins may upload/replace/delete.
+// Green Basket Cloud Storage rules — product imagery + return photos.
+// Products: public read (catalog images); only admins may upload/replace/delete.
+// Returns: buyers upload damage photos under their own uid; any signed-in
+// user (i.e. the buyer and admins) may view them.
 service firebase.storage {
   match /b/{bucket}/o {
     function isAdmin() {
@@ -14,6 +16,15 @@ service firebase.storage {
       allow write: if isAdmin()
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+    }
+
+    match /returns/{uid}/{imageId=**} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      // No update/delete: evidence photos are immutable once submitted.
     }
   }
 }

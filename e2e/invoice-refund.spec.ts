@@ -218,13 +218,24 @@ test("full lifecycle in parallel tabs: place → advance to DELIVERED live → i
   expect(html).toContain(orderNumber);
   await popup.close();
 
-  // --- Return → refund: buyer requests, admin processes, buyer sees it live ---
+  // --- Return → refund: buyer requests (with a photo), admin processes, buyer sees it live ---
   await buyerTab.getByText(/Request Return \/ Refund/i).click();
   await buyerTab.waitForURL(/\/return$/, { timeout: 15_000 });
   await expect(buyerTab.getByText(/Select items to return/i)).toBeVisible();
   // Return 1 unit of the first line item.
   await buyerTab.locator("button:has(svg.lucide-plus)").first().click();
   await buyerTab.getByRole("button", { name: /Damaged in transit/i }).click();
+  // Attach a damage photo — must be persisted somewhere the admin can load it
+  // from, NOT a blob: URL that only exists inside this buyer tab.
+  await buyerTab.locator("input[type='file']").setInputFiles({
+    name: "damage-photo.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGElEQVR4nGP8z8Dwn4EIwESMolGF1FMIAF9vAh31KLW+AAAAAElFTkSuQmCC",
+      "base64"
+    ),
+  });
+  await expect(buyerTab.locator("img[alt='damage-photo.png']")).toBeVisible({ timeout: 10_000 });
   await buyerTab.getByRole("button", { name: /Submit Return Request/i }).click();
   await buyerTab.waitForTimeout(1500);
 
@@ -234,6 +245,10 @@ test("full lifecycle in parallel tabs: place → advance to DELIVERED live → i
   expect(ret.status).toBe("REQUESTED");
   expect(ret.totalRefund).toBeGreaterThan(0);
   expect(ret.adjustedInvoiceNumber).toBe(`INV-${orderNumber}-ADJ01`);
+  // The persisted photo URL must be portable (data:/https:), never blob:.
+  expect(ret.images.length).toBe(1);
+  expect(ret.images[0].url).not.toMatch(/^blob:/);
+  expect(ret.images[0].url).toMatch(/^(data:image|https:)/);
 
   // Buyer parks back on the order page to observe the refund arrive live.
   await gotoAs(buyerTab, buyerSession, `${BASE_URL}/orders/${placed.id}`);
@@ -247,6 +262,16 @@ test("full lifecycle in parallel tabs: place → advance to DELIVERED live → i
   await adminTab.waitForTimeout(400);
   await adminTab.getByText(/Suresh Kirana Store/i).filter({ visible: true }).first().click();
   await adminTab.waitForTimeout(400);
+  // The buyer's damage photo must be VISIBLE TO THE ADMIN — and actually
+  // decode to pixels (naturalWidth > 0), not just render a broken-image tag.
+  await expect(adminTab.getByText(/Photos from buyer/i)).toBeVisible();
+  const adminPhoto = adminTab.locator("img[alt='damage-photo.png']");
+  await expect(adminPhoto).toBeVisible();
+  await expect
+    .poll(async () => adminPhoto.evaluate((el: HTMLImageElement) => el.naturalWidth), {
+      timeout: 10_000,
+    })
+    .toBeGreaterThan(0);
   await expect(adminTab.getByRole("button", { name: /^Reject$/ })).toBeVisible();
   await adminTab.getByRole("button", { name: /^Approve$/ }).click();
   await adminTab.waitForTimeout(600);

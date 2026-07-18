@@ -96,6 +96,11 @@ export const store = {
     return _state;
   },
   mutate(fn: (s: MockStore) => void) {
+    // Re-read persisted truth before applying the mutation. Two tabs share
+    // one localStorage; mutating this tab's possibly-stale in-memory copy and
+    // persisting it would silently erase everything the other tab wrote since
+    // (e.g. an admin action wiping out an order the buyer just placed).
+    _state = load();
     fn(_state);
     persist(_state);
     notify();
