@@ -109,7 +109,7 @@ export function CheckoutSheet({
   const shownError = localError ?? error;
 
   return (
-    <Sheet open={open} onClose={onClose} title="Your order">
+    <Sheet open={open} onClose={onClose} title="Your order" size="lg">
       <div className="flex flex-col gap-5 p-5">
         {shownError && <Alert variant="error">{shownError}</Alert>}
 

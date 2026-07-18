@@ -45,7 +45,7 @@ export function BuyerReturnsScreen() {
 
   if (loading) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
         <FullScreenLoader />
       </AppShell>
     );
@@ -63,52 +63,54 @@ export function BuyerReturnsScreen() {
         backHref="/orders"
         backLabel="My orders"
       />
-      <div className="relative z-10 -mt-6 flex flex-col gap-3 rounded-t-[26px] bg-canvas p-4">
-        {list.length === 0 ? (
-          <EmptyState
-            icon={PackageX}
-            title="No returns yet"
-            subtitle="Your return requests will appear here."
-            action={
-              <Link href="/orders">
-                <Button>View orders</Button>
-              </Link>
-            }
-          />
-        ) : (
-          <div className="flex flex-col gap-3">
-            {list.map((ret) => {
-              const cfg = STATUS_CONFIG[ret.status];
-              return (
-                <Link key={ret.id} href={`/returns/${ret.id}`}>
-                  <Card className="transition-colors hover:bg-raised/40">
-                    <CardBody className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${cfg.color}`}>
-                              <cfg.icon className="inline h-3 w-3 mr-0.5" />
-                              {cfg.label}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-sm font-bold text-fg">{ret.orderNumber}</p>
-                          <p className="text-xs text-fg-subtle">{RETURN_REASON_LABELS[ret.reason]}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-extrabold text-fg">{formatCurrency(ret.totalRefund)}</p>
-                          <ChevronRight className="ml-auto h-4 w-4 text-fg-subtle" />
-                        </div>
-                      </div>
-                      <p className="mt-2 text-xs text-fg-subtle">
-                        Requested on {formatDate(ret.requestedAt)}
-                      </p>
-                    </CardBody>
-                  </Card>
+      <div className="relative z-10 -mt-6 rounded-t-[26px] bg-canvas">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 p-4">
+          {list.length === 0 ? (
+            <EmptyState
+              icon={PackageX}
+              title="No returns yet"
+              subtitle="Your return requests will appear here."
+              action={
+                <Link href="/orders">
+                  <Button>View orders</Button>
                 </Link>
-              );
-            })}
-          </div>
-        )}
+              }
+            />
+          ) : (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {list.map((ret) => {
+                const cfg = STATUS_CONFIG[ret.status];
+                return (
+                  <Link key={ret.id} href={`/returns/${ret.id}`}>
+                    <Card className="transition-colors hover:bg-raised/40">
+                      <CardBody className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${cfg.color}`}>
+                                <cfg.icon className="inline h-3 w-3 mr-0.5" />
+                                {cfg.label}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-sm font-bold text-fg">{ret.orderNumber}</p>
+                            <p className="text-xs text-fg-subtle">{RETURN_REASON_LABELS[ret.reason]}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-extrabold text-fg">{formatCurrency(ret.totalRefund)}</p>
+                            <ChevronRight className="ml-auto h-4 w-4 text-fg-subtle" />
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs text-fg-subtle">
+                          Requested on {formatDate(ret.requestedAt)}
+                        </p>
+                      </CardBody>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </AppShell>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { Sprout } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Same drift language as the sign-in hero (OnboardingScreen's FLOATERS +
@@ -27,10 +28,19 @@ export function ShopHero({
   liveStatusLabel?: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-b-[28px] bg-gradient-to-br from-brand-500 via-brand-600 to-brand-700 px-5 pb-8 pt-4 text-white lg:rounded-b-3xl lg:px-8">
+    <div className="relative overflow-hidden rounded-b-[28px] bg-gradient-to-br from-brand-500 via-brand-600 to-brand-700 px-5 pb-8 pt-4 text-white lg:rounded-b-3xl lg:px-10 lg:pb-12 lg:pt-8">
       {/* Decorative orbs, matching the sign-in hero */}
       <div className="pointer-events-none absolute -right-14 -top-16 h-44 w-44 rounded-full bg-white/10" />
       <div className="pointer-events-none absolute -left-10 top-20 h-36 w-36 rounded-full bg-brand-300/20 blur-2xl" />
+
+      {/* Large watermark brand mark — fills the wide leftover space on
+          desktop that a phone-width hero never has to account for, instead
+          of stretching the same few small floaters across it. */}
+      <Sprout
+        aria-hidden
+        className="pointer-events-none absolute -bottom-10 -right-10 hidden h-64 w-64 text-white/[0.08] lg:block"
+        strokeWidth={1}
+      />
 
       {FLOATERS.map((f, i) => (
         <span
@@ -58,15 +68,15 @@ export function ShopHero({
         </div>
       )}
 
-      <h1 className="relative z-10 mt-3 text-[26px] font-extrabold leading-tight tracking-tight [text-wrap:balance]">
+      <h1 className="relative z-10 mt-3 text-[26px] font-extrabold leading-tight tracking-tight [text-wrap:balance] lg:text-4xl">
         {greeting}
       </h1>
-      <p className="relative z-10 mt-1 max-w-[30ch] text-sm text-white/80">
+      <p className="relative z-10 mt-1 max-w-[30ch] text-sm text-white/80 lg:mt-2 lg:max-w-[42ch] lg:text-base">
         {itemCount > 0 ? `${itemCount} items in season today. ` : ""}
         Fresh wholesale produce delivered to your business.
       </p>
 
-      <div className="fc-scroll relative z-10 mt-4 flex gap-2 overflow-x-auto pb-0.5">
+      <div className="fc-scroll relative z-10 mt-4 flex gap-2 overflow-x-auto pb-0.5 lg:mt-6 lg:gap-3">
         <StatChip>🚚 Free delivery over ₹3,000</StatChip>
         <StatChip>⏱ Next-day delivery</StatChip>
         <StatChip>🌾 Mandi-direct pricing</StatChip>

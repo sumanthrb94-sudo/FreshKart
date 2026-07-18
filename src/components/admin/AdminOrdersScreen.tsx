@@ -760,6 +760,7 @@ export function AdminOrdersScreen() {
         open={active !== null}
         onClose={() => setOpenId(null)}
         title={active ? active.orderNumber : "Order"}
+        size="lg"
       >
         {active && <OrderDetail order={active} onMutated={handleMutated} />}
       </Sheet>

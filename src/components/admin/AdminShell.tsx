@@ -314,8 +314,10 @@ function AdminHeader() {
 
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface">
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2.5">
+      <div className="flex items-center justify-between px-4 py-3 lg:px-6 lg:py-3.5">
+        {/* The sidebar already carries the "Admin / Green Basket operations"
+            brand block on desktop — repeating it here would just be noise. */}
+        <div className="flex items-center gap-2.5 lg:hidden">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500/15 text-brand-400">
             <ShieldCheck className="h-5 w-5" />
           </span>
@@ -326,7 +328,7 @@ function AdminHeader() {
             </span>
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-1 items-center justify-end gap-1.5 lg:gap-2">
           {/* Live indicator */}
           {isLive && (
             <span className="mr-1 flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400">

@@ -248,7 +248,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
 
   if (existingReturn) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
         <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
           <h2 className="text-lg font-bold text-fg">Return already requested</h2>
           <p className="mt-2 text-sm text-fg-muted">
@@ -269,7 +269,7 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
 
   if (order.status !== "DELIVERED" || hoursSinceDelivery > 4) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
         <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
           <h2 className="text-lg font-bold text-fg">Return window closed</h2>
           <p className="mt-2 text-sm text-fg-muted">

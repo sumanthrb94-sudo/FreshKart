@@ -119,16 +119,18 @@ export function AdminReturnsScreen() {
               ))}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          <div className="flex-1 overflow-y-auto px-4 py-4">
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16">
                 <RotateCcw className="h-12 w-12 text-fg-subtle" />
                 <p className="mt-3 text-base font-bold text-fg">No returns found</p>
               </div>
             ) : (
-              filtered.map((ret) => (
-                <ReturnCard key={ret.id} ret={ret} onOpen={() => { refetch(); setDetailId(ret.id); }} />
-              ))
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                {filtered.map((ret) => (
+                  <ReturnCard key={ret.id} ret={ret} onOpen={() => { refetch(); setDetailId(ret.id); }} />
+                ))}
+              </div>
             )}
           </div>
         </>

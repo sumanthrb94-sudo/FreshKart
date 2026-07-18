@@ -9,7 +9,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 export function PrivacyPolicyScreen() {
   return (
     <AppShell header={<BuyerHeader />}>
-      <div className="flex flex-col gap-3 p-4">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4 lg:p-8">
         <Link href="/" className="flex w-fit items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg-muted">
           <ArrowLeft className="h-3.5 w-3.5" /> Back to shop
         </Link>

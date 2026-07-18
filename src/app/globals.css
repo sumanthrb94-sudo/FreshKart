@@ -34,6 +34,24 @@ html.light {
   --color-fg-subtle: #71786f;
 }
 
+/* Desktop is light-only, regardless of the mobile dark/light toggle state —
+   the dark theme was designed for a phone-in-hand context and the toggle is
+   hidden past this breakpoint (see BuyerHeader). Overrides the dark :root
+   defaults directly so a desktop session that never touched the toggle
+   (and therefore never got the .light class) still renders light. */
+@media (min-width: 1024px) {
+  :root {
+    --color-canvas: #e6f1ea;
+    --color-surface: #f6fbf8;
+    --color-raised: #dcede2;
+    --color-line: #c3ddcb;
+    --color-header: #d7ecdf;
+    --color-fg: #1a1a1e;
+    --color-fg-muted: #5c5f66;
+    --color-fg-subtle: #71786f;
+  }
+}
+
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

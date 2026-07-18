@@ -71,7 +71,11 @@ export function OrdersScreen() {
               }
             />
           ) : (
-            orders.map((o) => <OrderCard key={o.id} order={o} />)
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {orders.map((o) => (
+                <OrderCard key={o.id} order={o} />
+              ))}
+            </div>
           )}
 
           {/* Call Now support banner - placed in orders section */}
@@ -82,11 +86,14 @@ export function OrdersScreen() {
       {/* Subtle support button — left side, since the AI chat bubble already
           occupies bottom-right on every non-home screen. Same bottom-20 /
           md:bottom-8 offsets as AiChatAgent's button so the two sit at
-          exactly the same height, mirrored left/right. */}
+          exactly the same height, mirrored left/right. Mobile-only: on
+          desktop that same left edge is the sidebar, where this would sit
+          on top of its own logout button, and the CallNowInline banner in
+          the page body already covers "call support" there. */}
       <a
         href={`tel:${SUPPORT_PHONE}`}
         aria-label={t("callSupport")}
-        className="fixed bottom-20 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-brand-500 shadow-card transition-all hover:scale-105 hover:shadow-card-hover active:scale-95 md:bottom-8"
+        className="fixed bottom-20 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-brand-500 shadow-card transition-all hover:scale-105 hover:shadow-card-hover active:scale-95 md:bottom-8 lg:hidden"
       >
         <Headphones className="h-5 w-5" />
       </a>
