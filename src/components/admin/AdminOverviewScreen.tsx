@@ -147,6 +147,11 @@ export function AdminOverviewScreen() {
   const { data: tickets } = useAsync(() => api.listSupportTickets(), []);
   const pendingReturnsCount = returns?.filter((r) => r.status === "REQUESTED").length ?? 0;
   const needsHumanCount = tickets?.filter((t) => t.needsHuman).length ?? 0;
+  // Orders are created directly as CONFIRMED (never PENDING — see
+  // firestore.rules' order-create rule) — ordersByStatus.PENDING is
+  // hardcoded to 0 in every backend, so the Orders tile must count
+  // CONFIRMED (awaiting packing) instead, or its badge never shows a number.
+  const newOrdersCount = orders?.filter((o) => o.status === "CONFIRMED").length ?? 0;
 
   // Last-7-days trend lines for the Revenue / Orders stat cards.
   const last7 = useMemo(() => {
@@ -288,7 +293,7 @@ export function AdminOverviewScreen() {
       case "/admin/prices":
         return { attention: !publishedToday };
       case "/admin/orders":
-        return { count: loadedStats.ordersByStatus.PENDING };
+        return { count: newOrdersCount };
       case "/admin/returns":
         return { count: pendingReturnsCount };
       case "/admin/support":
