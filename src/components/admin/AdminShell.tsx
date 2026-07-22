@@ -16,6 +16,7 @@ import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { NotificationBell } from "@/components/NotificationDrawer";
+import { playChime } from "@/lib/audio-chime";
 
 /** 5:42 PM — clock time, for "when did this order land" context. */
 function formatClockTime(iso: string): string {
@@ -33,62 +34,38 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-/** Web Audio API new-order chime — no external files needed. */
+/** New-order chime — pleasant ascending triad (C5 → E5 → G5), sine. */
 function playNewOrderSound() {
-  try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const now = ctx.currentTime;
-    // Pleasant ascending chime (C5 → E5 → G5)
-    [523.25, 659.25, 783.99].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, now + i * 0.12);
-      gain.gain.setValueAtTime(0.12, now + i * 0.12);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.4);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + i * 0.12);
-      osc.stop(now + i * 0.12 + 0.4);
-    });
-  } catch {
-    // Audio not supported — silently ignore
-  }
+  playChime([
+    { freq: 523.25, startOffset: 0, duration: 0.4 },
+    { freq: 659.25, startOffset: 0.12, duration: 0.4 },
+    { freq: 783.99, startOffset: 0.24, duration: 0.4 },
+  ]);
 }
 
-/** Web Audio API new-return alert — distinct descending tone. */
+/** New-return-request alert — distinct descending triad (A5 → E5 → A4), sine. */
 function playNewReturnSound() {
-  try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const now = ctx.currentTime;
-    // Distinct descending alert (A5 → E5 → A4)
-    [880.0, 659.25, 440.0].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, now + i * 0.1);
-      gain.gain.setValueAtTime(0.14, now + i * 0.1);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.35);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + i * 0.1);
-      osc.stop(now + i * 0.1 + 0.35);
-    });
-  } catch {
-    // Audio not supported — silently ignore
-  }
+  playChime([
+    { freq: 880.0, startOffset: 0, duration: 0.35, gain: 0.14 },
+    { freq: 659.25, startOffset: 0.1, duration: 0.35, gain: 0.14 },
+    { freq: 440.0, startOffset: 0.2, duration: 0.35, gain: 0.14 },
+  ]);
+}
+
+/** Order-cancelled alert — low descending square-wave buzz, unmistakably a
+ *  negative event next to the two pleasant sine chimes above. */
+function playOrderCancelledSound() {
+  playChime([
+    { freq: 392.0, startOffset: 0, duration: 0.22, type: "square", gain: 0.08 },
+    { freq: 261.63, startOffset: 0.18, duration: 0.3, type: "square", gain: 0.08 },
+  ]);
 }
 
 /** Hook for real-time order count + new-order alerts in admin header */
 function useAdminOrderAlerts() {
   const [confirmedOrders, setConfirmedOrders] = useState<Order[]>([]);
   const [isLive, setIsLive] = useState(false);
-  const previousIds = useRef<Set<string>>(new Set());
-  const hasInit = useRef(false);
+  const previousStatus = useRef<Map<string, Order["status"]> | null>(null);
 
   useEffect(() => {
     if (typeof api.subscribeOrders !== "function") {
@@ -109,9 +86,9 @@ function useAdminOrderAlerts() {
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       );
 
-      if (hasInit.current) {
-        const currentIds = new Set(orders.map((o) => o.id));
-        const newOrders = orders.filter((o) => !previousIds.current.has(o.id));
+      const prev = previousStatus.current;
+      if (prev) {
+        const newOrders = orders.filter((o) => !prev.has(o.id));
         if (newOrders.length > 0) {
           playNewOrderSound();
           newOrders.forEach((o) => {
@@ -122,11 +99,22 @@ function useAdminOrderAlerts() {
             );
           });
         }
-        previousIds.current = currentIds;
-      } else {
-        previousIds.current = new Set(orders.map((o) => o.id));
-        hasInit.current = true;
+
+        const newlyCancelled = orders.filter(
+          (o) => o.status === "CANCELLED" && prev.get(o.id) && prev.get(o.id) !== "CANCELLED"
+        );
+        if (newlyCancelled.length > 0) {
+          playOrderCancelledSound();
+          newlyCancelled.forEach((o) => {
+            toast.error(
+              "Order cancelled",
+              `${o.businessName} — ${o.orderNumber}`,
+              5000
+            );
+          });
+        }
       }
+      previousStatus.current = new Map(orders.map((o) => [o.id, o.status]));
     });
 
     return () => unsubscribe();
