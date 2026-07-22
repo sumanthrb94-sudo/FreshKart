@@ -3,6 +3,9 @@
  *  threaded conversations, and invoice re-generation.
  */
 
+/** Buyers may request a return within this many hours of delivery. */
+export const RETURN_WINDOW_HOURS = 6;
+
 export type ReturnStatus = "REQUESTED" | "APPROVED" | "REJECTED" | "PICKED_UP" | "REFUNDED" | "COMPLETED";
 export type ReturnReason =
   | "DAMAGED"
@@ -203,6 +206,39 @@ export function addThreadMessage(
   };
   returnReq.thread.push(message);
   return message;
+}
+
+/** Company policy: every status change gets its own confirmed system
+ *  message in the thread — the buyer should never be left relying on the
+ *  original REQUESTED message's "Estimated refund" for what actually
+ *  happened once the request has moved on. */
+export function buildStatusChangeMessage(status: ReturnStatus, totalRefund: number): string {
+  switch (status) {
+    case "APPROVED":
+      return "Return approved. Our pickup executive will contact you shortly.";
+    case "REJECTED":
+      return "Return request rejected. No refund will be issued for this request.";
+    case "PICKED_UP":
+      return "Items picked up. Refund will be processed shortly.";
+    case "REFUNDED":
+      return `Refund of Rs. ${totalRefund} confirmed and processed to your original payment method.`;
+    case "COMPLETED":
+      return "Return completed.";
+    default:
+      return `Status updated to ${status}.`;
+  }
+}
+
+/** The REQUESTED-time system message only ever gives an *estimated* refund —
+ *  once the return has moved on, a confirmed buildStatusChangeMessage
+ *  supersedes it, and it should read as struck-through/no-longer-current
+ *  rather than sit there looking like it's still the live word on the
+ *  amount. */
+export function isSupersededEstimate(
+  message: { sender: string; text: string },
+  status: ReturnStatus
+): boolean {
+  return message.sender === "system" && status !== "REQUESTED" && message.text.includes("Estimated refund");
 }
 
 /** Status transition helper — returns the allowed next statuses. */

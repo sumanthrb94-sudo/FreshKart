@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { RETURN_REASON_LABELS, canBuyerMessage } from "@/lib/returns";
+import { RETURN_REASON_LABELS, canBuyerMessage, isSupersededEstimate } from "@/lib/returns";
 import type { ReturnRequest, ReturnMessage, ReturnStatus } from "@/lib/returns";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
@@ -29,6 +29,7 @@ import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FullScreenLoader } from "@/components/ui/Spinner";
+import { useImageLightbox } from "@/components/ui/ImageLightbox";
 
 const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: typeof Clock }> = {
   REQUESTED: { label: "Requested", color: "text-amber-500 bg-amber-500/10", icon: Clock },
@@ -47,6 +48,7 @@ export function ReturnThreadScreen({ id }: { id: string }) {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lightbox = useImageLightbox();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -73,10 +75,17 @@ export function ReturnThreadScreen({ id }: { id: string }) {
   }
 
   if (error || !returnReq) {
+    // Never surface a raw backend error (e.g. Firestore's "Missing or
+    // insufficient permissions.") — a stale notification link, an old
+    // session's deep link, or a return that belongs to a different account
+    // all end up here, and none of that is meaningful to the buyer.
     return (
       <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />} sidebar={<BuyerSidebar />}>
-        <div className="flex h-full items-center justify-center">
-          <p className="text-fg-muted">{error || "Return request not found"}</p>
+        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+          <p className="text-fg-muted">This return request could not be found.</p>
+          <Button variant="outline" onClick={() => router.push("/returns")}>
+            Back to Returns
+          </Button>
         </div>
       </AppShell>
     );
@@ -149,9 +158,14 @@ export function ReturnThreadScreen({ id }: { id: string }) {
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {returnReq.images.map((img) => (
-                    <div key={img.id} className="h-20 w-20 overflow-hidden rounded-lg border border-line">
+                    <button
+                      key={img.id}
+                      type="button"
+                      onClick={() => lightbox.open(img.url, img.filename)}
+                      className="h-20 w-20 overflow-hidden rounded-lg border border-line"
+                    >
                       <img src={img.url} alt={img.filename} className="h-full w-full object-cover" />
-                    </div>
+                    </button>
                   ))}
                 </div>
               </CardBody>
@@ -163,7 +177,12 @@ export function ReturnThreadScreen({ id }: { id: string }) {
               <Shield className="h-3.5 w-3.5" /> Conversation
             </h3>
             {returnReq.thread.map((msg) => (
-              <ThreadMessage key={msg.id} message={msg} />
+              <ThreadMessage
+                key={msg.id}
+                message={msg}
+                returnStatus={returnReq.status}
+                onImageClick={lightbox.open}
+              />
             ))}
             <div ref={messagesEndRef} />
           </div>
@@ -195,18 +214,34 @@ export function ReturnThreadScreen({ id }: { id: string }) {
           </div>
         )}
       </div>
+
+      {lightbox.node}
     </AppShell>
   );
 }
 
-function ThreadMessage({ message }: { message: ReturnMessage }) {
+function ThreadMessage({
+  message,
+  returnStatus,
+  onImageClick,
+}: {
+  message: ReturnMessage;
+  returnStatus: ReturnStatus;
+  onImageClick: (src: string, alt?: string) => void;
+}) {
   const isSystem = message.sender === "system";
   const isBuyer = message.sender === "buyer";
 
   if (isSystem) {
+    const superseded = isSupersededEstimate(message, returnStatus);
     return (
       <div className="flex justify-center">
-        <div className="max-w-[90%] rounded-lg bg-raised px-3 py-1.5 text-center text-xs text-fg-subtle">
+        <div
+          className={cn(
+            "max-w-[90%] rounded-lg bg-raised px-3 py-1.5 text-center text-xs text-fg-subtle",
+            superseded && "line-through opacity-50"
+          )}
+        >
           {message.text}
         </div>
       </div>
@@ -229,9 +264,14 @@ function ThreadMessage({ message }: { message: ReturnMessage }) {
         {message.images && message.images.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {message.images.map((img) => (
-              <div key={img.id} className="h-16 w-16 overflow-hidden rounded-lg">
+              <button
+                key={img.id}
+                type="button"
+                onClick={() => onImageClick(img.url, img.filename)}
+                className="h-16 w-16 overflow-hidden rounded-lg"
+              >
                 <img src={img.url} alt="" className="h-full w-full object-cover" />
-              </div>
+              </button>
             ))}
           </div>
         )}

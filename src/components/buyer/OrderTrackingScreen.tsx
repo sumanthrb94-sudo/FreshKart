@@ -21,6 +21,7 @@ import {
   PAYMENT_LONG,
 } from "@/lib/format";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
+import { RETURN_WINDOW_HOURS } from "@/lib/returns";
 import type { Order } from "@/lib/types";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
@@ -138,7 +139,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
   const existingReturn = returns?.find((r) => r.orderId === order.id);
   const deliveredAt = order.deliveredAt || order.updatedAt;
   const hoursSinceDelivery = (Date.now() - new Date(deliveredAt).getTime()) / 36e5;
-  const canReturn = isDelivered && !existingReturn && hoursSinceDelivery <= 4;
+  const canReturn = isDelivered && !existingReturn && hoursSinceDelivery <= RETURN_WINDOW_HOURS;
 
   return (
     <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
@@ -167,7 +168,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
         {/* Invoice Download */}
         <InvoiceDownloader order={order} fullWidth />
 
-        {/* Return Request Button - only for delivered orders within the 4-hour window and without an existing return */}
+        {/* Return Request Button - only for delivered orders within the return window and without an existing return */}
         {canReturn && (
           <Link href={`/orders/${order.id}/return`}>
             <Button variant="outline" fullWidth leadingIcon={<RotateCcw className="h-4 w-4" />}>
@@ -182,7 +183,7 @@ export function OrderTrackingScreen({ id }: { id: string }) {
             </Button>
           </Link>
         )}
-        {isDelivered && !existingReturn && hoursSinceDelivery > 4 && (
+        {isDelivered && !existingReturn && hoursSinceDelivery > RETURN_WINDOW_HOURS && (
           <div className="rounded-lg border border-line bg-surface px-3 py-2 text-center text-xs text-fg-subtle">
             Return window closed ({Math.floor(hoursSinceDelivery)} hours since delivery)
           </div>

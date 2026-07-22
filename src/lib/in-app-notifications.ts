@@ -6,6 +6,7 @@
 export type InAppNotificationType =
   | "order_confirmed"
   | "order_packed"
+  | "order_shipped"
   | "order_delivered"
   | "order_cancelled"
   | "return_requested"
@@ -26,12 +27,23 @@ export interface InAppNotification {
   createdAt: string;
 }
 
-const STORAGE_KEY = "green_basket_inapp_notifications";
+const STORAGE_KEY_BASE = "green_basket_inapp_notifications";
 
-function loadNotifications(): InAppNotification[] {
+/** Notifications carry per-user actionUrls (e.g. /returns/{id} scoped to the
+ *  buyer who owns that return). A single shared, unscoped localStorage key
+ *  would leak one signed-in account's notifications — and their deep links —
+ *  to whoever signs in next on the same browser, so storage is namespaced by
+ *  the active user id. No user signed in → nothing is loaded or persisted. */
+let activeUserId: string | null = null;
+
+function storageKeyFor(userId: string): string {
+  return `${STORAGE_KEY_BASE}:${userId}`;
+}
+
+function loadNotifications(userId: string): InAppNotification[] {
   if (typeof window === "undefined") return [];
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(storageKeyFor(userId));
     return stored ? JSON.parse(stored) : [];
   } catch {
     return [];
@@ -39,19 +51,28 @@ function loadNotifications(): InAppNotification[] {
 }
 
 function saveNotifications(notifs: InAppNotification[]) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !activeUserId) return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notifs.slice(0, 100)));
+    localStorage.setItem(storageKeyFor(activeUserId), JSON.stringify(notifs.slice(0, 100)));
   } catch {
     // Storage full
   }
 }
 
-let notifs: InAppNotification[] = loadNotifications();
+let notifs: InAppNotification[] = [];
 let listeners: ((notifs: InAppNotification[]) => void)[] = [];
 
 function notify() {
   listeners.forEach((l) => l([...notifs]));
+}
+
+/** Switch the active account these notifications belong to — call with the
+ *  signed-in user's id on login/session-restore, and `null` on logout. */
+export function setNotificationUser(userId: string | null) {
+  if (userId === activeUserId) return;
+  activeUserId = userId;
+  notifs = userId ? loadNotifications(userId) : [];
+  notify();
 }
 
 export function subscribeInAppNotifications(callback: (notifs: InAppNotification[]) => void) {
@@ -127,6 +148,15 @@ export function notifyOrderPacked(orderNumber: string, orderId: string) {
     "order_packed",
     "Order Packed",
     `Your order ${orderNumber} has been packed and is ready for tomorrow's morning delivery before 7 AM.`,
+    { actionUrl: `/orders/${orderId}`, orderId }
+  );
+}
+
+export function notifyOrderShipped(orderNumber: string, orderId: string) {
+  return addInAppNotification(
+    "order_shipped",
+    "Out for Delivery",
+    `Your order ${orderNumber} is out for delivery and will arrive soon.`,
     { actionUrl: `/orders/${orderId}`, orderId }
   );
 }

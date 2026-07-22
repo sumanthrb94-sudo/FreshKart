@@ -26,6 +26,7 @@ import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-noti
 const TYPE_ICONS: Record<InAppNotificationType, typeof ShoppingBag> = {
   order_confirmed: ShoppingBag,
   order_packed: Package,
+  order_shipped: Truck,
   order_delivered: CheckCircle2,
   order_cancelled: Ban,
   return_requested: RotateCcw,
@@ -39,6 +40,7 @@ const TYPE_ICONS: Record<InAppNotificationType, typeof ShoppingBag> = {
 const TYPE_COLORS: Record<InAppNotificationType, string> = {
   order_confirmed: "bg-amber-500/10 text-amber-500",
   order_packed: "bg-blue-500/10 text-blue-500",
+  order_shipped: "bg-blue-500/10 text-blue-500",
   order_delivered: "bg-emerald-500/10 text-emerald-500",
   order_cancelled: "bg-red-500/10 text-red-500",
   return_requested: "bg-amber-500/10 text-amber-500",

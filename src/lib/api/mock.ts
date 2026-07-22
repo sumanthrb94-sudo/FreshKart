@@ -16,7 +16,7 @@ import type {
   ReturnStatus,
   ReturnMessage,
 } from "@/lib/returns";
-import { RETURN_REASON_LABELS, generateAdjustedInvoiceNumber } from "@/lib/returns";
+import { RETURN_REASON_LABELS, generateAdjustedInvoiceNumber, buildStatusChangeMessage } from "@/lib/returns";
 import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
 import { generateOrderNumber, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
@@ -367,6 +367,15 @@ export class MockDataSource implements DataSource {
       if ((["REJECTED", "REFUNDED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
         r.resolvedAt = now;
       }
+      // Company policy: every status change gets its own confirmed system
+      // message — the buyer shouldn't have to infer the outcome from the
+      // original "Estimated refund" message.
+      r.thread.push({
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sender: "system",
+        text: buildStatusChangeMessage(status, r.totalRefund),
+        sentAt: now,
+      });
       // When a refund is processed, adjust the parent order's total so the
       // customer's invoice reflects the refund immediately — mirrors
       // FirebaseDataSource.updateReturnStatus's transactional order patch.

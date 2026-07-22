@@ -14,7 +14,7 @@ import {
 import { api, ApiError, backendKind } from "@/lib/api";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { RETURN_REASON_LABELS } from "@/lib/returns";
+import { RETURN_REASON_LABELS, RETURN_WINDOW_HOURS } from "@/lib/returns";
 import type { ReturnReason, ReturnImage } from "@/lib/returns";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirebaseStorage } from "@/lib/firebase/client";
@@ -267,13 +267,13 @@ export function ReturnRequestScreen({ orderId }: { orderId: string }) {
     );
   }
 
-  if (order.status !== "DELIVERED" || hoursSinceDelivery > 4) {
+  if (order.status !== "DELIVERED" || hoursSinceDelivery > RETURN_WINDOW_HOURS) {
     return (
       <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
         <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
           <h2 className="text-lg font-bold text-fg">Return window closed</h2>
           <p className="mt-2 text-sm text-fg-muted">
-            Returns can only be requested within 4 hours of delivery.
+            Returns can only be requested within {RETURN_WINDOW_HOURS} hours of delivery.
           </p>
           <Button className="mt-6" variant="outline" onClick={() => router.push("/orders")}>
             Back to Orders

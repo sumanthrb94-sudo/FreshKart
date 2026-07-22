@@ -42,6 +42,7 @@ import type {
 import {
   RETURN_REASON_LABELS,
   generateAdjustedInvoiceNumber,
+  buildStatusChangeMessage,
 } from "@/lib/returns";
 import type {
   CreateReturnInput,
@@ -905,10 +906,21 @@ export class FirebaseDataSource implements DataSource {
         const originalTotal = order.subtotal + order.deliveryFee;
         const newTotal = Math.max(0, originalTotal - ret.totalRefund);
 
+        // Company policy: every status change gets its own confirmed system
+        // message — the buyer shouldn't have to infer the outcome from the
+        // original "Estimated refund" message.
+        const statusMessage: ReturnMessage = {
+          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          sender: "system",
+          text: buildStatusChangeMessage(status, ret.totalRefund),
+          sentAt: now,
+        };
+
         const retPatch: DocumentData = {
           status,
           updatedAt: now,
           resolvedAt: now,
+          thread: arrayUnion(statusMessage),
         };
         const orderPatch: DocumentData = {
           refundAmount: ret.totalRefund,
@@ -920,12 +932,18 @@ export class FirebaseDataSource implements DataSource {
 
         tx.update(ref, retPatch);
         tx.update(orderRef, orderPatch);
-        return { ...ret, ...retPatch } as ReturnRequest;
+        return { ...ret, ...retPatch, thread: [...ret.thread, statusMessage] } as ReturnRequest;
       });
       return updated;
     }
 
-    const patch: DocumentData = { status, updatedAt: now };
+    const statusMessage: ReturnMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      sender: "system",
+      text: buildStatusChangeMessage(status, 0),
+      sentAt: now,
+    };
+    const patch: DocumentData = { status, updatedAt: now, thread: arrayUnion(statusMessage) };
     if ((["REJECTED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
       patch.resolvedAt = now;
     }

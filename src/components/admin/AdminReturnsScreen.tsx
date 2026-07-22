@@ -23,12 +23,14 @@ import {
   RETURN_REASON_LABELS,
   allowedTransitions,
   canAdminRespond,
+  isSupersededEstimate,
 } from "@/lib/returns";
 import type { ReturnRequest, ReturnStatus, ReturnMessage } from "@/lib/returns";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { Spinner } from "@/components/ui/Spinner";
+import { useImageLightbox } from "@/components/ui/ImageLightbox";
 
 const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: typeof CheckCircle2; nextAction: string }> = {
   REQUESTED: { label: "Requested", color: "bg-amber-500/10 text-amber-500", icon: Clock, nextAction: "Approve" },
@@ -197,6 +199,7 @@ function ReturnDetail({
   const [reply, setReply] = useState("");
   const [notes, setNotes] = useState(returnReq.adminNotes || "");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lightbox = useImageLightbox();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -274,9 +277,14 @@ function ReturnDetail({
             </h3>
             <div className="flex flex-wrap gap-2">
               {returnReq.images.map((img) => (
-                <div key={img.id} className="h-24 w-24 overflow-hidden rounded-lg border border-line">
+                <button
+                  key={img.id}
+                  type="button"
+                  onClick={() => lightbox.open(img.url, img.filename)}
+                  className="h-24 w-24 overflow-hidden rounded-lg border border-line transition-opacity hover:opacity-80"
+                >
                   <img src={img.url} alt={img.filename} className="h-full w-full object-cover" />
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -311,11 +319,18 @@ function ReturnDetail({
         <div className="space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wide text-fg-subtle">Conversation Thread</h3>
           {returnReq.thread.map((msg) => (
-            <AdminThreadMessage key={msg.id} message={msg} />
+            <AdminThreadMessage
+              key={msg.id}
+              message={msg}
+              returnStatus={returnReq.status}
+              onImageClick={lightbox.open}
+            />
           ))}
           <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {lightbox.node}
 
       {canReply && (
         <div className="shrink-0 border-t border-line bg-surface px-4 py-3">
@@ -345,14 +360,28 @@ function ReturnDetail({
   );
 }
 
-function AdminThreadMessage({ message }: { message: ReturnMessage }) {
+function AdminThreadMessage({
+  message,
+  returnStatus,
+  onImageClick,
+}: {
+  message: ReturnMessage;
+  returnStatus: ReturnStatus;
+  onImageClick: (src: string, alt?: string) => void;
+}) {
   const isSystem = message.sender === "system";
   const isBuyer = message.sender === "buyer";
 
   if (isSystem) {
+    const superseded = isSupersededEstimate(message, returnStatus);
     return (
       <div className="flex justify-center">
-        <div className="max-w-[90%] rounded-lg bg-raised px-3 py-1.5 text-center text-xs text-fg-subtle">
+        <div
+          className={cn(
+            "max-w-[90%] rounded-lg bg-raised px-3 py-1.5 text-center text-xs text-fg-subtle",
+            superseded && "line-through opacity-50"
+          )}
+        >
           {message.text}
         </div>
       </div>
@@ -375,9 +404,14 @@ function AdminThreadMessage({ message }: { message: ReturnMessage }) {
         {message.images && message.images.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {message.images.map((img) => (
-              <div key={img.id} className="h-16 w-16 overflow-hidden rounded-lg">
+              <button
+                key={img.id}
+                type="button"
+                onClick={() => onImageClick(img.url, img.filename)}
+                className="h-16 w-16 overflow-hidden rounded-lg"
+              >
                 <img src={img.url} alt="" className="h-full w-full object-cover" />
-              </div>
+              </button>
             ))}
           </div>
         )}
