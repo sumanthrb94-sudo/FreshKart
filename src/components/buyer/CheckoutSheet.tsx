@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Banknote, CreditCard, MapPin, Pencil, ShieldCheck, Wallet } from "lucide-react";
+import { Banknote, MapPin, MessageCircle, Pencil, Phone, ShieldCheck } from "lucide-react";
 import type { DeliveryDetails, PaymentMethod } from "@/lib/types";
-import { formatCurrency, pricePerUnit, MIN_ORDER_TOTAL_QTY, MAX_ORDER_ITEM_TYPES, PAYMENT_LABELS, PAYMENT_LONG } from "@/lib/format";
+import { formatCurrency, pricePerUnit, MIN_ORDER_TOTAL_QTY, MAX_ORDER_ITEM_TYPES, PAYMENT_LABELS } from "@/lib/format";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { Button } from "@/components/ui/Button";
@@ -19,10 +19,12 @@ import {
 } from "@/components/address/AddressPicker";
 import { cn } from "@/lib/utils";
 
-const PAYMENT_OPTIONS: { method: PaymentMethod; icon: typeof Wallet }[] = [
-  { method: "COD", icon: Banknote },
-  { method: "ONLINE", icon: CreditCard },
-];
+/** COD-only for buyer self-checkout — the app has no live payment gateway.
+ *  A buyer who needs to pay digitally arranges it directly with the team
+ *  (call/WhatsApp); admins record that on their side via POS. */
+const COD: PaymentMethod = "COD";
+const SUPPORT_PHONE = "+919876543210";
+const SUPPORT_WHATSAPP = "https://wa.me/919876543210";
 
 export function CheckoutSheet({
   open,
@@ -44,7 +46,6 @@ export function CheckoutSheet({
   const { lines, subtotal, deliveryFee, total, increment, decrement } = useCart();
   const { user, updateProfile } = useAuth();
   const [delivery, setDelivery] = useState<DeliveryDetails>(defaultDelivery);
-  const [method, setMethod] = useState<PaymentMethod>("COD");
   const [localError, setLocalError] = useState<string | null>(null);
   const [changeOpen, setChangeOpen] = useState(false);
 
@@ -103,7 +104,7 @@ export function CheckoutSheet({
     if (delivery.phone && delivery.phone !== user?.phone) {
       updateProfile({ phone: delivery.phone }).catch(() => {});
     }
-    onContinue(delivery, method);
+    onContinue(delivery, COD);
   }
 
   const shownError = localError ?? error;
@@ -203,51 +204,37 @@ export function CheckoutSheet({
           )}
         </section>
 
-        {/* Payment */}
+        {/* Payment — COD only; no live payment gateway is wired up yet. */}
         <section>
           <h3 className="mb-3 text-sm font-bold text-fg">Payment method</h3>
-          <div className="flex flex-col gap-2">
-            {PAYMENT_OPTIONS.map((opt) => {
-              const selected = method === opt.method;
-              const Icon = opt.icon;
-              return (
-                <button
-                  key={opt.method}
-                  type="button"
-                  onClick={() => setMethod(opt.method)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-xl border px-3.5 py-3.5 text-left transition-all",
-                    selected
-                      ? "border-brand-500 bg-brand-500/10"
-                      : "border-line/60 bg-surface hover:border-line"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-                      selected ? "bg-brand-500 text-white" : "bg-raised text-fg-subtle"
-                    )}
-                  >
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-fg">
-                      {PAYMENT_LABELS[opt.method]}
-                    </span>
-                    <span className="block text-xs text-fg-subtle">{PAYMENT_LONG[opt.method]}</span>
-                  </span>
-                  <span
-                    className={cn(
-                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
-                      selected ? "border-brand-500" : "border-line"
-                    )}
-                  >
-                    {selected && <span className="h-2.5 w-2.5 rounded-full bg-brand-500" />}
-                  </span>
-                </button>
-              );
-            })}
+          <div className="flex items-center gap-3 rounded-xl border border-brand-500 bg-brand-500/10 px-3.5 py-3.5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white">
+              <Banknote className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-fg">{PAYMENT_LABELS.COD}</span>
+              <span className="block text-xs text-fg-subtle">Pay in cash when your order arrives</span>
+            </span>
           </div>
+          <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-subtle">
+            <span>Need to pay online instead?</span>
+            <a
+              href={`tel:${SUPPORT_PHONE}`}
+              className="inline-flex items-center gap-1 font-semibold text-brand-400 hover:underline"
+            >
+              <Phone className="h-3 w-3" /> Call
+            </a>
+            <span>or</span>
+            <a
+              href={SUPPORT_WHATSAPP}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-semibold text-brand-400 hover:underline"
+            >
+              <MessageCircle className="h-3 w-3" /> WhatsApp
+            </a>
+            <span>us to arrange it.</span>
+          </p>
         </section>
 
         {/* Bill */}
@@ -282,8 +269,6 @@ export function CheckoutSheet({
             ? "Placing order…"
             : disabled
             ? "Prices updating…"
-            : method === "ONLINE"
-            ? `Pay ${formatCurrency(total)}`
             : `Place B2B order · ${formatCurrency(total)}`}
         </Button>
       </div>

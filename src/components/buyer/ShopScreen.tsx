@@ -23,14 +23,13 @@ import { ProductListItem } from "./ProductListItem";
 import { StickyCartBar } from "./StickyCartBar";
 import { BuyerBottomNav } from "./BuyerBottomNav";
 import { CheckoutSheet } from "./CheckoutSheet";
-import { PaymentSheet } from "./PaymentSheet";
 import { SuccessOverlay } from "./SuccessOverlay";
 
 export function ShopScreen() {
   const router = useRouter();
   const params = useSearchParams();
   const { user } = useAuth();
-  const { lines, subtotal, clear } = useCart();
+  const { lines, clear } = useCart();
   const { t, tCategory } = useLang();
   const { data: products, loading, error } = useAsync(() => api.listProducts(), []);
   const { data: settings, loading: settingsLoading } = useAsync(
@@ -43,10 +42,8 @@ export function ShopScreen() {
 
   // Checkout flow state machine
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [paymentOpen, setPaymentOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
-  const [pending, setPending] = useState<{ delivery: DeliveryDetails; method: PaymentMethod } | null>(null);
   const [placed, setPlaced] = useState<Order | null>(null);
 
   // Open checkout when arriving via the header cart badge (/?cart=1).
@@ -111,7 +108,6 @@ export function ShopScreen() {
       });
       clear();
       setCheckoutOpen(false);
-      setPaymentOpen(false);
       setPlaced(order);
     } catch (e) {
       setOrderError(e instanceof Error ? e.message : "Could not place order.");
@@ -122,13 +118,7 @@ export function ShopScreen() {
   }
 
   function handleContinue(delivery: DeliveryDetails, method: PaymentMethod) {
-    setPending({ delivery, method });
-    if (method === "ONLINE") {
-      setCheckoutOpen(false);
-      setPaymentOpen(true);
-    } else {
-      placeOrder(delivery, method, false);
-    }
+    placeOrder(delivery, method, false);
   }
 
   const greetingPrefix = now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening";
@@ -256,16 +246,7 @@ export function ShopScreen() {
         disabled={!canOrder}
         onContinue={handleContinue}
       />
-      <PaymentSheet
-        open={paymentOpen}
-        amount={subtotal}
-        onClose={() => {
-          setPaymentOpen(false);
-          setCheckoutOpen(true);
-        }}
-        onPaid={() => pending && placeOrder(pending.delivery, pending.method, true)}
-      />
-      {busy && !checkoutOpen && !paymentOpen && (
+      {busy && !checkoutOpen && (
         <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app items-center justify-center bg-canvas lg:left-[var(--sidebar-width)] lg:mx-0 lg:max-w-none">
           <FullScreenLoader label="Placing order…" />
         </div>
