@@ -194,7 +194,12 @@ export function AiChatAgent() {
   // themselves, and silently hiding it just looks broken.
   const isLoginPage = pathname === "/" || pathname === "";
   const isAdminPage = pathname?.startsWith("/admin");
-  const shouldShowChat = isAuthenticated && !isLoginPage && !isAdminPage;
+  // The return-thread screen (/returns/<id>) has its own bottom message
+  // composer whose Send button lives in exactly this corner — the floating
+  // bubble would sit right on top of it, hiding the Send arrow and hijacking
+  // the tap (opening the bot instead of sending). Hide the bubble there.
+  const isReturnThread = /^\/returns\/[^/]+$/.test(pathname ?? "");
+  const shouldShowChat = isAuthenticated && !isLoginPage && !isAdminPage && !isReturnThread;
 
   if (!shouldShowChat) return null;
 
