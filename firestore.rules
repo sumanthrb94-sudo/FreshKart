@@ -408,6 +408,12 @@ service cloud.firestore {
                         && request.resource.data.buyerId == request.auth.uid
                         && request.resource.data.status in ['CONFIRMED']
                         && request.resource.data.paymentMethod in ['COD', 'ONLINE']
+                        // A buyer can never self-mark an order PAID — that
+                        // flips only via an admin (cash collected) or a
+                        // server-verified online payment. Without this a
+                        // buyer could write paymentStatus:'PAID' and receive
+                        // goods without paying.
+                        && request.resource.data.paymentStatus == 'UNPAID'
                         && validateOrderItems(
                              request.resource.data.items,
                              priceSheetPrices())

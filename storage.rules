@@ -19,7 +19,13 @@ service firebase.storage {
     }
 
     match /returns/{uid}/{imageId=**} {
-      allow read: if request.auth != null;
+      // Least privilege: a return's damage photos are visible only to the
+      // buyer who uploaded them and to admins — NOT to every signed-in user.
+      // (Previously `read: if request.auth != null` let any authenticated
+      // buyer read any other buyer's return photos by path, an IDOR /
+      // horizontal-access gap.)
+      allow read: if request.auth != null
+        && (request.auth.uid == uid || isAdmin());
       allow create: if request.auth != null
         && request.auth.uid == uid
         && request.resource.size < 5 * 1024 * 1024

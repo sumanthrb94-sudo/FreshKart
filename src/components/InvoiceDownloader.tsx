@@ -133,7 +133,11 @@ function buildInvoiceHTML(order: Order): string {
     month: "long",
     year: "numeric",
   });
-  const invoiceNumber = order.adjustedInvoiceNumber || `INV-${order.orderNumber.replace("ORD-", "")}`;
+  // Escaped once here — invoiceNumber/orderNumber are system-generated, but
+  // they still flow into the invoice's HTML (title + header), so escape as
+  // defense-in-depth alongside the buyer-controlled delivery fields below.
+  const invoiceNumber = escapeHtml(order.adjustedInvoiceNumber || `INV-${order.orderNumber.replace("ORD-", "")}`);
+  const orderNumber = escapeHtml(order.orderNumber);
   const gstin = "29FRESH9876B1Z2";
 
   return `<!DOCTYPE html>
@@ -314,7 +318,7 @@ function buildInvoiceHTML(order: Order): string {
         <div class="badge">Tax Invoice</div>
         <p style="margin-top:12px;font-size:20px;font-weight:700;">${invoiceNumber}</p>
         <p style="font-size:12px;opacity:0.85;margin-top:2px;">Date: ${invoiceDate}</p>
-        <p style="font-size:12px;opacity:0.85;">Order: ${order.orderNumber}</p>
+        <p style="font-size:12px;opacity:0.85;">Order: ${orderNumber}</p>
       </div>
     </div>
 
@@ -327,8 +331,8 @@ function buildInvoiceHTML(order: Order): string {
           <div class="info-block">
             <p><strong>${escapeHtml(order.delivery.name)}</strong></p>
             <p>${escapeHtml(order.delivery.address)}</p>
-            <p>${escapeHtml(order.delivery.city)} — ${order.delivery.pincode}</p>
-            <p>Phone: ${order.delivery.phone}</p>
+            <p>${escapeHtml(order.delivery.city)} — ${escapeHtml(order.delivery.pincode)}</p>
+            <p>Phone: ${escapeHtml(order.delivery.phone)}</p>
           </div>
         </div>
         <div>
