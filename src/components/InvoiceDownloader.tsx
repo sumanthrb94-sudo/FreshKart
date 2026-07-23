@@ -308,7 +308,7 @@ function buildInvoiceHTML(order: Order): string {
         <h1>Green Basket</h1>
         <p>Wholesale B2B — Fresh Produce, Per Kg</p>
         <p style="margin-top:8px;font-size:11px;opacity:0.7;">Green Basket Ops, Whitefield, Bengaluru — 560066</p>
-        <p style="font-size:11px;opacity:0.7;">GSTIN: ${gstin} · Phone: 9800000000</p>
+        <p style="font-size:11px;opacity:0.7;">GSTIN: ${gstin} · Phone: +91 74166 20691</p>
       </div>
       <div class="header-right">
         <div class="badge">Tax Invoice</div>

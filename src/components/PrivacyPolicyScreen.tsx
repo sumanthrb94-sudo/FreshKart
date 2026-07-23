@@ -136,7 +136,7 @@ export function PrivacyPolicyScreen() {
                 </p>
                 <div className="mt-2 space-y-1 text-xs text-fg">
                   <p>Email: privacy@green-basket.in</p>
-                  <p>Phone: +91-98765-43210</p>
+                  <p>Phone: +91 74166 20691</p>
                   <p>Address: Green Basket HQ, Bengaluru, Karnataka 560001</p>
                 </div>
               </div>

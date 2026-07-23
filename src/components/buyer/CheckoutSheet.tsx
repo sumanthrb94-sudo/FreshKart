@@ -23,8 +23,8 @@ import { cn } from "@/lib/utils";
  *  A buyer who needs to pay digitally arranges it directly with the team
  *  (call/WhatsApp); admins record that on their side via POS. */
 const COD: PaymentMethod = "COD";
-const SUPPORT_PHONE = "+919876543210";
-const SUPPORT_WHATSAPP = "https://wa.me/919876543210";
+const SUPPORT_PHONE = "+917416620691";
+const SUPPORT_WHATSAPP = "https://wa.me/917416620691";
 
 export function CheckoutSheet({
   open,

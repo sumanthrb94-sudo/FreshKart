@@ -38,7 +38,7 @@ const FAQ_RESPONSES: Record<string, string> = {
   "invoice": "You can download your invoice from the order details screen. Tap Download Invoice to get a printable PDF.",
   "contact": "Need to talk? Tap the Call Now button anywhere in the app to reach our customer service team directly.",
   "call": "Tap the green Call Now button to speak with our customer service team. We are available during store hours (9 AM - 10 PM).",
-  "whatsapp": "You can reach us on WhatsApp at +91-98765-43210 for quick queries and order updates.",
+  "whatsapp": "You can reach us on WhatsApp at +91 74166 20691 for quick queries and order updates.",
   "quality": "All our produce is sourced fresh daily from local farms. If you receive items that do not meet quality standards, please initiate a return with photos.",
   "fresh": "We source directly from farms every morning. Produce is quality-checked before packing and dispatched in temperature-controlled vehicles.",
   "account": "You can update your business profile from the Profile screen. Tap your name in the header to access account settings.",
