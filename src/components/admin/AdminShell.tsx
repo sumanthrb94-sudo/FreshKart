@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, ShieldCheck, Store, ShoppingBag, Radio, RotateCcw, ChevronDown, MessageCircle } from "lucide-react";
+import { LogOut, Sprout, Store, ShoppingBag, Radio, RotateCcw, ChevronDown, MessageCircle } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
@@ -136,13 +136,13 @@ function AdminHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface">
-      <div className="flex items-center justify-between px-4 py-3 lg:px-6 lg:py-3.5">
+    <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface lg:hidden">
+      <div className="flex items-center justify-between px-4 py-3">
         {/* The sidebar already carries the "Admin / Green Basket operations"
             brand block on desktop — repeating it here would just be noise. */}
         <div className="flex items-center gap-2.5 lg:hidden">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500/15 text-brand-400">
-            <ShieldCheck className="h-5 w-5" />
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500 text-white shadow-sm shadow-brand-500/30">
+            <Sprout className="h-5 w-5" />
           </span>
           <span className="leading-tight">
             <span className="block text-base font-extrabold text-fg">Admin</span>
@@ -162,10 +162,10 @@ function AdminHeader() {
               second, redundant pill row. */}
           <div className="flex items-center gap-1.5 lg:hidden">
             {isLive && (
-              <span className="mr-1 flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400">
+              <span className="mr-1 flex items-center gap-1 rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-500">
                 <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-500" />
                 </span>
                 Live
               </span>

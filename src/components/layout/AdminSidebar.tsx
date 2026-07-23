@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, ShoppingBag, Store, LogOut } from "lucide-react";
+import { Sprout, ShoppingBag, Store, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ADMIN_TABS } from "@/components/admin/AdminBottomNav";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useLiveOrders, useLiveReturns, useLiveNeedsHumanCount } from "@/lib/admin-alerts-store";
+import { NotificationBell } from "@/components/NotificationDrawer";
 
 /** Live badge count for a nav row, keyed by href — the same
  *  admin-alerts-store singletons the dashboard's Manage tiles read, so the
@@ -44,27 +45,39 @@ export function AdminSidebar() {
   }
 
   return (
-    <div className="flex h-full flex-col border-r border-line bg-surface">
-      <div className="flex items-center gap-2.5 px-5 py-4">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500/15 text-brand-400">
-          <ShieldCheck className="h-5 w-5" />
-        </span>
-        <span className="min-w-0 flex-1 leading-tight">
-          <span className="block text-base font-extrabold text-fg">Admin</span>
-          <span className="block text-2xs font-medium text-fg-subtle">Green Basket operations</span>
-        </span>
-        {isLive && (
-          <span
-            className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-2xs font-bold uppercase tracking-wide text-emerald-400"
-            title="Real-time updates connected"
-          >
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+    <div className="flex h-full flex-col bg-surface">
+      <div className="relative overflow-hidden">
+        {/* Soft brand-green wash behind the logo — the bit of depth that
+            makes a sidebar read as a designed product surface rather than a
+            flat list of links. */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-brand-500/[0.08] to-transparent" />
+        <div className="relative flex items-center gap-2.5 px-5 py-4">
+          <span className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+            <span className="absolute inset-0 animate-pulse rounded-xl bg-brand-500/40 blur-md" aria-hidden />
+            <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-white shadow-sm shadow-brand-500/30">
+              <Sprout className="h-5 w-5" />
             </span>
-            Live
           </span>
-        )}
+          <span className="min-w-0 flex-1 leading-tight">
+            <span className="block text-base font-extrabold text-fg">Admin</span>
+            <span className="block text-2xs font-medium text-fg-subtle">Green Basket operations</span>
+          </span>
+          {isLive && (
+            <span
+              className="flex shrink-0 items-center gap-1 rounded-full bg-brand-500/10 px-2 py-0.5 text-2xs font-bold uppercase tracking-wide text-brand-500"
+              title="Real-time updates connected"
+            >
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-500" />
+              </span>
+              Live
+            </span>
+          )}
+          <div className="shrink-0">
+            <NotificationBell />
+          </div>
+        </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-2">
@@ -81,7 +94,7 @@ export function AdminSidebar() {
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-colors",
                     active
-                      ? "bg-brand-500/15 text-brand-400"
+                      ? "bg-brand-500 text-white shadow-sm shadow-brand-500/25"
                       : "text-fg-subtle hover:bg-raised hover:text-fg-muted"
                   )}
                 >
