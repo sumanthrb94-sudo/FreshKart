@@ -48,6 +48,35 @@ function playOrderCancelledSound() {
   ]);
 }
 
+/** "New since last time you looked" baselines, persisted across page
+ *  reloads/tab closes. Without this, the in-memory previous-snapshot diff
+ *  only catches orders that arrive while THIS tab stays continuously open —
+ *  an admin who checks by reloading (or reopening the tab) never hears
+ *  anything for orders that landed while they were away, even though the
+ *  count itself is always correct (it's read fresh on every load either
+ *  way). Storing the latest-seen timestamp survives exactly that gap. */
+function readLastSeenTs(key: string): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    return Number(window.localStorage.getItem(key)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeLastSeenTs(key: string, ts: number) {
+  if (typeof window === "undefined" || !ts) return;
+  try {
+    window.localStorage.setItem(key, String(ts));
+  } catch {
+    // Storage unavailable (private browsing, quota) — falls back to
+    // in-tab-only detection for this session, same as before this existed.
+  }
+}
+
+const ORDERS_LAST_SEEN_KEY = "green_basket_admin_orders_last_seen_ts";
+const RETURNS_LAST_SEEN_KEY = "green_basket_admin_returns_last_seen_ts";
+
 /** Generic ref-counted singleton subscription: the underlying Firestore
  *  listener starts on the first subscriber and stops on the last, however
  *  many components call the corresponding hook. */
@@ -113,6 +142,7 @@ const ordersStore = createLiveStore<OrdersSnapshot>((setSnapshot) => {
 
     const prev = previousStatus;
     if (prev) {
+      // This tab has been open since the last snapshot — diff in memory.
       const newOrders = orders.filter((o) => !prev.has(o.id));
       if (newOrders.length > 0) {
         playNewOrderSound();
@@ -130,8 +160,30 @@ const ordersStore = createLiveStore<OrdersSnapshot>((setSnapshot) => {
           toast.error("Order cancelled", `${o.businessName} — ${o.orderNumber}`, 5000);
         });
       }
+    } else {
+      // First snapshot since this subscription (re)started — e.g. right
+      // after a page reload, where the in-memory baseline above is gone.
+      // Fall back to the persisted "last seen" timestamp so orders that
+      // arrived while nobody had the tab open still get a chime + toast
+      // instead of silently vanishing into "just part of the count now".
+      // A missing/zero timestamp means this is the very first time ever
+      // (or storage is unavailable) — treat as an existing backlog, not a
+      // pile of "new" orders to announce all at once.
+      const lastSeenTs = readLastSeenTs(ORDERS_LAST_SEEN_KEY);
+      if (lastSeenTs > 0) {
+        const newSinceLastVisit = orders.filter((o) => new Date(o.createdAt).getTime() > lastSeenTs);
+        if (newSinceLastVisit.length > 0) {
+          playNewOrderSound();
+          newSinceLastVisit.forEach((o) => {
+            toast.success("New order received!", `${o.businessName} — ${formatCurrency(o.total)}`, 5000);
+          });
+        }
+      }
     }
     previousStatus = new Map(orders.map((o) => [o.id, o.status]));
+
+    const latestTs = orders.reduce((max, o) => Math.max(max, new Date(o.createdAt).getTime()), 0);
+    writeLastSeenTs(ORDERS_LAST_SEEN_KEY, latestTs);
 
     setSnapshot({ confirmedOrders, isLive: true });
   });
@@ -170,8 +222,25 @@ const returnsStore = createLiveStore<ReturnsSnapshot>((setSnapshot) => {
           toast.info("New return request", `${r.businessName} — ${formatCurrency(r.totalRefund)}`, 6000);
         });
       }
+    } else {
+      // Same reload-survival fallback as the orders store above.
+      const lastSeenTs = readLastSeenTs(RETURNS_LAST_SEEN_KEY);
+      if (lastSeenTs > 0) {
+        const newSinceLastVisit = returns.filter(
+          (r) => r.status === "REQUESTED" && new Date(r.requestedAt).getTime() > lastSeenTs
+        );
+        if (newSinceLastVisit.length > 0) {
+          playNewReturnSound();
+          newSinceLastVisit.forEach((r) => {
+            toast.info("New return request", `${r.businessName} — ${formatCurrency(r.totalRefund)}`, 6000);
+          });
+        }
+      }
     }
     previousIds = new Set(returns.map((r) => r.id));
+
+    const latestTs = returns.reduce((max, r) => Math.max(max, new Date(r.requestedAt).getTime()), 0);
+    writeLastSeenTs(RETURNS_LAST_SEEN_KEY, latestTs);
 
     setSnapshot({ pendingCount, isLive: true });
   });

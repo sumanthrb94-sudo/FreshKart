@@ -733,11 +733,29 @@ function NavTile({
   pinned: boolean;
   onTogglePin: () => void;
 }) {
+  // Flash the whole tile — not just the corner badge, which is easy to miss
+  // at a glance — for a beat when its count goes UP (a new order/return/
+  // ticket just landed live). Only fires on a genuine increase after mount,
+  // never for the initial render of an already-nonzero backlog.
+  const prevCountRef = useRef(count ?? 0);
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    const prev = prevCountRef.current;
+    const next = count ?? 0;
+    prevCountRef.current = next;
+    if (next > prev) {
+      setFlash(true);
+      const t = setTimeout(() => setFlash(false), 900);
+      return () => clearTimeout(t);
+    }
+  }, [count]);
+
   return (
     <Link
       href={href}
       className={cn(
-        "group relative flex flex-col items-center gap-2 overflow-hidden rounded-2xl border border-line bg-surface bg-gradient-to-b to-transparent p-3 text-center shadow-card transition-all hover:-translate-y-0.5 hover:shadow-card-hover active:scale-95",
+        "group relative flex flex-col items-center gap-2 overflow-hidden rounded-2xl border bg-surface bg-gradient-to-b to-transparent p-3 text-center shadow-card transition-all duration-700 hover:-translate-y-0.5 hover:shadow-card-hover active:scale-95",
+        flash ? "border-brand-500 ring-2 ring-brand-500/30" : "border-line",
         TONE_TILE_WASH[tone]
       )}
     >

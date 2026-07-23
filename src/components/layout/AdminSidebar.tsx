@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sprout, ShoppingBag, Store, LogOut } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Sprout, ShoppingBag, Store, LogOut, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ADMIN_TABS } from "@/components/admin/AdminBottomNav";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -82,36 +83,16 @@ export function AdminSidebar() {
 
       <nav className="flex-1 overflow-y-auto px-3 py-2">
         <ul className="flex flex-col gap-1">
-          {ADMIN_TABS.map((tab) => {
-            const active = tab.isActive(pathname);
-            const Icon = tab.icon;
-            const count = badgeCounts[tab.href] ?? 0;
-            return (
-              <li key={tab.href}>
-                <Link
-                  href={tab.href}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-colors",
-                    active
-                      ? "bg-brand-500 text-white shadow-sm shadow-brand-500/25"
-                      : "text-fg-subtle hover:bg-raised hover:text-fg-muted"
-                  )}
-                >
-                  <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 2} />
-                  <span className="min-w-0 flex-1 truncate">{tab.label}</span>
-                  {count > 0 && (
-                    <span
-                      key={count}
-                      className="animate-pop flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-2xs font-extrabold leading-none text-white"
-                    >
-                      {count > 99 ? "99+" : count}
-                    </span>
-                  )}
-                </Link>
-              </li>
-            );
-          })}
+          {ADMIN_TABS.map((tab) => (
+            <NavRow
+              key={tab.href}
+              href={tab.href}
+              label={tab.label}
+              icon={tab.icon}
+              active={tab.isActive(pathname)}
+              count={badgeCounts[tab.href] ?? 0}
+            />
+          ))}
         </ul>
       </nav>
 
@@ -137,5 +118,66 @@ export function AdminSidebar() {
         </button>
       </div>
     </div>
+  );
+}
+
+/** One sidebar nav row. Split out from the map loop above so the flash
+ *  tracking below (useState/useRef per row) gets its own component instance
+ *  — hooks called inside a bare .map() callback aren't tied to a stable
+ *  fiber per item the way they are in an actual child component. */
+function NavRow({
+  href,
+  label,
+  icon: Icon,
+  active,
+  count,
+}: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  active: boolean;
+  count: number;
+}) {
+  // Same whole-row flash as the dashboard's Manage tiles: a beat of green
+  // ring around the row (not just the tiny badge) when its count goes up,
+  // so a new order/return/ticket is obvious even out of the corner of your
+  // eye. Never fires for the initial mount of an already-nonzero count.
+  const prevCountRef = useRef(count);
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    const prev = prevCountRef.current;
+    prevCountRef.current = count;
+    if (count > prev) {
+      setFlash(true);
+      const t = setTimeout(() => setFlash(false), 900);
+      return () => clearTimeout(t);
+    }
+  }, [count]);
+
+  return (
+    <li>
+      <Link
+        href={href}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold ring-2 ring-transparent transition-all duration-700",
+          active
+            ? "bg-brand-500 text-white shadow-sm shadow-brand-500/25"
+            : "text-fg-subtle hover:bg-raised hover:text-fg-muted",
+          flash && !active && "ring-brand-500/40 bg-brand-500/10 text-brand-500"
+        )}
+      >
+        <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 2} />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {count > 0 && (
+          <span
+            key={count}
+            className="animate-pop flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-2xs font-extrabold leading-none text-white"
+          >
+            {count > 99 ? "99+" : count}
+          </span>
+        )}
+      </Link>
+    </li>
   );
 }
