@@ -152,61 +152,69 @@ function AdminHeader() {
           </span>
         </div>
         <div className="flex flex-1 items-center justify-end gap-1.5 lg:gap-2">
-          {/* Live indicator */}
-          {isLive && (
-            <span className="mr-1 flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          {/* Live status, new-order/return/chat counts, and the account
+              actions below are all mobile-only here — there's no sidebar on
+              mobile to carry them, so the header is where they live. On
+              desktop the exact same data lives on the matching AdminSidebar
+              nav row (Orders/Returns/Support each show their own live
+              badge) and its account section, which is the more useful,
+              always-visible spot for it — repeating it here would just be a
+              second, redundant pill row. */}
+          <div className="flex items-center gap-1.5 lg:hidden">
+            {isLive && (
+              <span className="mr-1 flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                </span>
+                Live
               </span>
-              Live
-            </span>
-          )}
+            )}
 
-          {/* New orders badge */}
-          <NewOrdersBadge orders={confirmedOrders} />
+            <NewOrdersBadge orders={confirmedOrders} />
 
-          {/* Pending returns badge */}
-          {pendingReturnCount > 0 && (
-            <span className="mr-1 flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-400">
-              <RotateCcw className="h-3 w-3" />
-              {pendingReturnCount} returns
-            </span>
-          )}
+            {pendingReturnCount > 0 && (
+              <span className="mr-1 flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-400">
+                <RotateCcw className="h-3 w-3" />
+                {pendingReturnCount} returns
+              </span>
+            )}
 
-          {/* Support chats needing a human reply */}
-          {needsHumanCount > 0 && (
-            <Link
-              href="/admin/support"
-              className="mr-1 flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-400 transition-colors hover:bg-blue-500/20"
-            >
-              <MessageCircle className="h-3 w-3" />
-              {needsHumanCount} chats
-            </Link>
-          )}
+            {needsHumanCount > 0 && (
+              <Link
+                href="/admin/support"
+                className="mr-1 flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-400 transition-colors hover:bg-blue-500/20"
+              >
+                <MessageCircle className="h-3 w-3" />
+                {needsHumanCount} chats
+              </Link>
+            )}
+          </div>
 
           <NotificationBell />
 
-          <Link
-            href="/"
-            className="flex items-center gap-1 rounded-full border border-line bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-400 hover:bg-brand-500/20"
-          >
-            <ShoppingBag className="h-3.5 w-3.5" /> Buyer view
-          </Link>
-          <Link
-            href="/"
-            className="hidden items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-fg-muted hover:bg-raised sm:flex"
-          >
-            <Store className="h-3.5 w-3.5" /> Shop
-          </Link>
-          <button
-            type="button"
-            aria-label="Log out"
-            onClick={handleLogout}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-fg-subtle hover:bg-raised"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1.5 lg:hidden">
+            <Link
+              href="/"
+              className="flex items-center gap-1 rounded-full border border-line bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-400 hover:bg-brand-500/20"
+            >
+              <ShoppingBag className="h-3.5 w-3.5" /> Buyer view
+            </Link>
+            <Link
+              href="/"
+              className="hidden items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-fg-muted hover:bg-raised sm:flex"
+            >
+              <Store className="h-3.5 w-3.5" /> Shop
+            </Link>
+            <button
+              type="button"
+              aria-label="Log out"
+              onClick={handleLogout}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-fg-subtle hover:bg-raised"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     </header>

@@ -52,6 +52,8 @@ const TRANSITION_LABELS: Partial<Record<ReturnStatus, string>> = {
   COMPLETED: "Mark Complete",
 };
 
+const FILTER_OPTIONS = ["all", "REQUESTED", "APPROVED", "PICKED_UP", "REFUNDED", "COMPLETED", "REJECTED"] as const;
+
 export function AdminReturnsScreen() {
   const { data: returns, loading, error, refetch } = useAsync(() => api.listReturns(), []);
   const [filter, setFilter] = useState<ReturnStatus | "all">("all");
@@ -93,49 +95,93 @@ export function AdminReturnsScreen() {
           <p className="text-fg-subtle">{error}</p>
         </div>
       ) : !activeReturn ? (
-        <>
-          <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
-            <h1 className="text-lg font-extrabold text-fg">Returns & Refunds</h1>
-            <p className="text-xs text-fg-subtle">Manage customer returns and process refunds</p>
-            <div className="mt-2 flex items-center gap-2 rounded-xl border border-line bg-surface px-3">
-              <Search className="h-4 w-4 text-fg-subtle" />
-              <input
-                type="text"
-                placeholder="Search by order # or business..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-9 flex-1 bg-transparent text-sm text-fg outline-none"
-              />
+        <div className="flex flex-1 overflow-hidden">
+          {/* Desktop filter rail — a status list (like a real admin/email
+              client sidebar) instead of the mobile pill-scroller squeezed
+              into a header row. Mobile keeps the horizontal pills below,
+              since there's no spare width for a second sidebar there. */}
+          <aside className="hidden w-56 shrink-0 flex-col overflow-y-auto border-r border-line bg-surface lg:flex">
+            <div className="px-4 py-4">
+              <h1 className="text-lg font-extrabold text-fg">Returns & Refunds</h1>
+              <p className="mt-0.5 text-xs text-fg-subtle">Manage returns &amp; refunds</p>
             </div>
-            <div className="mt-2 flex gap-2 overflow-x-auto">
-              {(["all", "REQUESTED", "APPROVED", "PICKED_UP", "REFUNDED", "COMPLETED", "REJECTED"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setFilter(s)}
-                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold transition-colors ${
-                    filter === s ? "bg-brand-500 text-white" : "bg-raised text-fg-subtle hover:bg-surface"
-                  }`}
-                >
-                  {s === "all" ? `All (${list.length})` : `${s} (${list.filter((r) => r.status === s).length})`}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto px-4 py-4">
-            {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16">
-                <RotateCcw className="h-12 w-12 text-fg-subtle" />
-                <p className="mt-3 text-base font-bold text-fg">No returns found</p>
+            <nav className="flex flex-col gap-0.5 px-2 pb-4">
+              {FILTER_OPTIONS.map((s) => {
+                const count = s === "all" ? list.length : list.filter((r) => r.status === s).length;
+                const Icon = s === "all" ? RotateCcw : STATUS_CONFIG[s].icon;
+                const active = filter === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setFilter(s)}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors",
+                      active ? "bg-brand-500/10 text-brand-500" : "text-fg-muted hover:bg-raised hover:text-fg"
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icon className="h-4 w-4" />
+                      {s === "all" ? "All" : STATUS_CONFIG[s].label}
+                    </span>
+                    <span
+                      className={cn(
+                        "min-w-[20px] rounded-full px-1.5 py-0.5 text-center text-2xs font-bold",
+                        active ? "bg-brand-500 text-white" : "bg-raised text-fg-subtle"
+                      )}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
+              <h1 className="text-lg font-extrabold text-fg lg:hidden">Returns & Refunds</h1>
+              <p className="text-xs text-fg-subtle lg:hidden">Manage customer returns and process refunds</p>
+              <div className="mt-2 flex items-center gap-2 rounded-xl border border-line bg-surface px-3 lg:mt-0">
+                <Search className="h-4 w-4 text-fg-subtle" />
+                <input
+                  type="text"
+                  placeholder="Search by order # or business..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-9 flex-1 bg-transparent text-sm text-fg outline-none"
+                />
               </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                {filtered.map((ret) => (
-                  <ReturnCard key={ret.id} ret={ret} onOpen={() => { refetch(); setDetailId(ret.id); }} />
+              <div className="mt-2 flex gap-2 overflow-x-auto lg:hidden">
+                {FILTER_OPTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setFilter(s)}
+                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold transition-colors ${
+                      filter === s ? "bg-brand-500 text-white" : "bg-raised text-fg-subtle hover:bg-surface"
+                    }`}
+                  >
+                    {s === "all" ? `All (${list.length})` : `${s} (${list.filter((r) => r.status === s).length})`}
+                  </button>
                 ))}
               </div>
-            )}
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              {filtered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <RotateCcw className="h-12 w-12 text-fg-subtle" />
+                  <p className="mt-3 text-base font-bold text-fg">No returns found</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                  {filtered.map((ret) => (
+                    <ReturnCard key={ret.id} ret={ret} onOpen={() => { refetch(); setDetailId(ret.id); }} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </>
+        </div>
       ) : (
         <ReturnDetail
           key={activeReturn.id + threadVersion}
