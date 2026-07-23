@@ -164,6 +164,8 @@ export interface DataSource {
   escalateSupportTicket(id: string): Promise<SupportTicket>;
   /** Ends the conversation — locks the thread (mirrors return REJECTED/COMPLETED). */
   closeSupportTicket(id: string): Promise<SupportTicket>;
+  /** Reopens a closed conversation so admin (and the buyer) can reply again. */
+  reopenSupportTicket(id: string): Promise<SupportTicket>;
 
   // --- Settings -------------------------------------------------------------
   /** Read the daily price-update gate status (world-readable). */

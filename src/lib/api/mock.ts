@@ -312,6 +312,21 @@ export class MockDataSource implements DataSource {
     return delay(structuredClone(sorted));
   }
 
+  /** Real-time returns subscription — fires immediately and on every mutation,
+   *  so return threads update live (mirrors subscribeOrders). */
+  subscribeReturns(buyerId?: string, cb?: (returns: ReturnRequest[]) => void): () => void {
+    const deliver = () => {
+      const all = store.get().returns;
+      const list = buyerId ? all.filter((r) => r.buyerId === buyerId) : all;
+      const sorted = [...list].sort(
+        (a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt)
+      );
+      cb?.(structuredClone(sorted));
+    };
+    deliver();
+    return store.subscribe(deliver);
+  }
+
   async getReturn(id: string): Promise<ReturnRequest | null> {
     const r = store.get().returns.find((x) => x.id === id) ?? null;
     return delay(r ? structuredClone(r) : null);
@@ -440,6 +455,19 @@ export class MockDataSource implements DataSource {
     return delay(structuredClone(sorted));
   }
 
+  /** Real-time support-ticket subscription — fires immediately and on every
+   *  mutation, so chat threads update live for both buyer and admin. */
+  subscribeSupportTickets(buyerId?: string, cb?: (tickets: SupportTicket[]) => void): () => void {
+    const deliver = () => {
+      const all = store.get().supportTickets;
+      const list = buyerId ? all.filter((t) => t.buyerId === buyerId) : all;
+      const sorted = [...list].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+      cb?.(structuredClone(sorted));
+    };
+    deliver();
+    return store.subscribe(deliver);
+  }
+
   async getSupportTicket(id: string): Promise<SupportTicket | null> {
     const t = store.get().supportTickets.find((x) => x.id === id) ?? null;
     return delay(t ? structuredClone(t) : null);
@@ -502,6 +530,27 @@ export class MockDataSource implements DataSource {
       t.status = "CLOSED";
       t.closedAt = now;
       t.updatedAt = now;
+      updated = t;
+    });
+    if (!updated) throw new ApiError("Support ticket not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async reopenSupportTicket(id: string): Promise<SupportTicket> {
+    let updated: SupportTicket | null = null;
+    store.mutate((s) => {
+      const t = s.supportTickets.find((x) => x.id === id);
+      if (!t) return;
+      const now = new Date().toISOString();
+      t.status = "OPEN";
+      t.closedAt = undefined;
+      t.updatedAt = now;
+      t.thread.push({
+        id: `tm-${Date.now()}-sys`,
+        sender: "system",
+        text: "Conversation reopened.",
+        sentAt: now,
+      });
       updated = t;
     });
     if (!updated) throw new ApiError("Support ticket not found.", 404);

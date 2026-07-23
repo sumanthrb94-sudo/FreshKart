@@ -55,6 +55,7 @@ import type {
   CreateSupportTicketInput,
   SupportTicket,
   TicketSender,
+  TicketMessage,
 } from "@/lib/support-tickets";
 import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
@@ -1098,6 +1099,29 @@ export class FirebaseDataSource implements DataSource {
     const now = new Date().toISOString();
     await withFreshTokenRetry(() =>
       updateDoc(ref, { status: "CLOSED", closedAt: now, updatedAt: now })
+    );
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Support ticket not found.", 404);
+    return { ...(snap.data() as Omit<SupportTicket, "id">), id: snap.id };
+  }
+
+  async reopenSupportTicket(id: string): Promise<SupportTicket> {
+    await this.ready();
+    const ref = doc(getDb(), COL.supportTickets, id);
+    const now = new Date().toISOString();
+    const systemMessage: TicketMessage = {
+      id: `tm-${Date.now()}-sys`,
+      sender: "system",
+      text: "Conversation reopened.",
+      sentAt: now,
+    };
+    await withFreshTokenRetry(() =>
+      updateDoc(ref, {
+        status: "OPEN",
+        closedAt: deleteField(),
+        updatedAt: now,
+        thread: arrayUnion(systemMessage),
+      })
     );
     const snap = await getDoc(ref);
     if (!snap.exists()) throw new ApiError("Support ticket not found.", 404);

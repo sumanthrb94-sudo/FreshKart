@@ -21,7 +21,8 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { RETURN_REASON_LABELS, canBuyerMessage, isSupersededEstimate } from "@/lib/returns";
 import type { ReturnRequest, ReturnMessage, ReturnStatus } from "@/lib/returns";
 import { api } from "@/lib/api";
-import { useAsync } from "@/lib/hooks";
+import { useLiveReturns } from "@/lib/live-hooks";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
 import { BuyerBottomNav } from "@/components/buyer/BuyerBottomNav";
@@ -44,7 +45,11 @@ const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: 
 
 export function ReturnThreadScreen({ id }: { id: string }) {
   const router = useRouter();
-  const { data: returnReq, loading, error, refetch } = useAsync(() => api.getReturn(id), [id]);
+  const { user } = useAuth();
+  // Live: subscribe to this buyer's returns and derive the open thread by id,
+  // so an admin's reply / status change shows up instantly, no reload.
+  const { data: myReturns, loading, error, refetch } = useLiveReturns(user?.id, !!user?.id);
+  const returnReq = myReturns?.find((r) => r.id === id) ?? null;
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);

@@ -13,13 +13,14 @@ import {
   ChevronRight,
   CheckCircle2,
   Clock,
+  RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAdminRespond } from "@/lib/support-tickets";
 import type { SupportTicket, TicketStatus, TicketMessage } from "@/lib/support-tickets";
 import { formatDate } from "@/lib/format";
 import { api } from "@/lib/api";
-import { useAsync } from "@/lib/hooks";
+import { useLiveSupportTickets } from "@/lib/live-hooks";
 import { Spinner } from "@/components/ui/Spinner";
 
 const STATUS_CONFIG: Record<TicketStatus, { label: string; color: string; icon: typeof Clock }> = {
@@ -28,7 +29,7 @@ const STATUS_CONFIG: Record<TicketStatus, { label: string; color: string; icon: 
 };
 
 export function AdminSupportTicketsScreen() {
-  const { data: tickets, loading, error, refetch } = useAsync(() => api.listSupportTickets(), []);
+  const { data: tickets, loading, error, refetch } = useLiveSupportTickets();
   const [filter, setFilter] = useState<TicketStatus | "needsHuman" | "all">("needsHuman");
   const [search, setSearch] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -44,6 +45,11 @@ export function AdminSupportTicketsScreen() {
 
   const handleClose = async (id: string) => {
     await api.closeSupportTicket(id);
+    await refetch();
+  };
+
+  const handleReopen = async (id: string) => {
+    await api.reopenSupportTicket(id);
     await refetch();
   };
 
@@ -119,6 +125,7 @@ export function AdminSupportTicketsScreen() {
           ticket={activeTicket}
           onBack={() => setDetailId(null)}
           onClose={handleClose}
+          onReopen={handleReopen}
           onSendReply={handleSendReply}
         />
       )}
@@ -161,11 +168,13 @@ function TicketDetail({
   ticket,
   onBack,
   onClose,
+  onReopen,
   onSendReply,
 }: {
   ticket: SupportTicket;
   onBack: () => void;
   onClose: (id: string) => void;
+  onReopen: (id: string) => void;
   onSendReply: (id: string, text: string) => void;
 }) {
   const [reply, setReply] = useState("");
@@ -201,12 +210,19 @@ function TicketDetail({
             <cfg.icon className="h-3 w-3" /> {cfg.label}
           </span>
         </div>
-        {canReply && (
+        {canReply ? (
           <button
             onClick={() => onClose(ticket.id)}
             className="mt-2 rounded-lg border border-line px-3 py-1.5 text-xs font-bold text-fg-muted hover:bg-raised"
           >
             End conversation
+          </button>
+        ) : (
+          <button
+            onClick={() => onReopen(ticket.id)}
+            className="mt-2 flex items-center gap-1.5 rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-1.5 text-xs font-bold text-brand-500 hover:bg-brand-500/20"
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> Reopen conversation
           </button>
         )}
       </div>

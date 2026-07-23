@@ -236,4 +236,8 @@ export class HttpDataSource implements DataSource {
   closeSupportTicket(id: string) {
     return this.request<SupportTicket>(`/support-tickets/${id}/close`, { method: "POST" });
   }
+
+  reopenSupportTicket(id: string) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/reopen`, { method: "POST" });
+  }
 }

@@ -74,6 +74,20 @@ export function AiChatAgent() {
     }
   }, [user]);
 
+  // Live: while the chat panel is open, subscribe to this buyer's tickets so
+  // an admin's reply / close / reopen lands in the thread in real time —
+  // no need to close and reopen the panel to see it.
+  useEffect(() => {
+    if (!isOpen || !user?.id || !ticket?.id) return;
+    if (typeof api.subscribeSupportTickets !== "function") return;
+    const ticketId = ticket.id;
+    const unsubscribe = api.subscribeSupportTickets(user.id, (tickets) => {
+      const fresh = tickets.find((t) => t.id === ticketId);
+      if (fresh) setTicket(fresh);
+    });
+    return unsubscribe;
+  }, [isOpen, user?.id, ticket?.id]);
+
   const handleOpen = () => {
     setIsOpen((prev) => {
       const next = !prev;

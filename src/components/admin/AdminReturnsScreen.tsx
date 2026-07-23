@@ -28,7 +28,7 @@ import {
 import type { ReturnRequest, ReturnStatus, ReturnMessage } from "@/lib/returns";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { api } from "@/lib/api";
-import { useAsync } from "@/lib/hooks";
+import { useLiveReturns } from "@/lib/live-hooks";
 import { Spinner } from "@/components/ui/Spinner";
 import { useImageLightbox } from "@/components/ui/ImageLightbox";
 
@@ -55,7 +55,7 @@ const TRANSITION_LABELS: Partial<Record<ReturnStatus, string>> = {
 const FILTER_OPTIONS = ["all", "REQUESTED", "APPROVED", "PICKED_UP", "REFUNDED", "COMPLETED", "REJECTED"] as const;
 
 export function AdminReturnsScreen() {
-  const { data: returns, loading, error, refetch } = useAsync(() => api.listReturns(), []);
+  const { data: returns, loading, error, refetch } = useLiveReturns();
   const [filter, setFilter] = useState<ReturnStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
