@@ -9,14 +9,12 @@ import { AppShell } from "@/components/layout/AppShell";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { AdminBottomNav } from "./AdminBottomNav";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
-import { api } from "@/lib/api";
 import { useEffect, useState, useRef } from "react";
 import type { Order } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { toast } from "@/lib/toast";
 import { NotificationBell } from "@/components/NotificationDrawer";
-import { playChime } from "@/lib/audio-chime";
+import { useLiveOrders, useLiveReturns, useLiveNeedsHumanCount } from "@/lib/admin-alerts-store";
 
 /** 5:42 PM — clock time, for "when did this order land" context. */
 function formatClockTime(iso: string): string {
@@ -32,169 +30,6 @@ function timeAgo(iso: string): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
-}
-
-/** New-order chime — pleasant ascending triad (C5 → E5 → G5), sine. */
-function playNewOrderSound() {
-  playChime([
-    { freq: 523.25, startOffset: 0, duration: 0.4 },
-    { freq: 659.25, startOffset: 0.12, duration: 0.4 },
-    { freq: 783.99, startOffset: 0.24, duration: 0.4 },
-  ]);
-}
-
-/** New-return-request alert — distinct descending triad (A5 → E5 → A4), sine. */
-function playNewReturnSound() {
-  playChime([
-    { freq: 880.0, startOffset: 0, duration: 0.35, gain: 0.14 },
-    { freq: 659.25, startOffset: 0.1, duration: 0.35, gain: 0.14 },
-    { freq: 440.0, startOffset: 0.2, duration: 0.35, gain: 0.14 },
-  ]);
-}
-
-/** Order-cancelled alert — low descending square-wave buzz, unmistakably a
- *  negative event next to the two pleasant sine chimes above. */
-function playOrderCancelledSound() {
-  playChime([
-    { freq: 392.0, startOffset: 0, duration: 0.22, type: "square", gain: 0.08 },
-    { freq: 261.63, startOffset: 0.18, duration: 0.3, type: "square", gain: 0.08 },
-  ]);
-}
-
-/** Hook for real-time order count + new-order alerts in admin header */
-function useAdminOrderAlerts() {
-  const [confirmedOrders, setConfirmedOrders] = useState<Order[]>([]);
-  const [isLive, setIsLive] = useState(false);
-  const previousStatus = useRef<Map<string, Order["status"]> | null>(null);
-
-  useEffect(() => {
-    if (typeof api.subscribeOrders !== "function") {
-      // HTTP backend — not live
-      api.listOrders()
-        .then((orders) => {
-          setConfirmedOrders(orders.filter((o) => o.status === "CONFIRMED"));
-        })
-        .catch(() => {});
-      return;
-    }
-
-    setIsLive(true);
-    const unsubscribe = api.subscribeOrders(undefined, (orders) => {
-      setConfirmedOrders(
-        orders
-          .filter((o) => o.status === "CONFIRMED")
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      );
-
-      const prev = previousStatus.current;
-      if (prev) {
-        const newOrders = orders.filter((o) => !prev.has(o.id));
-        if (newOrders.length > 0) {
-          playNewOrderSound();
-          newOrders.forEach((o) => {
-            toast.success(
-              "New order received!",
-              `${o.businessName} — ${formatCurrency(o.total)}`,
-              5000
-            );
-          });
-        }
-
-        const newlyCancelled = orders.filter(
-          (o) => o.status === "CANCELLED" && prev.get(o.id) && prev.get(o.id) !== "CANCELLED"
-        );
-        if (newlyCancelled.length > 0) {
-          playOrderCancelledSound();
-          newlyCancelled.forEach((o) => {
-            toast.error(
-              "Order cancelled",
-              `${o.businessName} — ${o.orderNumber}`,
-              5000
-            );
-          });
-        }
-      }
-      previousStatus.current = new Map(orders.map((o) => [o.id, o.status]));
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  return { confirmedOrders, isLive };
-}
-
-/** Hook for real-time pending-return count + new-return alerts in admin header */
-function useAdminReturnAlerts() {
-  const [pendingCount, setPendingCount] = useState(0);
-  const [isLive, setIsLive] = useState(false);
-  const previousIds = useRef<Set<string>>(new Set());
-  const hasInit = useRef(false);
-
-  useEffect(() => {
-    if (typeof api.subscribeReturns !== "function") {
-      // HTTP / mock backend — not live
-      api.listReturns()
-        .then((returns) => {
-          setPendingCount(returns.filter((r) => r.status === "REQUESTED").length);
-        })
-        .catch(() => {});
-      return;
-    }
-
-    setIsLive(true);
-    const unsubscribe = api.subscribeReturns(undefined, (returns) => {
-      setPendingCount(returns.filter((r) => r.status === "REQUESTED").length);
-
-      if (hasInit.current) {
-        const currentIds = new Set(returns.map((r) => r.id));
-        const newReturns = returns.filter(
-          (r) => !previousIds.current.has(r.id) && r.status === "REQUESTED"
-        );
-        if (newReturns.length > 0) {
-          playNewReturnSound();
-          newReturns.forEach((r) => {
-            toast.info(
-              "New return request",
-              `${r.businessName} — ${formatCurrency(r.totalRefund)}`,
-              6000
-            );
-          });
-        }
-        previousIds.current = currentIds;
-      } else {
-        previousIds.current = new Set(returns.map((r) => r.id));
-        hasInit.current = true;
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  return { pendingCount, isLive };
-}
-
-/** Hook for pending "needs a human" support-ticket count in admin header */
-function useAdminTicketAlerts() {
-  const [needsHumanCount, setNeedsHumanCount] = useState(0);
-
-  useEffect(() => {
-    if (typeof api.subscribeSupportTickets !== "function") {
-      api.listSupportTickets()
-        .then((tickets) => {
-          setNeedsHumanCount(tickets.filter((t) => t.needsHuman).length);
-        })
-        .catch(() => {});
-      return;
-    }
-
-    const unsubscribe = api.subscribeSupportTickets(undefined, (tickets) => {
-      setNeedsHumanCount(tickets.filter((t) => t.needsHuman).length);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  return { needsHumanCount };
 }
 
 /** Clickable "N new" badge — expands into a dropdown of confirmed orders,
@@ -291,9 +126,9 @@ function NewOrdersBadge({ orders }: { orders: Order[] }) {
 
 function AdminHeader() {
   const { logout } = useAuth();
-  const { confirmedOrders, isLive } = useAdminOrderAlerts();
-  const { pendingCount: pendingReturnCount } = useAdminReturnAlerts();
-  const { needsHumanCount } = useAdminTicketAlerts();
+  const { confirmedOrders, isLive } = useLiveOrders();
+  const { pendingCount: pendingReturnCount } = useLiveReturns();
+  const needsHumanCount = useLiveNeedsHumanCount();
 
   async function handleLogout() {
     await logout();

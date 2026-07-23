@@ -3,7 +3,16 @@
 import { useEffect, useState } from "react";
 import { Banknote, MapPin, MessageCircle, Pencil, Phone, ShieldCheck } from "lucide-react";
 import type { DeliveryDetails, PaymentMethod } from "@/lib/types";
-import { formatCurrency, pricePerUnit, MIN_ORDER_TOTAL_QTY, MAX_ORDER_ITEM_TYPES, PAYMENT_LABELS } from "@/lib/format";
+import {
+  formatCurrency,
+  pricePerUnit,
+  MIN_ORDER_TOTAL_QTY,
+  MAX_ORDER_TOTAL_QTY,
+  MAX_ORDER_ITEM_TYPES,
+  PAYMENT_LABELS,
+  sanitizePhoneDigits,
+  isValidPhoneDigits,
+} from "@/lib/format";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { Button } from "@/components/ui/Button";
@@ -86,12 +95,16 @@ export function CheckoutSheet({
       setLocalError("Please add a delivery address.");
       return;
     }
-    if (!delivery.phone) {
-      setLocalError("Please add a phone number for delivery updates.");
+    if (!isValidPhoneDigits(delivery.phone)) {
+      setLocalError("Enter a valid 10-digit phone number for delivery updates.");
       return;
     }
     if (totalQty < MIN_ORDER_TOTAL_QTY) {
       setLocalError(`Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. Add ${MIN_ORDER_TOTAL_QTY - totalQty} more kg to continue.`);
+      return;
+    }
+    if (totalQty > MAX_ORDER_TOTAL_QTY) {
+      setLocalError(`Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. Remove ${totalQty - MAX_ORDER_TOTAL_QTY} kg to continue, or place a second order for the rest.`);
       return;
     }
     if (lines.length > MAX_ORDER_ITEM_TYPES) {
@@ -188,7 +201,7 @@ export function CheckoutSheet({
                   flavor="field"
                   inputMode="tel"
                   value={delivery.phone}
-                  onChange={(e) => set("phone", e.target.value)}
+                  onChange={(e) => set("phone", sanitizePhoneDigits(e.target.value))}
                   placeholder="98765 43210"
                 />
               </Field>

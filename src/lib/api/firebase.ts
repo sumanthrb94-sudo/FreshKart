@@ -56,7 +56,7 @@ import type {
   SupportTicket,
   TicketSender,
 } from "@/lib/support-tickets";
-import { generateOrderNumber, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
+import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
@@ -528,6 +528,11 @@ export class FirebaseDataSource implements DataSource {
     if (totalQty < MIN_ORDER_TOTAL_QTY) {
       throw new ApiError(
         `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`
+      );
+    }
+    if (totalQty > MAX_ORDER_TOTAL_QTY) {
+      throw new ApiError(
+        `Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`
       );
     }
     const settingsSnap = await readDoc(doc(db, COL.settings, "dailyPrices"));

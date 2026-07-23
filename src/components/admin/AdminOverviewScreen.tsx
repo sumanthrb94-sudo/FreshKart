@@ -39,6 +39,7 @@ import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { AdminShell } from "./AdminShell";
+import { useLiveOrders, useLiveReturns, useLiveNeedsHumanCount } from "@/lib/admin-alerts-store";
 import { StatCard } from "@/components/ui/StatCard";
 import { DayPicker } from "@/components/ui/DayPicker";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -142,16 +143,14 @@ export function AdminOverviewScreen() {
   } = useAsync(() => api.getDailyPricesSettings(), []);
   const [publishing, setPublishing] = useState(false);
 
-  // Live counts for the nav tile badges below.
-  const { data: returns } = useAsync(() => api.listReturns(), []);
-  const { data: tickets } = useAsync(() => api.listSupportTickets(), []);
-  const pendingReturnsCount = returns?.filter((r) => r.status === "REQUESTED").length ?? 0;
-  const needsHumanCount = tickets?.filter((t) => t.needsHuman).length ?? 0;
-  // Orders are created directly as CONFIRMED (never PENDING — see
-  // firestore.rules' order-create rule) — ordersByStatus.PENDING is
-  // hardcoded to 0 in every backend, so the Orders tile must count
-  // CONFIRMED (awaiting packing) instead, or its badge never shows a number.
-  const newOrdersCount = orders?.filter((o) => o.status === "CONFIRMED").length ?? 0;
+  // Live counts for the nav tile badges below — the SAME module-singleton
+  // subscriptions the header badges use (src/lib/admin-alerts-store.ts), so
+  // both stay in sync in real time off of exactly one Firestore listener
+  // each; a second independent listener here would double-fire the chime.
+  const { confirmedOrders } = useLiveOrders();
+  const { pendingCount: pendingReturnsCount } = useLiveReturns();
+  const needsHumanCount = useLiveNeedsHumanCount();
+  const newOrdersCount = confirmedOrders.length;
 
   // Last-7-days trend lines for the Revenue / Orders stat cards.
   const last7 = useMemo(() => {
@@ -763,7 +762,14 @@ function NavTile({
       <span className={cn("relative flex h-12 w-12 items-center justify-center rounded-2xl transition-transform group-hover:scale-105", TONE_CLASSES[tone])}>
         <Icon className="h-5 w-5" aria-hidden />
         {!!count && count > 0 && (
-          <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-extrabold leading-none text-white ring-2 ring-surface">
+          // Keying on the count remounts the badge on every change, replaying
+          // the pop-in animation — a live visual cue for the number itself
+          // updating (new order/return/ticket landed), not just its initial
+          // appearance.
+          <span
+            key={count}
+            className="absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] animate-pop items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-extrabold leading-none text-white ring-2 ring-surface"
+          >
             {count > 99 ? "99+" : count}
           </span>
         )}

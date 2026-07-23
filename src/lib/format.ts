@@ -3,6 +3,20 @@ import type { OrderStatus, PaymentMethod, Unit, CartLine } from "./types";
 /** Whole-order minimum quantity (in kg / units). */
 export const MIN_ORDER_TOTAL_QTY = 10;
 
+/** Whole-order maximum quantity (in kg / units) for a buyer-placed order —
+ *  mirrored in firestore.rules' isOrderWeightValid() (real enforcement,
+ *  since the browser talks to Firestore directly) and in mock.ts/firebase.ts
+ *  createOrder (friendly client-side error before attempting the write).
+ *  Admin/POS orders are exempt, same as every other buyer-only order rule. */
+export const MAX_ORDER_TOTAL_QTY = 75;
+
+/** True when a cart's total weight (kg) is within [MIN_ORDER_TOTAL_QTY,
+ *  MAX_ORDER_TOTAL_QTY] — the single source of truth checkout/mock.ts/
+ *  firebase.ts all gate order creation on. */
+export function isValidOrderWeight(totalQty: number): boolean {
+  return totalQty >= MIN_ORDER_TOTAL_QTY && totalQty <= MAX_ORDER_TOTAL_QTY;
+}
+
 /**
  * Max distinct products in a single order. firestore.rules validates prices
  * against a single pre-fetched price-sheet document (one get() call, not one
@@ -15,6 +29,43 @@ export const MIN_ORDER_TOTAL_QTY = 10;
  * claim a cap the rules won't actually honor.
  */
 export const MAX_ORDER_ITEM_TYPES = 50;
+
+/** Indian mobile numbers are exactly 10 digits (matches the OTP login flow's
+ *  own validation in OnboardingScreen). Free-text phone fields elsewhere
+ *  (checkout, account profile) had no such cap — a pasted or fat-fingered
+ *  string of any length would save and print as-is (e.g. on the packing
+ *  slip), so every phone input should sanitize on change with
+ *  `sanitizePhoneDigits` and gate submission with `isValidPhoneDigits`. */
+export const PHONE_DIGIT_LENGTH = 10;
+
+/** Strip everything but digits and cap at PHONE_DIGIT_LENGTH — use as the
+ *  onChange transform for every phone <Input>. */
+export function sanitizePhoneDigits(value: string): string {
+  return value.replace(/\D/g, "").slice(0, PHONE_DIGIT_LENGTH);
+}
+
+/** True once a phone value (with or without formatting) has exactly
+ *  PHONE_DIGIT_LENGTH digits. */
+export function isValidPhoneDigits(value: string): boolean {
+  return value.replace(/\D/g, "").length === PHONE_DIGIT_LENGTH;
+}
+
+/** Indian PIN codes are exactly 6 digits. Every address is normally captured
+ *  via the map-based AddressPicker (reverse-geocoded, already well-formed),
+ *  but AccountScreen's profile-edit form also lets a buyer retype it
+ *  free-hand — same unbounded-length risk as the phone field. */
+export const PINCODE_DIGIT_LENGTH = 6;
+
+/** Strip everything but digits and cap at PINCODE_DIGIT_LENGTH — use as the
+ *  onChange transform for every pincode <Input>. */
+export function sanitizePincodeDigits(value: string): string {
+  return value.replace(/\D/g, "").slice(0, PINCODE_DIGIT_LENGTH);
+}
+
+/** True once a pincode value has exactly PINCODE_DIGIT_LENGTH digits. */
+export function isValidPincodeDigits(value: string): boolean {
+  return value.replace(/\D/g, "").length === PINCODE_DIGIT_LENGTH;
+}
 
 /** Total cart quantity across all lines. */
 export function cartTotalQty(lines: CartLine[]): number {

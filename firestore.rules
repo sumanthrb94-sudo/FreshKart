@@ -217,6 +217,43 @@ service cloud.firestore {
              chunkSum(items, 0) + chunkSum(items, 10) + chunkSum(items, 20) + chunkSum(items, 30) + chunkSum(items, 40);
     }
 
+    // Total order weight (kg), summed the same chunked way as
+    // getExpectedSubtotal() above (and for the same reason — Firestore's
+    // rules parser rejects one large expression as "too complex to evaluate
+    // safely"). Mirrors MIN_ORDER_TOTAL_QTY / MAX_ORDER_TOTAL_QTY in
+    // src/lib/format.ts — the client's own check is not real enforcement on
+    // its own, since the browser talks to Firestore directly and a crafted
+    // write can skip the client entirely.
+    function partialSumQty(items, from, count) {
+      return count <= 0 ? 0 :
+             count == 1 ? items[from].qty :
+             count == 2 ? items[from].qty + items[from+1].qty :
+             count == 3 ? items[from].qty + items[from+1].qty + items[from+2].qty :
+             count == 4 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty :
+             count == 5 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty :
+             count == 6 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty :
+             count == 7 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty + items[from+6].qty :
+             count == 8 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty + items[from+6].qty + items[from+7].qty :
+             items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty + items[from+6].qty + items[from+7].qty + items[from+8].qty;
+    }
+
+    function chunkSumQty(items, chunkStart) {
+      return items[chunkStart].qty + items[chunkStart+1].qty + items[chunkStart+2].qty + items[chunkStart+3].qty + items[chunkStart+4].qty + items[chunkStart+5].qty + items[chunkStart+6].qty + items[chunkStart+7].qty + items[chunkStart+8].qty + items[chunkStart+9].qty;
+    }
+
+    function getExpectedTotalQty(items) {
+      return items.size() <= 9 ? partialSumQty(items, 0, items.size()) :
+             items.size() <= 19 ? chunkSumQty(items, 0) + partialSumQty(items, 10, items.size() - 10) :
+             items.size() <= 29 ? chunkSumQty(items, 0) + chunkSumQty(items, 10) + partialSumQty(items, 20, items.size() - 20) :
+             items.size() <= 39 ? chunkSumQty(items, 0) + chunkSumQty(items, 10) + chunkSumQty(items, 20) + partialSumQty(items, 30, items.size() - 30) :
+             items.size() <= 49 ? chunkSumQty(items, 0) + chunkSumQty(items, 10) + chunkSumQty(items, 20) + chunkSumQty(items, 30) + partialSumQty(items, 40, items.size() - 40) :
+             chunkSumQty(items, 0) + chunkSumQty(items, 10) + chunkSumQty(items, 20) + chunkSumQty(items, 30) + chunkSumQty(items, 40);
+    }
+
+    function isOrderWeightValid(items) {
+      return getExpectedTotalQty(items) >= 10 && getExpectedTotalQty(items) <= 75;
+    }
+
     // Allowed top-level fields on a new order document. Prevents buyers from
     // injecting arbitrary keys (e.g. `isAdmin`, `discount`, `refundAmount`)
     // into the order document.
@@ -374,6 +411,7 @@ service cloud.firestore {
                         && validateOrderItems(
                              request.resource.data.items,
                              priceSheetPrices())
+                        && isOrderWeightValid(request.resource.data.items)
                         && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items)
                         && request.resource.data.deliveryFee == getExpectedDeliveryFee(request.resource.data.subtotal)
                         && request.resource.data.total == request.resource.data.subtotal + request.resource.data.deliveryFee);

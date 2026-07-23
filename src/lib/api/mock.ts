@@ -19,7 +19,7 @@ import type {
 import { RETURN_REASON_LABELS, generateAdjustedInvoiceNumber, buildStatusChangeMessage } from "@/lib/returns";
 import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
-import { generateOrderNumber, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
+import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
 import { DataSource, ApiError } from "./datasource";
@@ -136,6 +136,10 @@ export class MockDataSource implements DataSource {
       const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
       if (totalQty < MIN_ORDER_TOTAL_QTY) {
         error = `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
+        return;
+      }
+      if (totalQty > MAX_ORDER_TOTAL_QTY) {
+        error = `Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
         return;
       }
       const items: OrderItem[] = [];

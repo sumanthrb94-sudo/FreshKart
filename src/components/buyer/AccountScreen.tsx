@@ -21,6 +21,12 @@ import { Alert } from "@/components/ui/Alert";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { Sheet } from "@/components/ui/Sheet";
 import { AddressPicker, type PickedAddress } from "@/components/address/AddressPicker";
+import {
+  sanitizePhoneDigits,
+  isValidPhoneDigits,
+  sanitizePincodeDigits,
+  isValidPincodeDigits,
+} from "@/lib/format";
 
 export function AccountScreen() {
   const router = useRouter();
@@ -64,6 +70,14 @@ export function AccountScreen() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (form.phone && !isValidPhoneDigits(form.phone)) {
+      setStatus({ ok: false, msg: "Enter a valid 10-digit phone number." });
+      return;
+    }
+    if (form.pincode && !isValidPincodeDigits(form.pincode)) {
+      setStatus({ ok: false, msg: "Enter a valid 6-digit pincode." });
+      return;
+    }
     setSaving(true);
     setStatus(null);
     try {
@@ -217,7 +231,11 @@ export function AccountScreen() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Phone">
-                    <Input inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+                    <Input
+                      inputMode="tel"
+                      value={form.phone}
+                      onChange={(e) => set("phone", sanitizePhoneDigits(e.target.value))}
+                    />
                   </Field>
                   <Field label="GSTIN">
                     <Input value={form.gstin} onChange={(e) => set("gstin", e.target.value)} placeholder="29ABCDE1234A1Z9" />
@@ -231,7 +249,11 @@ export function AccountScreen() {
                     <Input value={form.city} onChange={(e) => set("city", e.target.value)} />
                   </Field>
                   <Field label="Pincode">
-                    <Input inputMode="numeric" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} />
+                    <Input
+                      inputMode="numeric"
+                      value={form.pincode}
+                      onChange={(e) => set("pincode", sanitizePincodeDigits(e.target.value))}
+                    />
                   </Field>
                 </div>
 
