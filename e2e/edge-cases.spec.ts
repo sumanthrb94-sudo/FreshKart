@@ -37,6 +37,25 @@ async function addToCart(page: Page, times: number) {
   }
 }
 
+/** Once every product's been added once (its minimum qty), push the total
+ *  well past MAX_ORDER_TOTAL_QTY by repeatedly hitting each cart line's "+"
+ *  stepper — each click adds another minOrderQty, up to that product's
+ *  stock. Bounded rounds so this can't hang if stock runs out everywhere. */
+async function bumpQuantities(page: Page, rounds: number) {
+  for (let r = 0; r < rounds; r++) {
+    const incButtons = page.getByRole("button", { name: "Increase quantity" });
+    const count = await incButtons.count();
+    if (count === 0) break;
+    for (let i = 0; i < count; i++) {
+      const btn = incButtons.nth(i);
+      if (await btn.isEnabled().catch(() => false)) {
+        await btn.click().catch(() => {});
+      }
+    }
+    await page.waitForTimeout(100);
+  }
+}
+
 test.describe.configure({ mode: "serial" });
 
 test("checkout rejects a garbage-length phone number and accepts a valid one", async ({ page }) => {
@@ -70,9 +89,10 @@ test("checkout rejects an order over the max total weight", async ({ page }) => 
   await loginBuyer(page);
   await page.goto(`${BASE_URL}/`, { waitUntil: "networkidle" });
 
-  // Push well past MAX_ORDER_TOTAL_QTY (75kg) — keep clicking Add across
-  // however many distinct products exist.
+  // Push well past MAX_ORDER_TOTAL_QTY (500kg): add every distinct product
+  // once, then bump each cart line's quantity up via its "+" stepper.
   await addToCart(page, 40);
+  await bumpQuantities(page, 15);
   await expect(page.getByText(/Review & Order/i).first()).toBeVisible({ timeout: 5_000 });
   await page.getByText(/Review & Order/i).first().click();
   await page.waitForTimeout(500);
@@ -87,14 +107,14 @@ test("checkout rejects an order over the max total weight", async ({ page }) => 
     await placeBtn.click();
     await page.waitForTimeout(500);
     const errorVisible = await page
-      .getByText(/Maximum order is 75 kgs/i)
+      .getByText(/Maximum order is 500 kgs/i)
       .isVisible()
       .catch(() => false);
     console.log("Over-max order error shown:", errorVisible);
     if (errorVisible) {
-      await expect(page.getByText(/Maximum order is 75 kgs/i)).toBeVisible();
+      await expect(page.getByText(/Maximum order is 500 kgs/i)).toBeVisible();
     } else {
-      console.log("Could not accumulate > 75kg with available demo products/min-qtys — skipping strict assertion.");
+      console.log("Could not accumulate > 500kg with available demo products/stock — skipping strict assertion.");
     }
   }
 });

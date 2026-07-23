@@ -8,7 +8,7 @@ export const MIN_ORDER_TOTAL_QTY = 10;
  *  since the browser talks to Firestore directly) and in mock.ts/firebase.ts
  *  createOrder (friendly client-side error before attempting the write).
  *  Admin/POS orders are exempt, same as every other buyer-only order rule. */
-export const MAX_ORDER_TOTAL_QTY = 75;
+export const MAX_ORDER_TOTAL_QTY = 500;
 
 /** True when a cart's total weight (kg) is within [MIN_ORDER_TOTAL_QTY,
  *  MAX_ORDER_TOTAL_QTY] — the single source of truth checkout/mock.ts/

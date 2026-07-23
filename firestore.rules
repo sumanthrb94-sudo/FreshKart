@@ -251,7 +251,7 @@ service cloud.firestore {
     }
 
     function isOrderWeightValid(items) {
-      return getExpectedTotalQty(items) >= 10 && getExpectedTotalQty(items) <= 75;
+      return getExpectedTotalQty(items) >= 10 && getExpectedTotalQty(items) <= 500;
     }
 
     // Allowed top-level fields on a new order document. Prevents buyers from
