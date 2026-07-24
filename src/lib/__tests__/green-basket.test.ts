@@ -196,9 +196,15 @@ describe("allowedTransitions", () => {
     expect(allowedTransitions("APPROVED")).toEqual(["PICKED_UP"]);
   });
 
-  it("REJECTED and COMPLETED have no transitions", () => {
-    expect(allowedTransitions("REJECTED")).toHaveLength(0);
+  it("COMPLETED has no transitions — refunded money is never reopened", () => {
     expect(allowedTransitions("COMPLETED")).toHaveLength(0);
+  });
+
+  it("REJECTED has exactly one transition: reopen back to REQUESTED", () => {
+    // The one backward edge in the state machine — lets a disputed rejection
+    // be revisited. No financial side effect to undo (unlike REFUNDED/
+    // COMPLETED), so it's the only terminal status that can come back.
+    expect(allowedTransitions("REJECTED")).toEqual(["REQUESTED"]);
   });
 
   it("REFUNDED can go to COMPLETED", () => {

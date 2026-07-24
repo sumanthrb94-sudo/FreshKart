@@ -16,7 +16,12 @@ import type {
   ReturnStatus,
   ReturnMessage,
 } from "@/lib/returns";
-import { RETURN_REASON_LABELS, generateAdjustedInvoiceNumber, buildStatusChangeMessage } from "@/lib/returns";
+import {
+  RETURN_REASON_LABELS,
+  RETURN_REOPEN_REQUEST_TEXT,
+  generateAdjustedInvoiceNumber,
+  buildStatusChangeMessage,
+} from "@/lib/returns";
 import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
 import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
@@ -383,8 +388,17 @@ export class MockDataSource implements DataSource {
       const now = new Date().toISOString();
       r.status = status;
       r.updatedAt = now;
+      // Any admin transition is the answer to a pending "please review this
+      // again" nudge, one way or another — clear it so the flag can't outlive
+      // the request it was raised about.
+      r.reopenRequestedAt = undefined;
       if ((["REJECTED", "REFUNDED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
         r.resolvedAt = now;
+      } else if (status === "REQUESTED") {
+        // Reopen path (REJECTED → REQUESTED): the return is active again, so
+        // it's no longer "resolved" — clear the stale timestamp rather than
+        // leave it pointing at the rejection this just reversed.
+        r.resolvedAt = undefined;
       }
       // Company policy: every status change gets its own confirmed system
       // message — the buyer shouldn't have to infer the outcome from the
@@ -443,6 +457,43 @@ export class MockDataSource implements DataSource {
       r.updatedAt = new Date().toISOString();
       updated = r;
     });
+    if (!updated) throw new ApiError("Return request not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  /** Heartbeat only — deliberately does NOT touch `updatedAt`, or every
+   *  keystroke would reorder the admin's return list mid-type. */
+  async setReturnTyping(id: string, sender: "buyer" | "admin"): Promise<void> {
+    store.mutate((s) => {
+      const r = s.returns.find((x) => x.id === id);
+      if (!r) return;
+      if (sender === "buyer") r.buyerTypingAt = new Date().toISOString();
+      else r.adminTypingAt = new Date().toISOString();
+    });
+  }
+
+  async requestReturnReopen(id: string): Promise<ReturnRequest> {
+    let updated: ReturnRequest | null = null;
+    let error: string | null = null;
+    store.mutate((s) => {
+      const r = s.returns.find((x) => x.id === id);
+      if (!r) return;
+      if (r.status !== "REJECTED") {
+        error = "Only a rejected return can be asked for another look.";
+        return;
+      }
+      const now = new Date().toISOString();
+      r.thread.push({
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sender: "buyer",
+        text: RETURN_REOPEN_REQUEST_TEXT,
+        sentAt: now,
+      });
+      r.reopenRequestedAt = now;
+      r.updatedAt = now;
+      updated = r;
+    });
+    if (error) throw new ApiError(error, 409);
     if (!updated) throw new ApiError("Return request not found.", 404);
     return delay(structuredClone(updated));
   }
@@ -555,6 +606,17 @@ export class MockDataSource implements DataSource {
     });
     if (!updated) throw new ApiError("Support ticket not found.", 404);
     return delay(structuredClone(updated));
+  }
+
+  /** Heartbeat only — deliberately does NOT touch `updatedAt`, or every
+   *  keystroke would reorder the admin's ticket list mid-type. */
+  async setSupportTicketTyping(id: string, sender: "buyer" | "admin"): Promise<void> {
+    store.mutate((s) => {
+      const t = s.supportTickets.find((x) => x.id === id);
+      if (!t) return;
+      if (sender === "buyer") t.buyerTypingAt = new Date().toISOString();
+      else t.adminTypingAt = new Date().toISOString();
+    });
   }
 
   // --- Admin --------------------------------------------------------------

@@ -10,6 +10,8 @@ import { generateAIResponse } from "@/lib/ai-chat";
 import type { ChatSession } from "@/lib/ai-chat";
 import { TALK_TO_HUMAN, canBuyerMessage } from "@/lib/support-tickets";
 import type { SupportTicket, TicketMessage } from "@/lib/support-tickets";
+import { useTypingActive, useTypingHeartbeat } from "@/lib/hooks";
+import { TypingBubble } from "@/components/ui/TypingIndicator";
 
 export function AiChatAgent() {
   const [isOpen, setIsOpen] = useState(false);
@@ -25,6 +27,14 @@ export function AiChatAgent() {
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated, isAdmin, user } = useAuth();
+
+  // Real human-admin typing signal — distinct from `typing` above, which is a
+  // locally-simulated "the bot is composing" delay. Both render the same dots,
+  // but only this one reflects an actual person on the other end.
+  const adminIsTyping = useTypingActive(ticket?.adminTypingAt);
+  const notifyTyping = useTypingHeartbeat(
+    ticket ? () => api.setSupportTicketTyping?.(ticket.id, "buyer") : undefined
+  );
 
   // Close chat when clicking outside
   useEffect(() => {
@@ -49,7 +59,7 @@ export function AiChatAgent() {
     // was left, or its unmount/remount default (top), instead of the
     // latest message.
     if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [ticket?.thread.length, typing, isOpen]);
+  }, [ticket?.thread.length, typing, adminIsTyping, isOpen]);
 
   useEffect(() => {
     if (isOpen && ticket) inputRef.current?.focus();
@@ -352,6 +362,13 @@ export function AiChatAgent() {
               </div>
             )}
 
+            {/* A real support agent typing (after escalation) — distinct
+                signal from the bot's simulated `typing` above, never shown
+                at the same time since one implies the other just finished. */}
+            {!typing && canReply && adminIsTyping && (
+              <TypingBubble label="Support agent is typing…" align="start" />
+            )}
+
             {!typing && canReply && lastMessage?.sender === "assistant" && lastMessage.suggestions && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {lastMessage.suggestions.map((suggestion) => (
@@ -389,7 +406,10 @@ export function AiChatAgent() {
                   ref={inputRef}
                   type="text"
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    if (e.target.value.trim()) notifyTyping();
+                  }}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask about orders, returns..."
                   disabled={!ticket}

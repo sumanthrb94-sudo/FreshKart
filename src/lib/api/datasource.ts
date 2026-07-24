@@ -138,6 +138,21 @@ export interface DataSource {
   updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest>;
   addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest>;
   updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest>;
+  /**
+   * Optional: heartbeat a self-expiring "is typing" signal on a return
+   * thread (see lib/typing-indicator.ts — TTL-based, no explicit "stopped
+   * typing" call needed). Best-effort: callers must never let this failing
+   * block or surface an error for an otherwise-successful message send.
+   */
+  setReturnTyping?(id: string, sender: "buyer" | "admin"): Promise<void>;
+  /**
+   * Optional: buyer-triggered nudge on a REJECTED return asking an admin to
+   * take another look. Does NOT reopen the return itself — only an admin
+   * transition (REJECTED → REQUESTED) does that; this just raises a flag
+   * (`reopenRequestedAt`) and appends a buyer message so the ask is visible
+   * in both the admin's return list and the thread.
+   */
+  requestReturnReopen?(id: string): Promise<ReturnRequest>;
 
   // --- Support tickets --------------------------------------------------------
   /** buyerId omitted → all tickets (admin). */
@@ -166,6 +181,12 @@ export interface DataSource {
   closeSupportTicket(id: string): Promise<SupportTicket>;
   /** Reopens a closed conversation so admin (and the buyer) can reply again. */
   reopenSupportTicket(id: string): Promise<SupportTicket>;
+  /**
+   * Optional: heartbeat a self-expiring "is typing" signal on a support
+   * ticket (see lib/typing-indicator.ts). Same best-effort contract as
+   * setReturnTyping — never let a failure here interrupt messaging.
+   */
+  setSupportTicketTyping?(id: string, sender: "buyer" | "admin"): Promise<void>;
 
   // --- Settings -------------------------------------------------------------
   /** Read the daily price-update gate status (world-readable). */

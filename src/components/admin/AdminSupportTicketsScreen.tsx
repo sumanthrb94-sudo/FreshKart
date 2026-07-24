@@ -21,7 +21,9 @@ import type { SupportTicket, TicketStatus, TicketMessage } from "@/lib/support-t
 import { formatDate } from "@/lib/format";
 import { api } from "@/lib/api";
 import { useLiveSupportTickets } from "@/lib/live-hooks";
+import { useTypingActive, useTypingHeartbeat } from "@/lib/hooks";
 import { Spinner } from "@/components/ui/Spinner";
+import { TypingBubble } from "@/components/ui/TypingIndicator";
 
 const STATUS_CONFIG: Record<TicketStatus, { label: string; color: string; icon: typeof Clock }> = {
   OPEN: { label: "Open", color: "bg-amber-500/10 text-amber-500", icon: Clock },
@@ -180,9 +182,12 @@ function TicketDetail({
   const [reply, setReply] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const buyerIsTyping = useTypingActive(ticket.buyerTypingAt);
+  const notifyTyping = useTypingHeartbeat(() => api.setSupportTicketTyping?.(ticket.id, "admin"));
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [ticket.thread.length]);
+  }, [ticket.thread.length, buyerIsTyping]);
 
   const cfg = STATUS_CONFIG[ticket.status];
   const canReply = canAdminRespond(ticket.status);
@@ -231,6 +236,7 @@ function TicketDetail({
         {ticket.thread.map((msg) => (
           <AdminThreadMessage key={msg.id} message={msg} />
         ))}
+        {canReply && buyerIsTyping && <TypingBubble label="Buyer is typing…" align="start" />}
         <div ref={messagesEndRef} />
       </div>
 
@@ -240,7 +246,10 @@ function TicketDetail({
             <input
               type="text"
               value={reply}
-              onChange={(e) => setReply(e.target.value)}
+              onChange={(e) => {
+                setReply(e.target.value);
+                if (e.target.value.trim()) notifyTyping();
+              }}
               onKeyDown={(e) => e.key === "Enter" && handleSendReply()}
               placeholder="Reply to buyer..."
               className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"

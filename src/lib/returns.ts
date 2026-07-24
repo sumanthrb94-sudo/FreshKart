@@ -73,6 +73,16 @@ export interface ReturnRequest {
   pickupScheduledAt?: string;
   refundTransactionId?: string;
   updatedAt?: string;
+  /** Self-expiring "is typing" heartbeats — see lib/typing-indicator.ts.
+   *  ISO timestamp of the sender's most recent keystroke, or absent/stale
+   *  once they stop. Never treated as "still typing" past its TTL. */
+  buyerTypingAt?: string;
+  adminTypingAt?: string;
+  /** Set when the buyer asks us to take another look at a REJECTED return
+   *  (see requestReturnReopen). Cleared the moment the return's status next
+   *  changes — an admin transition (including reopening it) is the answer to
+   *  the request either way. */
+  reopenRequestedAt?: string;
 }
 
 export interface CreateReturnInput {
@@ -224,10 +234,21 @@ export function buildStatusChangeMessage(status: ReturnStatus, totalRefund: numb
       return `Refund of Rs. ${totalRefund} confirmed and processed to your original payment method.`;
     case "COMPLETED":
       return "Return completed.";
+    case "REQUESTED":
+      // The only way a return returns to REQUESTED after leaving it is via
+      // the reopen path (REJECTED → REQUESTED) — never on first creation,
+      // which writes its own seed message instead of going through here.
+      return "This return request has been reopened for review.";
     default:
       return `Status updated to ${status}.`;
   }
 }
+
+/** Fixed copy for the buyer's "ask us to take another look" nudge on a
+ *  REJECTED return — a lightweight signal, not a full reply, so it reads the
+ *  same for every buyer and admins can recognize it at a glance in the thread. */
+export const RETURN_REOPEN_REQUEST_TEXT =
+  "Could you please take another look at this return? I'd like to request a review.";
 
 /** The REQUESTED-time system message only ever gives an *estimated* refund —
  *  once the return has moved on, a confirmed buildStatusChangeMessage
@@ -241,17 +262,31 @@ export function isSupersededEstimate(
   return message.sender === "system" && status !== "REQUESTED" && message.text.includes("Estimated refund");
 }
 
-/** Status transition helper — returns the allowed next statuses. */
+/** Status transition helper — returns the allowed next statuses.
+ *
+ *  REJECTED → REQUESTED is the one backward edge: "reopen" for a return the
+ *  buyer disputes. It's deliberately the ONLY terminal state that can be
+ *  reopened — REFUNDED/COMPLETED already moved real money and adjusted the
+ *  invoice, so reopening those would desync the order total from what was
+ *  actually paid back. A rejection has no such side effect to undo. */
 export function allowedTransitions(status: ReturnStatus): ReturnStatus[] {
   const transitions: Record<ReturnStatus, ReturnStatus[]> = {
     REQUESTED: ["APPROVED", "REJECTED"],
     APPROVED: ["PICKED_UP"],
-    REJECTED: [],
+    REJECTED: ["REQUESTED"],
     PICKED_UP: ["REFUNDED"],
     REFUNDED: ["COMPLETED"],
     COMPLETED: [],
   };
   return transitions[status] || [];
+}
+
+/** True while the buyer's "ask us to take another look" nudge is available:
+ *  the return is REJECTED and they haven't already sent one (one pending
+ *  request at a time — resending doesn't get a rejected return looked at any
+ *  faster and would just spam the thread). */
+export function canRequestReopen(returnReq: { status: ReturnStatus; reopenRequestedAt?: string }): boolean {
+  return returnReq.status === "REJECTED" && !returnReq.reopenRequestedAt;
 }
 
 /** Check if buyer can add messages (only when status is active). */

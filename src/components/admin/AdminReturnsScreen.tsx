@@ -29,8 +29,10 @@ import type { ReturnRequest, ReturnStatus, ReturnMessage } from "@/lib/returns";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { api } from "@/lib/api";
 import { useLiveReturns } from "@/lib/live-hooks";
+import { useTypingActive, useTypingHeartbeat } from "@/lib/hooks";
 import { Spinner } from "@/components/ui/Spinner";
 import { useImageLightbox } from "@/components/ui/ImageLightbox";
+import { TypingBubble } from "@/components/ui/TypingIndicator";
 
 const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: typeof CheckCircle2; nextAction: string }> = {
   REQUESTED: { label: "Requested", color: "bg-amber-500/10 text-amber-500", icon: Clock, nextAction: "Approve" },
@@ -45,6 +47,7 @@ const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: 
  *  the transition's target, so "Process Refund" really sets REFUNDED (the old
  *  `STATUS_CONFIG[next].nextAction` labels were one step ahead of the click). */
 const TRANSITION_LABELS: Partial<Record<ReturnStatus, string>> = {
+  REQUESTED: "Reopen request",
   APPROVED: "Approve",
   REJECTED: "Reject",
   PICKED_UP: "Mark Picked Up",
@@ -52,11 +55,11 @@ const TRANSITION_LABELS: Partial<Record<ReturnStatus, string>> = {
   COMPLETED: "Mark Complete",
 };
 
-const FILTER_OPTIONS = ["all", "REQUESTED", "APPROVED", "PICKED_UP", "REFUNDED", "COMPLETED", "REJECTED"] as const;
+const FILTER_OPTIONS = ["all", "reopenRequested", "REQUESTED", "APPROVED", "PICKED_UP", "REFUNDED", "COMPLETED", "REJECTED"] as const;
 
 export function AdminReturnsScreen() {
   const { data: returns, loading, error, refetch } = useLiveReturns();
-  const [filter, setFilter] = useState<ReturnStatus | "all">("all");
+  const [filter, setFilter] = useState<ReturnStatus | "all" | "reopenRequested">("all");
   const [search, setSearch] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [threadVersion, setThreadVersion] = useState(0);
@@ -64,7 +67,8 @@ export function AdminReturnsScreen() {
   const list = returns ?? [];
 
   const filtered = list.filter((r) => {
-    if (filter !== "all" && r.status !== filter) return false;
+    if (filter === "reopenRequested" && !r.reopenRequestedAt) return false;
+    if (filter !== "all" && filter !== "reopenRequested" && r.status !== filter) return false;
     if (search && !r.businessName.toLowerCase().includes(search.toLowerCase()) &&
         !r.orderNumber.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
@@ -114,9 +118,15 @@ export function AdminReturnsScreen() {
             </div>
             <div className="mt-3 flex gap-2 overflow-x-auto pb-0.5">
               {FILTER_OPTIONS.map((s) => {
-                const count = s === "all" ? list.length : list.filter((r) => r.status === s).length;
-                const Icon = s === "all" ? RotateCcw : STATUS_CONFIG[s].icon;
+                const count =
+                  s === "all"
+                    ? list.length
+                    : s === "reopenRequested"
+                      ? list.filter((r) => r.reopenRequestedAt).length
+                      : list.filter((r) => r.status === s).length;
+                const Icon = s === "all" || s === "reopenRequested" ? RotateCcw : STATUS_CONFIG[s].icon;
                 const active = filter === s;
+                const label = s === "all" ? "All" : s === "reopenRequested" ? "Review requested" : STATUS_CONFIG[s].label;
                 return (
                   <button
                     key={s}
@@ -124,11 +134,15 @@ export function AdminReturnsScreen() {
                     onClick={() => setFilter(s)}
                     className={cn(
                       "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors",
-                      active ? "bg-brand-500 text-white" : "bg-raised text-fg-muted hover:bg-line hover:text-fg"
+                      active
+                        ? s === "reopenRequested"
+                          ? "bg-rose-500 text-white"
+                          : "bg-brand-500 text-white"
+                        : "bg-raised text-fg-muted hover:bg-line hover:text-fg"
                     )}
                   >
                     <Icon className="h-3.5 w-3.5" />
-                    {s === "all" ? "All" : STATUS_CONFIG[s].label}
+                    {label}
                     <span
                       className={cn(
                         "min-w-[18px] rounded-full px-1 py-0.5 text-center text-[10px] font-bold leading-none",
@@ -184,6 +198,11 @@ function ReturnCard({ ret, onOpen }: { ret: ReturnRequest; onOpen: () => void })
               {cfg.label}
             </span>
             <span className="text-xs font-mono text-fg-muted">{ret.id}</span>
+            {ret.reopenRequestedAt && (
+              <span className="flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-500">
+                <RotateCcw className="h-3 w-3" /> Review requested
+              </span>
+            )}
           </div>
           <p className="mt-1 text-sm font-bold text-fg">{ret.businessName}</p>
           <p className="text-xs text-fg-subtle">{ret.orderNumber}</p>
@@ -222,9 +241,12 @@ function ReturnDetail({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lightbox = useImageLightbox();
 
+  const buyerIsTyping = useTypingActive(returnReq.buyerTypingAt);
+  const notifyTyping = useTypingHeartbeat(() => api.setReturnTyping?.(returnReq.id, "admin"));
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [returnReq.thread.length]);
+  }, [returnReq.thread.length, buyerIsTyping]);
 
   const cfg = STATUS_CONFIG[returnReq.status];
   const transitions = allowedTransitions(returnReq.status);
@@ -261,6 +283,12 @@ function ReturnDetail({
           <span className="mx-1">|</span>
           <span>{returnReq.businessName}</span>
         </div>
+        {returnReq.reopenRequestedAt && (
+          <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-xs font-semibold text-rose-500">
+            <RotateCcw className="h-3.5 w-3.5" />
+            Buyer asked us to take another look at this rejection.
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
@@ -325,15 +353,30 @@ function ReturnDetail({
 
         {transitions.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {transitions.map((nextStatus) => (
-              <button
-                key={nextStatus}
-                onClick={() => onStatusChange(returnReq.id, nextStatus)}
-                className="rounded-lg bg-brand-500 px-4 py-2 text-xs font-bold text-white hover:bg-brand-600"
-              >
-                {TRANSITION_LABELS[nextStatus] ?? nextStatus}
-              </button>
-            ))}
+            {transitions.map((nextStatus) =>
+              // The reopen edge (REJECTED → REQUESTED) reads as a distinct
+              // action from every forward status change — outlined instead of
+              // solid, with the reopen glyph, so it doesn't look like just
+              // another step in the normal approve/reject flow.
+              nextStatus === "REQUESTED" ? (
+                <button
+                  key={nextStatus}
+                  onClick={() => onStatusChange(returnReq.id, nextStatus)}
+                  className="flex items-center gap-1.5 rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-2 text-xs font-bold text-brand-500 hover:bg-brand-500/20"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {TRANSITION_LABELS[nextStatus] ?? nextStatus}
+                </button>
+              ) : (
+                <button
+                  key={nextStatus}
+                  onClick={() => onStatusChange(returnReq.id, nextStatus)}
+                  className="rounded-lg bg-brand-500 px-4 py-2 text-xs font-bold text-white hover:bg-brand-600"
+                >
+                  {TRANSITION_LABELS[nextStatus] ?? nextStatus}
+                </button>
+              )
+            )}
           </div>
         )}
 
@@ -347,6 +390,7 @@ function ReturnDetail({
               onImageClick={lightbox.open}
             />
           ))}
+          {canReply && buyerIsTyping && <TypingBubble label="Buyer is typing…" align="start" />}
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -359,7 +403,10 @@ function ReturnDetail({
             <input
               type="text"
               value={reply}
-              onChange={(e) => setReply(e.target.value)}
+              onChange={(e) => {
+                setReply(e.target.value);
+                if (e.target.value.trim()) notifyTyping();
+              }}
               onKeyDown={(e) => e.key === "Enter" && handleSendReply()}
               placeholder="Reply to buyer..."
               className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"

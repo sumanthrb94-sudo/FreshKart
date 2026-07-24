@@ -31,6 +31,11 @@ export interface SupportTicket {
   createdAt: string;
   updatedAt: string;
   closedAt?: string;
+  /** Self-expiring "is typing" heartbeats — see lib/typing-indicator.ts.
+   *  ISO timestamp of the sender's most recent keystroke, or absent/stale
+   *  once they stop. Never treated as "still typing" past its TTL. */
+  buyerTypingAt?: string;
+  adminTypingAt?: string;
 }
 
 export interface CreateSupportTicketInput {

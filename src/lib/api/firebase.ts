@@ -41,6 +41,7 @@ import type {
 } from "@/lib/types";
 import {
   RETURN_REASON_LABELS,
+  RETURN_REOPEN_REQUEST_TEXT,
   generateAdjustedInvoiceNumber,
   buildStatusChangeMessage,
 } from "@/lib/returns";
@@ -949,9 +950,24 @@ export class FirebaseDataSource implements DataSource {
       text: buildStatusChangeMessage(status, 0),
       sentAt: now,
     };
-    const patch: DocumentData = { status, updatedAt: now, thread: arrayUnion(statusMessage) };
+    const patch: DocumentData = {
+      status,
+      updatedAt: now,
+      thread: arrayUnion(statusMessage),
+      // Any admin transition answers a pending "please review this again"
+      // nudge one way or another — clear it so the flag can't outlive the
+      // request it was raised about. reopenRequestedAt only ever gets set
+      // while status is REJECTED (see requestReturnReopen), so this is a
+      // no-op field delete on every other transition.
+      reopenRequestedAt: deleteField(),
+    };
     if ((["REJECTED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
       patch.resolvedAt = now;
+    } else if (status === "REQUESTED") {
+      // Reopen path (REJECTED → REQUESTED): the return is active again, so
+      // it's no longer "resolved" — clear the stale timestamp rather than
+      // leave it pointing at the rejection this just reversed.
+      patch.resolvedAt = deleteField();
     }
     await updateDoc(ref, patch);
     const snap = await getDoc(ref);
@@ -984,6 +1000,45 @@ export class FirebaseDataSource implements DataSource {
     const snap = await getDoc(ref);
     if (!snap.exists()) throw new ApiError("Return request not found.", 404);
     return { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
+  }
+
+  /** Heartbeat only — deliberately does NOT touch `updatedAt`, or every
+   *  keystroke would reorder the admin's return list mid-type. Best-effort:
+   *  a typing indicator failing silently is never worth surfacing an error
+   *  for, so failures are swallowed rather than thrown. */
+  async setReturnTyping(id: string, sender: "buyer" | "admin"): Promise<void> {
+    try {
+      const field = sender === "buyer" ? "buyerTypingAt" : "adminTypingAt";
+      await updateDoc(doc(getDb(), COL.returns, id), { [field]: new Date().toISOString() });
+    } catch {
+      /* cosmetic — never let this interrupt messaging */
+    }
+  }
+
+  async requestReturnReopen(id: string): Promise<ReturnRequest> {
+    await this.ready();
+    const ref = doc(getDb(), COL.returns, id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
+    const current = { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
+    if (current.status !== "REJECTED") {
+      throw new ApiError("Only a rejected return can be asked for another look.", 409);
+    }
+    const now = new Date().toISOString();
+    const message: ReturnMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      sender: "buyer",
+      text: RETURN_REOPEN_REQUEST_TEXT,
+      sentAt: now,
+    };
+    await updateDoc(ref, {
+      thread: arrayUnion(message),
+      reopenRequestedAt: now,
+      updatedAt: now,
+    });
+    const after = await getDoc(ref);
+    if (!after.exists()) throw new ApiError("Return request not found.", 404);
+    return { ...(after.data() as Omit<ReturnRequest, "id">), id: after.id };
   }
 
   // --- Support tickets ------------------------------------------------------
@@ -1126,6 +1181,18 @@ export class FirebaseDataSource implements DataSource {
     const snap = await getDoc(ref);
     if (!snap.exists()) throw new ApiError("Support ticket not found.", 404);
     return { ...(snap.data() as Omit<SupportTicket, "id">), id: snap.id };
+  }
+
+  /** Heartbeat only — deliberately does NOT touch `updatedAt`, or every
+   *  keystroke would reorder the admin's ticket list mid-type. Best-effort,
+   *  same as setReturnTyping. */
+  async setSupportTicketTyping(id: string, sender: "buyer" | "admin"): Promise<void> {
+    try {
+      const field = sender === "buyer" ? "buyerTypingAt" : "adminTypingAt";
+      await updateDoc(doc(getDb(), COL.supportTickets, id), { [field]: new Date().toISOString() });
+    } catch {
+      /* cosmetic — never let this interrupt messaging */
+    }
   }
 
   // --- Admin --------------------------------------------------------------

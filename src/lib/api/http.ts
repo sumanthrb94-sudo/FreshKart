@@ -200,6 +200,19 @@ export class HttpDataSource implements DataSource {
     });
   }
 
+  setReturnTyping(id: string, sender: "buyer" | "admin") {
+    // Best-effort, fire-and-forget: a typing indicator is cosmetic and must
+    // never surface an error or block the caller.
+    return this.request<void>(`/returns/${id}/typing`, {
+      method: "POST",
+      body: JSON.stringify({ sender }),
+    }).catch(() => undefined);
+  }
+
+  requestReturnReopen(id: string) {
+    return this.request<ReturnRequest>(`/returns/${id}/request-reopen`, { method: "POST" });
+  }
+
   // --- Support tickets (stubbed until a REST backend implements the endpoints) --
   listSupportTickets(buyerId?: string) {
     const qs = buyerId ? `?buyerId=${encodeURIComponent(buyerId)}` : "";
@@ -239,5 +252,12 @@ export class HttpDataSource implements DataSource {
 
   reopenSupportTicket(id: string) {
     return this.request<SupportTicket>(`/support-tickets/${id}/reopen`, { method: "POST" });
+  }
+
+  setSupportTicketTyping(id: string, sender: "buyer" | "admin") {
+    return this.request<void>(`/support-tickets/${id}/typing`, {
+      method: "POST",
+      body: JSON.stringify({ sender }),
+    }).catch(() => undefined);
   }
 }

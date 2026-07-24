@@ -331,6 +331,25 @@ service cloud.firestore {
              && request.resource.data.thread.size() == resource.data.thread.size() + 1;
     }
 
+    // Self-expiring "is typing" heartbeat (see lib/typing-indicator.ts): the
+    // buyer may touch ONLY their own single timestamp field, on any status —
+    // narrower than a reply (no thread growth, no updatedAt bump, which would
+    // otherwise reorder the admin's return list on every keystroke).
+    function isBuyerReturnTyping() {
+      return resource.data.buyerId == request.auth.uid
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['buyerTypingAt']);
+    }
+
+    // Buyer's "ask us to take another look" nudge on a REJECTED return: adds
+    // one buyer message and raises reopenRequestedAt — never changes status
+    // itself, only an admin transition (isAdmin()) actually reopens it.
+    function isBuyerReturnReopenRequest() {
+      return resource.data.buyerId == request.auth.uid
+             && resource.data.status == 'REJECTED'
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['thread', 'updatedAt', 'reopenRequestedAt'])
+             && request.resource.data.thread.size() == resource.data.thread.size() + 1;
+    }
+
     // --- Returns: buyer creates/reads/replies on their own; admins manage all. ---
     match /returns/{returnId} {
       allow read: if isSignedIn()
@@ -346,7 +365,9 @@ service cloud.firestore {
                     && request.resource.data.items.size() <= 50;
 
       allow update: if isAdmin()
-                    || isBuyerReturnReply();
+                    || isBuyerReturnReply()
+                    || isBuyerReturnTyping()
+                    || isBuyerReturnReopenRequest();
 
       allow delete: if isAdmin();
     }
@@ -377,6 +398,12 @@ service cloud.firestore {
              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'closedAt']);
     }
 
+    // Self-expiring "is typing" heartbeat, same shape as isBuyerReturnTyping.
+    function isBuyerTicketTyping() {
+      return resource.data.buyerId == request.auth.uid
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['buyerTypingAt']);
+    }
+
     // --- Support tickets: buyer creates/reads/replies/closes their own; admins manage all. ---
     match /supportTickets/{ticketId} {
       allow read: if isSignedIn()
@@ -390,7 +417,8 @@ service cloud.firestore {
 
       allow update: if isAdmin()
                     || isBuyerTicketReply()
-                    || isBuyerTicketClose();
+                    || isBuyerTicketClose()
+                    || isBuyerTicketTyping();
 
       allow delete: if isAdmin();
     }

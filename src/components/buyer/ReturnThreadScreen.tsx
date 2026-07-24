@@ -15,13 +15,21 @@ import {
   Bot,
   User,
   Shield,
+  RotateCcw,
+  MessageCircleQuestion,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { RETURN_REASON_LABELS, canBuyerMessage, isSupersededEstimate } from "@/lib/returns";
+import {
+  RETURN_REASON_LABELS,
+  canBuyerMessage,
+  canRequestReopen,
+  isSupersededEstimate,
+} from "@/lib/returns";
 import type { ReturnRequest, ReturnMessage, ReturnStatus } from "@/lib/returns";
 import { api } from "@/lib/api";
 import { useLiveReturns } from "@/lib/live-hooks";
+import { useTypingActive, useTypingHeartbeat } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
@@ -31,6 +39,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { useImageLightbox } from "@/components/ui/ImageLightbox";
+import { TypingBubble } from "@/components/ui/TypingIndicator";
 
 const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: typeof Clock }> = {
   REQUESTED: { label: "Requested", color: "text-amber-500 bg-amber-500/10", icon: Clock },
@@ -52,12 +61,18 @@ export function ReturnThreadScreen({ id }: { id: string }) {
   const returnReq = myReturns?.find((r) => r.id === id) ?? null;
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [requestingReopen, setRequestingReopen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lightbox = useImageLightbox();
 
+  const adminIsTyping = useTypingActive(returnReq?.adminTypingAt);
+  const notifyTyping = useTypingHeartbeat(
+    returnReq ? () => api.setReturnTyping?.(returnReq.id, "buyer") : undefined
+  );
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [returnReq?.thread.length]);
+  }, [returnReq?.thread.length, adminIsTyping]);
 
   const handleSend = async () => {
     if (!reply.trim() || !returnReq) return;
@@ -68,6 +83,17 @@ export function ReturnThreadScreen({ id }: { id: string }) {
       await refetch();
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleRequestReopen = async () => {
+    if (!returnReq || !api.requestReturnReopen) return;
+    setRequestingReopen(true);
+    try {
+      await api.requestReturnReopen(returnReq.id);
+      await refetch();
+    } finally {
+      setRequestingReopen(false);
     }
   };
 
@@ -189,17 +215,21 @@ export function ReturnThreadScreen({ id }: { id: string }) {
                 onImageClick={lightbox.open}
               />
             ))}
+            {canMessage && adminIsTyping && <TypingBubble label="Support is typing…" align="start" />}
             <div ref={messagesEndRef} />
           </div>
         </div>
 
-        {canMessage && (
+        {canMessage ? (
           <div className="shrink-0 border-t border-line bg-surface px-4 py-3">
             <div className="flex items-center gap-2 rounded-xl border border-line bg-raised px-3 py-2">
               <input
                 type="text"
                 value={reply}
-                onChange={(e) => setReply(e.target.value)}
+                onChange={(e) => {
+                  setReply(e.target.value);
+                  if (e.target.value.trim()) notifyTyping();
+                }}
                 onKeyDown={(e) => e.key === "Enter" && !sending && handleSend()}
                 placeholder="Type a message..."
                 disabled={sending}
@@ -216,6 +246,31 @@ export function ReturnThreadScreen({ id }: { id: string }) {
                 <Send className="h-4 w-4" />
               </button>
             </div>
+          </div>
+        ) : (
+          <div className="shrink-0 border-t border-line bg-surface px-4 py-3 text-center">
+            {returnReq.status === "REJECTED" ? (
+              canRequestReopen(returnReq) ? (
+                <>
+                  <p className="text-xs text-fg-subtle">This return request was rejected.</p>
+                  <button
+                    onClick={handleRequestReopen}
+                    disabled={requestingReopen || !api.requestReturnReopen}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-brand-500 px-3.5 py-2 text-xs font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-50"
+                  >
+                    <MessageCircleQuestion className="h-3.5 w-3.5" />
+                    {requestingReopen ? "Sending…" : "Ask us to take another look"}
+                  </button>
+                </>
+              ) : (
+                <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-fg-muted">
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  We&apos;ve been asked to review this again — hang tight for an update here.
+                </p>
+              )
+            ) : (
+              <p className="text-xs text-fg-subtle">This return request is complete.</p>
+            )}
           </div>
         )}
       </div>
