@@ -22,10 +22,16 @@ async function loginAsAdmin(page: Page) {
   await page.getByRole("button", { name: /Demo: Admin/i }).click();
   await page.waitForURL(/\/admin$/, { timeout: 20_000 });
   // The publish gate blocks the dashboard until today's prices are published.
-  const publish = page.getByRole("button", { name: /^Publish today's prices$/i }).first();
-  if (await publish.isVisible().catch(() => false)) {
-    await publish.click();
-    await expect(page.getByText(/Published today at/i).first()).toBeVisible({ timeout: 15_000 });
+  // The gate button now routes to the price screen (review → confirm) instead
+  // of publishing in one click.
+  const gate = page.getByRole("button", { name: /Review & publish today's prices/i }).first();
+  if (await gate.isVisible().catch(() => false)) {
+    await gate.click();
+    await page.waitForURL(/\/admin\/prices/, { timeout: 10_000 });
+    await page.getByRole("button", { name: /Publish today's prices|Save & publish/i }).first().click();
+    await page.getByRole("button", { name: /Confirm & publish/i }).click();
+    await expect(page.getByRole("button", { name: /Published!/i }).first()).toBeVisible({ timeout: 15_000 });
+    await page.goto(`${BASE_URL}/admin`, { waitUntil: "networkidle" });
   }
 }
 

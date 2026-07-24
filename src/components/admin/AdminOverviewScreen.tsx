@@ -139,9 +139,7 @@ export function AdminOverviewScreen() {
     data: settings,
     loading: settingsLoading,
     error: settingsError,
-    refetch: refetchSettings,
   } = useAsync(() => api.getDailyPricesSettings(), []);
-  const [publishing, setPublishing] = useState(false);
 
   // Live counts for the nav tile badges below — the SAME module-singleton
   // subscriptions the header badges use (src/lib/admin-alerts-store.ts), so
@@ -302,15 +300,11 @@ export function AdminOverviewScreen() {
     }
   }
 
-  async function publishToday() {
-    if (!user || publishedToday) return;
-    setPublishing(true);
-    try {
-      await api.publishDailyPrices(user.id);
-      await refetchSettings();
-    } finally {
-      setPublishing(false);
-    }
+  // Publishing now happens on the dedicated price screen (review-and-confirm),
+  // so the dashboard's publish affordances just take the admin there rather
+  // than publishing in one silent click.
+  function goToPriceUpdate() {
+    router.push("/admin/prices");
   }
 
   const needsPublishGate = !settingsLoading && !settingsError && !publishedToday;
@@ -335,12 +329,11 @@ export function AdminOverviewScreen() {
             <div className="mt-5 flex flex-col gap-3">
               <Button
                 size="lg"
-                onClick={publishToday}
-                loading={publishing}
-                disabled={publishing || !user}
+                onClick={goToPriceUpdate}
+                disabled={!user}
                 fullWidth
               >
-                Publish today&apos;s prices
+                Review &amp; publish today&apos;s prices
               </Button>
             </div>
 
@@ -466,12 +459,11 @@ export function AdminOverviewScreen() {
                   )}
                 </div>
                 <Button
-                  onClick={publishToday}
-                  loading={publishing}
-                  disabled={publishedToday || publishing || !user}
+                  onClick={goToPriceUpdate}
+                  disabled={publishedToday || !user}
                   fullWidth
                 >
-                  {publishedToday ? "Already published today" : "Publish today's prices"}
+                  {publishedToday ? "Already published today" : "Review & publish today's prices"}
                 </Button>
               </>
             )}

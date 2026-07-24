@@ -57,12 +57,20 @@ async function loginAdmin(page: Page): Promise<string> {
   await page.getByRole("button", { name: /Demo: Admin/i }).click();
   await page.waitForURL(/\/admin$/, { timeout: 20_000 });
   // The publish gate appears only after the settings loader resolves — wait
-  // for it rather than sampling visibility instantly (racy).
-  const publish = page.getByRole("button", { name: /^Publish today's prices$/i }).first();
-  const gated = await publish.waitFor({ timeout: 5_000 }).then(() => true).catch(() => false);
+  // for it rather than sampling visibility instantly (racy). The gate button
+  // now ROUTES to the price screen (review-then-confirm) rather than
+  // publishing in one click, so drive that flow: gate → /admin/prices →
+  // Publish → Confirm.
+  const gate = page.getByRole("button", { name: /Review & publish today's prices/i }).first();
+  const gated = await gate.waitFor({ timeout: 5_000 }).then(() => true).catch(() => false);
   if (gated) {
-    await publish.click();
-    await expect(page.getByText(/Published today at/i).first()).toBeVisible({ timeout: 15_000 });
+    await gate.click();
+    await page.waitForURL(/\/admin\/prices/, { timeout: 10_000 });
+    await page.getByRole("button", { name: /Publish today's prices|Save & publish/i }).first().click();
+    await page.getByRole("button", { name: /Confirm & publish/i }).click();
+    await expect(page.getByRole("button", { name: /Published!/i }).first()).toBeVisible({ timeout: 15_000 });
+    // Return to the dashboard so callers land where they expect.
+    await page.goto(`${BASE_URL}/admin`, { waitUntil: "networkidle" });
   }
   const session = await page.evaluate((k) => localStorage.getItem(k), SESSION_KEY);
   expect(session, "admin session captured").toBeTruthy();
