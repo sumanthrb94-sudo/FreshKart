@@ -19,7 +19,7 @@ const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://apis.google.com https://*.gstatic.com https://*.googletagmanager.com https://va.vercel-scripts.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://images.unsplash.com https://*.googleusercontent.com https://*.tile.openstreetmap.org https://*.gstatic.com https://*.google-analytics.com https://www.gstatic.com/recaptcha/ https://www.google.com/recaptcha/",
+  "img-src 'self' data: blob: https://images.unsplash.com https://*.googleusercontent.com https://firebasestorage.googleapis.com https://storage.googleapis.com https://*.tile.openstreetmap.org https://*.gstatic.com https://*.google-analytics.com https://www.gstatic.com/recaptcha/ https://www.google.com/recaptcha/",
   "font-src 'self' data:",
   "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://apis.google.com https://nominatim.openstreetmap.org https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://vitals.vercel-insights.com https://va.vercel-scripts.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
   "frame-src 'self' https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com/recaptcha/ https://recaptcha.google.com/",
@@ -61,6 +61,11 @@ const nextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "**.googleusercontent.com" },
+      // Product photos uploaded to Firebase Storage. Both the classic
+      // firebasestorage download host and the GCS bucket host are used
+      // depending on how the download URL is generated.
+      { protocol: "https", hostname: "firebasestorage.googleapis.com" },
+      { protocol: "https", hostname: "storage.googleapis.com" },
     ],
   },
   async headers() {

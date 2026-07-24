@@ -1,7 +1,7 @@
 /* FreshKart service worker — app-shell caching + offline fallback.
  * Only touches same-origin GET requests, so Firebase Auth/Firestore and map
  * tiles (all cross-origin) are never intercepted. */
-const CACHE = "freshkart-v2";
+const CACHE = "freshkart-v3";
 const APP_SHELL = ["/", "/offline"];
 
 self.addEventListener("install", (event) => {
@@ -30,6 +30,15 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return; // leave Firebase / tiles alone
+
+  // Optimized product/remote imagery is served same-origin from Next.js'
+  // /_next/image endpoint. Never serve it stale-while-revalidate: when a
+  // product photo is replaced, a cached copy would keep showing the previous
+  // image. Go straight to the network (Next.js sets its own cache headers).
+  if (url.pathname === "/_next/image") {
+    event.respondWith(fetch(request).catch(() => caches.match(request)));
+    return;
+  }
 
   // Page navigations: network-first, fall back to cache, then the offline page.
   if (request.mode === "navigate") {
