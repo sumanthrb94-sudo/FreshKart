@@ -1,4 +1,4 @@
-/** Coupon / Promo Code System for FreshKart
+/** Coupon / Promo Code System for Green Basket
  *  Admin-only CRUD for coupons. Customers apply at checkout.
  */
 
@@ -120,13 +120,13 @@ export function saveCoupon(coupon: Coupon): void {
   } else {
     existing.push(coupon);
   }
-  localStorage.setItem("freshkart_coupons", JSON.stringify(existing));
+  localStorage.setItem("green_basket_coupons", JSON.stringify(existing));
 }
 
 /** Get all coupons from localStorage */
 export function getCoupons(): Coupon[] {
   try {
-    return JSON.parse(localStorage.getItem("freshkart_coupons") || "[]");
+    return JSON.parse(localStorage.getItem("green_basket_coupons") || "[]");
   } catch {
     return [];
   }
@@ -135,7 +135,7 @@ export function getCoupons(): Coupon[] {
 /** Delete coupon */
 export function deleteCoupon(id: string): void {
   const filtered = getCoupons().filter((c) => c.id !== id);
-  localStorage.setItem("freshkart_coupons", JSON.stringify(filtered));
+  localStorage.setItem("green_basket_coupons", JSON.stringify(filtered));
 }
 
 /** Find coupon by code (case-insensitive) */

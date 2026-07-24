@@ -7,6 +7,12 @@ import { Check, Loader2, ShieldCheck, Store, Sun, Moon } from "lucide-react";
 import { api, ApiError, usingMockBackend } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import {
+  isPlausibleIndianMobile,
+  isValidEmail,
+  isDisposableEmail,
+  normalizeEmail,
+} from "@/lib/format";
+import {
   sendOtp,
   toE164,
   resetRecaptcha,
@@ -17,6 +23,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
 import { AddressPicker, type PickedAddress } from "@/components/address/AddressPicker";
+import { BrandSplash } from "@/components/ui/BrandSplash";
 
 type Step = "mobile" | "verify" | "shop" | "done";
 
@@ -71,7 +78,7 @@ function friendlyPhoneError(e: unknown): string {
     return "Phone sign-in is not enabled. Please enable it in Firebase Console → Authentication → Sign-in method → Phone.";
   }
   if (code.includes("captcha-check-failed")) {
-    return "reCAPTCHA verification failed. Please refresh the page and try again.";
+    return "Security check failed. Please refresh the page and try again.";
   }
   if (code.includes("app-not-authorized")) {
     return "This app is not authorized for phone authentication. Add your domain to Firebase Console → Authentication → Authorized domains.";
@@ -86,7 +93,7 @@ function friendlyPhoneError(e: unknown): string {
     return "Too many attempts. Please wait a few minutes before trying again.";
   }
   if (code.includes("argument-error")) {
-    return "Authentication setup error. The reCAPTCHA verifier may not be configured correctly.";
+    return "Authentication setup error. The security verifier may not be configured correctly.";
   }
   if (code.includes("timeout")) {
     return "Request timed out. Check your connection and try again.";
@@ -122,6 +129,13 @@ export function OnboardingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
+  // On browsers where Google sign-in falls back to a full-page redirect
+  // (iOS Safari, in-app browsers), the app reloads on return from Google —
+  // hold the sign-in card back until we know whether a redirect just
+  // completed, so returning users don't flash the mobile-number screen.
+  const [checkingRedirect, setCheckingRedirect] = useState(
+    typeof api.completeGoogleRedirect === "function"
+  );
 
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
   const confirmation = useRef<ConfirmationResult | null>(null);
@@ -129,8 +143,40 @@ export function OnboardingScreen() {
   useEffect(() => () => resetRecaptcha(), []);
 
   useEffect(() => {
+    if (!api.completeGoogleRedirect) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await api.completeGoogleRedirect!();
+        if (cancelled || !result) return;
+        await refreshUser();
+        if (result.user) {
+          router.replace(result.user.role === "ADMIN" ? "/admin" : "/");
+        } else {
+          setMethod("google");
+          setStep("shop");
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Google sign-in failed.");
+      } finally {
+        if (!cancelled) setCheckingRedirect(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
-    if (step === "mobile" && firebaseConfigured) {
+    // Wait for the redirect check to finish — until then, BrandSplash is
+    // rendered instead of the mobile-step markup, so the #recaptcha-container
+    // div this needs doesn't exist in the DOM yet. Firing anyway used to throw
+    // "The sign-in widget could not load", and since this effect only re-runs
+    // on `step` changes (which stays "mobile" the whole time), the widget
+    // never got a second chance to actually mount.
+    if (step === "mobile" && firebaseConfigured && !checkingRedirect) {
       setRecaptchaReady(false);
       renderRecaptcha(
         RECAPTCHA_ID,
@@ -148,7 +194,7 @@ export function OnboardingScreen() {
       mounted = false;
       if (step !== "mobile") resetRecaptcha();
     };
-  }, [step]);
+  }, [step, checkingRedirect]);
 
   // Tick down the resend cooldown.
   useEffect(() => {
@@ -160,11 +206,13 @@ export function OnboardingScreen() {
   const stepIndex = STEP_ORDER.indexOf(step as Step);
   const googleEnabled = typeof api.signInWithGoogle === "function";
 
+  if (checkingRedirect) return <BrandSplash />;
+
   async function handleDemoLogin(role: "ADMIN" | "BUYER") {
     setDemoBusy(true);
     setError(null);
     try {
-      const email = role === "ADMIN" ? "admin@freshkart.in" : "customer@freshkart.in";
+      const email = role === "ADMIN" ? "admin@green-basket.in" : "customer@green-basket.in";
       const user = await login({ email, password: "password123" });
       router.replace(user.role === "ADMIN" ? "/admin" : "/");
     } catch (e) {
@@ -183,6 +231,7 @@ export function OnboardingScreen() {
     setError(null);
     try {
       const existing = await api.signInWithGoogle();
+      if (existing === undefined) return; // popup unavailable — redirecting to Google
       await refreshUser();
       if (existing) {
         router.replace(existing.role === "ADMIN" ? "/admin" : "/");
@@ -203,6 +252,13 @@ export function OnboardingScreen() {
   async function handleSendOtp() {
     if (phone.length < 10) {
       setError("Enter a valid 10-digit mobile number.");
+      return;
+    }
+    // Turn away throwaway numbers (0000000000, 1234567890, a 0–5 leading
+    // digit) before spending an SMS on them — the cheapest cut at fake
+    // phone↔account links. Genuine Indian mobiles (6–9 lead) sail through.
+    if (!isPlausibleIndianMobile(phone)) {
+      setError("That doesn't look like a real mobile number. Please check and try again.");
       return;
     }
     if (!firebaseConfigured) {
@@ -260,21 +316,31 @@ export function OnboardingScreen() {
     }
     // Every account ends up with BOTH a phone and an email: the sign-in method
     // supplies one, and we require the other here — never asking for the same
-    // detail twice (no duplication).
-    if (method === "google" && addrPhone.trim().length < 10) {
-      setError("Please enter your 10-digit mobile number.");
+    // detail twice (no duplication). This is the second half of the phone↔email
+    // link, so it gets the same fake-number / disposable-email screening as the
+    // sign-in step — a Google user can't tie a throwaway phone to the account,
+    // and a phone user can't tie a temp inbox to it.
+    if (method === "google" && !isPlausibleIndianMobile(addrPhone)) {
+      setError("Please enter a valid 10-digit Indian mobile number.");
       return;
     }
-    if (method === "phone" && !/^\S+@\S+\.\S+$/.test(addrEmail.trim())) {
-      setError("Please enter a valid email address.");
-      return;
+    if (method === "phone") {
+      const email = normalizeEmail(addrEmail);
+      if (!isValidEmail(email)) {
+        setError("Please enter a valid email address.");
+        return;
+      }
+      if (isDisposableEmail(email)) {
+        setError("Please use a permanent email — temporary inboxes aren't allowed.");
+        return;
+      }
     }
     setBusy(true);
     setError(null);
     try {
       await api.completeProfile({
         phone: addrPhone.trim() || undefined,
-        email: addrEmail.trim() || undefined,
+        email: normalizeEmail(addrEmail) || undefined,
         address: addr.address,
         city: addr.city,
         pincode: addr.pincode,
@@ -324,9 +390,6 @@ export function OnboardingScreen() {
               Your delivery address is saved. Browse today&apos;s fresh arrivals and
               place your first order.
             </p>
-            <span className="mt-5 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold">
-              🎉 Free delivery on your first 3 orders
-            </span>
           </div>
 
           <div className="relative z-10 flex flex-col gap-3 pb-9 pt-6">
@@ -360,7 +423,7 @@ export function OnboardingScreen() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-colors hover:bg-white/25"
+            className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white transition-colors hover:bg-black/55"
             title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
@@ -398,13 +461,13 @@ export function OnboardingScreen() {
             </span>
 
             <h1 className="relative z-10 text-5xl font-extrabold tracking-tight drop-shadow-sm">
-              FreshKart
+              Green Basket
             </h1>
             <p className="relative z-10 mt-2 text-sm font-semibold text-white/90">
               Wholesale B2B · fresh produce, per kg
             </p>
             <p className="relative z-10 mt-1 text-xs text-white/70">
-              Order in bulk · live rates · 1–2 day delivery
+              Order in bulk · live rates · next day delivery
             </p>
           </div>
 
@@ -416,7 +479,7 @@ export function OnboardingScreen() {
             {/* Demo login buttons (mock mode only) */}
             {usingMockBackend && (
               <>
-                <div className="mt-4 flex flex-col gap-2">
+                <div className="mt-5 flex flex-col gap-2">
                   <button
                     type="button"
                     onClick={() => handleDemoLogin("ADMIN")}
@@ -437,7 +500,7 @@ export function OnboardingScreen() {
                   </button>
                 </div>
 
-                <div className="my-4 flex items-center gap-3">
+                <div className="my-5 flex items-center gap-3">
                   <span className="h-px flex-1 bg-line" />
                   <span className="text-xs font-medium text-fg-subtle">or sign in</span>
                   <span className="h-px flex-1 bg-line" />
@@ -452,7 +515,7 @@ export function OnboardingScreen() {
                   type="button"
                   onClick={handleGoogle}
                   disabled={busy || googleBusy || demoBusy}
-                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-line bg-surface py-3.5 text-base font-bold text-fg-muted shadow-sm transition-colors hover:bg-raised disabled:opacity-50"
+                  className="mt-5 flex w-full items-center justify-center gap-3 rounded-xl border border-line bg-surface py-3.5 text-base font-bold text-fg-muted shadow-sm transition-colors hover:bg-raised disabled:opacity-50"
                 >
                   {googleBusy ? (
                     <Loader2 className="h-5 w-5 animate-spin text-fg-subtle" />
@@ -485,10 +548,8 @@ export function OnboardingScreen() {
                 className="h-12 flex-1 bg-transparent text-lg font-semibold tracking-wide text-fg outline-none placeholder:font-normal placeholder:text-fg-subtle"
               />
             </div>
-            {/* Visible reCAPTCHA widget — much more reliable than invisible on mobile */}
-            <div className="mt-3 flex justify-center">
-              <div id={RECAPTCHA_ID} />
-            </div>
+            {/* Invisible reCAPTCHA verifier — no visible widget, hidden badge container */}
+            <div id={RECAPTCHA_ID} className="hidden" />
 
             <button
               type="button"
@@ -503,7 +564,7 @@ export function OnboardingScreen() {
             {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}
 
             <p className="mt-4 text-center text-2xs leading-relaxed text-fg-subtle">
-              By continuing you agree to FreshKart&apos;s Terms &amp; Privacy Policy.
+              By continuing you agree to Green Basket&apos;s Terms &amp; Privacy Policy.
             </p>
           </div>
         </div>

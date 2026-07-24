@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 /**
- * Web App Manifest — makes FreshKart installable as a standalone app
+ * Web App Manifest — makes Green Basket installable as a standalone app
  * ("Add to Home screen" / "Install app") in Chrome and Android. Next serves
  * this at /manifest.webmanifest and injects the <link> automatically.
  *
@@ -10,16 +10,16 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "FreshKart — Wholesale B2B",
-    short_name: "FreshKart",
+    name: "Green Basket — Wholesale B2B",
+    short_name: "Green Basket",
     description:
-      "B2B wholesale fresh-produce marketplace. Live rates · order in bulk · pay COD, credit or online.",
+      "B2B wholesale fresh-produce marketplace. Live rates · order in bulk · pay COD or online.",
     start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
     background_color: "#ffffff",
-    theme_color: "#e23744",
+    theme_color: "#059669",
     categories: ["shopping", "food-and-drink", "business"],
     icons: [
       { src: "/icons/192", sizes: "192x192", type: "image/png", purpose: "any" },

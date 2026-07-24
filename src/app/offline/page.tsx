@@ -1,6 +1,6 @@
 import { WifiOff } from "lucide-react";
 
-export const metadata = { title: "Offline · FreshKart" };
+export const metadata = { title: "Offline · Green Basket" };
 
 export default function OfflinePage() {
   return (
@@ -11,7 +11,7 @@ export default function OfflinePage() {
       <div>
         <p className="text-xl font-extrabold">You&apos;re offline</p>
         <p className="mt-1 text-sm text-white/80">
-          Check your connection — FreshKart will pick up right where you left off.
+          Check your connection — Green Basket will pick up right where you left off.
         </p>
       </div>
     </div>

@@ -1,7 +1,9 @@
 rules_version = '2';
 
-// FreshKart Cloud Storage rules — product imagery.
-// Public read (catalog images); only admins may upload/replace/delete.
+// Green Basket Cloud Storage rules — product imagery + return photos.
+// Products: public read (catalog images); only admins may upload/replace/delete.
+// Returns: buyers upload damage photos under their own uid; any signed-in
+// user (i.e. the buyer and admins) may view them.
 service firebase.storage {
   match /b/{bucket}/o {
     function isAdmin() {
@@ -14,6 +16,21 @@ service firebase.storage {
       allow write: if isAdmin()
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+    }
+
+    match /returns/{uid}/{imageId=**} {
+      // Least privilege: a return's damage photos are visible only to the
+      // buyer who uploaded them and to admins — NOT to every signed-in user.
+      // (Previously `read: if request.auth != null` let any authenticated
+      // buyer read any other buyer's return photos by path, an IDOR /
+      // horizontal-access gap.)
+      allow read: if request.auth != null
+        && (request.auth.uid == uid || isAdmin());
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      // No update/delete: evidence photos are immutable once submitted.
     }
   }
 }

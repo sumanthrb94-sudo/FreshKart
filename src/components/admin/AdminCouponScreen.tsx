@@ -13,6 +13,7 @@ import {
   DEMO_COUPONS,
 } from "@/lib/coupons";
 import type { Coupon, DiscountType } from "@/lib/coupons";
+import { AdminShell } from "./AdminShell";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
@@ -146,6 +147,7 @@ export function AdminCouponScreen() {
   );
 
   return (
+    <AdminShell>
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
         <div className="flex items-center justify-between">
@@ -411,5 +413,6 @@ export function AdminCouponScreen() {
         )}
       </div>
     </div>
+    </AdminShell>
   );
 }

@@ -9,6 +9,8 @@ import type {
   ProductInput,
   User,
 } from "@/lib/types";
+import type { CreateReturnInput, ReturnRequest, ReturnStatus } from "@/lib/returns";
+import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
 import { DataSource, ApiError } from "./datasource";
 
 /**
@@ -67,7 +69,10 @@ export class HttpDataSource implements DataSource {
     return this.request<Product | null>(`/products/${id}`);
   }
 
-  updateProduct(id: string, patch: Partial<Product>) {
+  updateProduct(
+    id: string,
+    patch: Partial<Omit<Product, "imageUrl">> & { imageUrl?: string | null }
+  ) {
     return this.request<Product>(`/products/${id}`, {
       method: "PATCH",
       body: JSON.stringify(patch),
@@ -97,6 +102,11 @@ export class HttpDataSource implements DataSource {
 
   listOrders(buyerId?: string) {
     const qs = buyerId ? `?buyerId=${encodeURIComponent(buyerId)}` : "";
+    return this.request<Order[]>(`/orders${qs}`);
+  }
+
+  listOrdersByRange(startIso: string, endIso: string) {
+    const qs = `?from=${encodeURIComponent(startIso)}&to=${encodeURIComponent(endIso)}`;
     return this.request<Order[]>(`/orders${qs}`);
   }
 
@@ -151,5 +161,103 @@ export class HttpDataSource implements DataSource {
       method: "POST",
       body: JSON.stringify({ publishedBy: userId }),
     });
+  }
+
+  // --- Returns (stubbed until a REST backend implements the endpoints) --------
+  listReturns() {
+    return this.request<ReturnRequest[]>("/returns");
+  }
+
+  getReturn(id: string) {
+    return this.request<ReturnRequest | null>(`/returns/${id}`);
+  }
+
+  createReturn(input: CreateReturnInput) {
+    return this.request<ReturnRequest>("/returns", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  updateReturnStatus(id: string, status: ReturnStatus) {
+    return this.request<ReturnRequest>(`/returns/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  addReturnMessage(id: string, sender: "buyer" | "admin", text: string) {
+    return this.request<ReturnRequest>(`/returns/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ sender, text }),
+    });
+  }
+
+  updateReturnAdminNotes(id: string, notes: string) {
+    return this.request<ReturnRequest>(`/returns/${id}/notes`, {
+      method: "PATCH",
+      body: JSON.stringify({ adminNotes: notes }),
+    });
+  }
+
+  setReturnTyping(id: string, sender: "buyer" | "admin") {
+    // Best-effort, fire-and-forget: a typing indicator is cosmetic and must
+    // never surface an error or block the caller.
+    return this.request<void>(`/returns/${id}/typing`, {
+      method: "POST",
+      body: JSON.stringify({ sender }),
+    }).catch(() => undefined);
+  }
+
+  requestReturnReopen(id: string) {
+    return this.request<ReturnRequest>(`/returns/${id}/request-reopen`, { method: "POST" });
+  }
+
+  // --- Support tickets (stubbed until a REST backend implements the endpoints) --
+  listSupportTickets(buyerId?: string) {
+    const qs = buyerId ? `?buyerId=${encodeURIComponent(buyerId)}` : "";
+    return this.request<SupportTicket[]>(`/support-tickets${qs}`);
+  }
+
+  getSupportTicket(id: string) {
+    return this.request<SupportTicket | null>(`/support-tickets/${id}`);
+  }
+
+  getOrCreateSupportTicket(input: CreateSupportTicketInput) {
+    return this.request<SupportTicket>("/support-tickets", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  addSupportTicketMessage(
+    id: string,
+    sender: Extract<TicketSender, "buyer" | "admin" | "assistant">,
+    text: string,
+    suggestions?: string[]
+  ) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ sender, text, suggestions }),
+    });
+  }
+
+  escalateSupportTicket(id: string) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/escalate`, { method: "POST" });
+  }
+
+  closeSupportTicket(id: string) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/close`, { method: "POST" });
+  }
+
+  reopenSupportTicket(id: string) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/reopen`, { method: "POST" });
+  }
+
+  setSupportTicketTyping(id: string, sender: "buyer" | "admin") {
+    return this.request<void>(`/support-tickets/${id}/typing`, {
+      method: "POST",
+      body: JSON.stringify({ sender }),
+    }).catch(() => undefined);
   }
 }

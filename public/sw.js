@@ -1,7 +1,7 @@
-/* FreshKart service worker — app-shell caching + offline fallback.
+/* Green Basket service worker — app-shell caching + offline fallback.
  * Only touches same-origin GET requests, so Firebase Auth/Firestore and map
  * tiles (all cross-origin) are never intercepted. */
-const CACHE = "freshkart-v3";
+const CACHE = "green-basket-v3";
 const APP_SHELL = ["/", "/offline"];
 
 self.addEventListener("install", (event) => {

@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-const RED = "#e23744"; // Zomato-style brand red (brand-500)
+const GREEN = "#059669"; // Royal emerald green (brand-500)
 
 // Lucide "Sprout" — the same mark used in the app header, drawn as plain SVG
 // paths so the icon renders without needing any embedded font.
@@ -12,7 +12,7 @@ const SPROUT_PATHS = [
 ];
 
 /**
- * Render the FreshKart app icon (white sprout on Zomato red) as a PNG via
+ * Render the Green Basket app icon (white sprout on royal green) as a PNG via
  * Satori/resvg — no external image tooling required. Used by the favicon,
  * apple-touch icon and the PWA manifest icons.
  */
@@ -30,7 +30,7 @@ export function brandIcon(
           height: "100%",
           alignItems: "center",
           justifyContent: "center",
-          background: RED,
+          background: GREEN,
           borderRadius: Math.round(size * radiusPct),
         }}
       >

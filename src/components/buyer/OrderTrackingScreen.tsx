@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useAuth } from "@/components/providers/AuthProvider";
 import {
   ArrowLeft,
   MapPin,
@@ -10,6 +11,9 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { toast } from "@/lib/toast";
+import { notifyOrderCancelled } from "@/lib/in-app-notifications";
+import { cn } from "@/lib/utils";
 import {
   canBuyerCancel,
   formatCurrency,
@@ -17,6 +21,8 @@ import {
   PAYMENT_LONG,
 } from "@/lib/format";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
+import { RETURN_WINDOW_HOURS } from "@/lib/returns";
+import type { Order } from "@/lib/types";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
 import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
@@ -31,18 +37,72 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { PackageX } from "lucide-react";
 
+/** Live order-by-id for the buyer: subscribes so status changes, refunds,
+ *  and invoice adjustments (e.g. once a return is refunded) show up
+ *  immediately, without the buyer needing to reload the page. Falls back to
+ *  a one-time fetch for backends that don't support subscriptions. Scoping
+ *  the subscription to `buyerId` also means a buyer only ever sees their
+ *  own order, whatever the id in the URL. */
+function useLiveOrder(id: string, buyerId: string | undefined) {
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!buyerId) return;
+    let active = true;
+
+    if (typeof api.subscribeOrders !== "function") {
+      setLoading(true);
+      api
+        .getOrder(id)
+        .then((o) => {
+          if (active) setOrder(o);
+        })
+        .catch((e: unknown) => {
+          if (active) setError(e instanceof Error ? e.message : "Failed to load order.");
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }
+
+    const unsubscribe = api.subscribeOrders(buyerId, (orders) => {
+      if (!active) return;
+      setOrder(orders.find((o) => o.id === id) ?? null);
+      setLoading(false);
+      setError(null);
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [id, buyerId]);
+
+  return { order, loading, error };
+}
+
 export function OrderTrackingScreen({ id }: { id: string }) {
-  const { ready } = useRequireAuth({ callbackUrl: `/orders/${id}` });
+  const { ready, user } = useRequireAuth({ callbackUrl: `/orders/${id}` });
   const params = useSearchParams();
   const justPlaced = params.get("placed") === "1";
-  const { data: order, loading, refetch } = useAsync(() => api.getOrder(id), [id]);
+  const { order, loading } = useLiveOrder(id, user?.id);
+  const { data: returns } = useAsync(() => api.listReturns(user?.id), [user?.id]);
   const [cancelling, setCancelling] = useState(false);
 
   async function handleCancel() {
     setCancelling(true);
     try {
       await api.cancelOrder(id);
-      refetch();
+      if (order) notifyOrderCancelled(order.orderNumber);
+      // The live order subscription above picks up the cancellation
+      // automatically — no manual refetch needed.
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not cancel order. Please try again.";
+      toast.error("Cancel failed", message);
     } finally {
       setCancelling(false);
     }
@@ -76,6 +136,10 @@ export function OrderTrackingScreen({ id }: { id: string }) {
   }
 
   const isDelivered = order.status === "DELIVERED";
+  const existingReturn = returns?.find((r) => r.orderId === order.id);
+  const deliveredAt = order.deliveredAt || order.updatedAt;
+  const hoursSinceDelivery = (Date.now() - new Date(deliveredAt).getTime()) / 36e5;
+  const canReturn = isDelivered && !existingReturn && hoursSinceDelivery <= RETURN_WINDOW_HOURS;
 
   return (
     <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
@@ -104,13 +168,25 @@ export function OrderTrackingScreen({ id }: { id: string }) {
         {/* Invoice Download */}
         <InvoiceDownloader order={order} fullWidth />
 
-        {/* Return Request Button - only for delivered orders */}
-        {isDelivered && (
+        {/* Return Request Button - only for delivered orders within the return window and without an existing return */}
+        {canReturn && (
           <Link href={`/orders/${order.id}/return`}>
             <Button variant="outline" fullWidth leadingIcon={<RotateCcw className="h-4 w-4" />}>
               Request Return / Refund
             </Button>
           </Link>
+        )}
+        {isDelivered && existingReturn && (
+          <Link href={`/returns/${existingReturn.id}`}>
+            <Button variant="outline" fullWidth leadingIcon={<RotateCcw className="h-4 w-4" />}>
+              View return request
+            </Button>
+          </Link>
+        )}
+        {isDelivered && !existingReturn && hoursSinceDelivery > RETURN_WINDOW_HOURS && (
+          <div className="rounded-lg border border-line bg-surface px-3 py-2 text-center text-xs text-fg-subtle">
+            Return window closed ({Math.floor(hoursSinceDelivery)} hours since delivery)
+          </div>
         )}
 
         {/* Tracking */}
@@ -147,11 +223,29 @@ export function OrderTrackingScreen({ id }: { id: string }) {
                 </li>
               ))}
             </ul>
-            <div className="flex items-center justify-between border-t border-line px-5 py-3">
-              <span className="text-sm font-bold text-fg">Total</span>
-              <span className="text-base font-extrabold text-fg">
-                {formatCurrency(order.total)}
-              </span>
+            <div className="border-t border-line px-5 py-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-fg-muted">Subtotal</span>
+                <span className="font-semibold text-fg">{formatCurrency(order.subtotal)}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-sm">
+                <span className="text-fg-muted">Delivery</span>
+                <span className={cn("font-semibold", order.deliveryFee === 0 ? "text-brand-500" : "text-fg")}>
+                  {order.deliveryFee === 0 ? "FREE" : formatCurrency(order.deliveryFee)}
+                </span>
+              </div>
+              {order.refundAmount ? (
+                <div className="mt-1 flex items-center justify-between text-sm">
+                  <span className="text-fg-muted">Refund</span>
+                  <span className="font-semibold text-emerald-500">-{formatCurrency(order.refundAmount)}</span>
+                </div>
+              ) : null}
+              <div className="mt-2 flex items-center justify-between border-t border-dashed border-line pt-2">
+                <span className="text-sm font-bold text-fg">Total</span>
+                <span className="text-base font-extrabold text-fg">
+                  {formatCurrency(order.total)}
+                </span>
+              </div>
             </div>
           </CardBody>
         </Card>
@@ -178,8 +272,12 @@ export function OrderTrackingScreen({ id }: { id: string }) {
               <p className="font-semibold text-fg">
                 {PAYMENT_LONG[order.paymentMethod]}
               </p>
-              <p className="text-xs text-fg-subtle">
-                {order.paymentStatus === "PAID" ? "Paid" : "Payment due"}
+              <p className={cn("text-xs", order.refundedAt ? "text-emerald-500" : "text-fg-subtle")}>
+                {order.refundedAt
+                  ? `Refund of ${formatCurrency(order.refundAmount || 0)} processed`
+                  : order.paymentStatus === "PAID"
+                    ? "Paid"
+                    : "Payment due"}
               </p>
             </div>
           </CardBody>

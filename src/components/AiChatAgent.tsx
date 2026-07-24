@@ -1,23 +1,40 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { usePathname } from "next/navigation";
-import { MessageCircle, X, Send, Bot, User, Sparkles } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { MessageCircle, X, Send, Bot, User, Sparkles, LogOut, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { createChatSession, processUserMessage } from "@/lib/ai-chat";
-import type { ChatSession, ChatMessage } from "@/lib/ai-chat";
+import { api } from "@/lib/api";
+import { generateAIResponse } from "@/lib/ai-chat";
+import type { ChatSession } from "@/lib/ai-chat";
+import { TALK_TO_HUMAN, canBuyerMessage } from "@/lib/support-tickets";
+import type { SupportTicket, TicketMessage } from "@/lib/support-tickets";
+import { useTypingActive, useTypingHeartbeat } from "@/lib/hooks";
+import { TypingBubble } from "@/components/ui/TypingIndicator";
 
 export function AiChatAgent() {
   const [isOpen, setIsOpen] = useState(false);
-  const [session, setSession] = useState<ChatSession>(createChatSession);
+  const [ticket, setTicket] = useState<SupportTicket | null>(null);
+  const [ticketLoading, setTicketLoading] = useState(false);
+  const [ticketError, setTicketError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const contextRef = useRef<ChatSession["context"]>("general");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
   const { isAuthenticated, isAdmin, user } = useAuth();
+
+  // Real human-admin typing signal — distinct from `typing` above, which is a
+  // locally-simulated "the bot is composing" delay. Both render the same dots,
+  // but only this one reflects an actual person on the other end.
+  const adminIsTyping = useTypingActive(ticket?.adminTypingAt);
+  const notifyTyping = useTypingHeartbeat(
+    ticket ? () => api.setSupportTicketTyping?.(ticket.id, "buyer") : undefined
+  );
 
   // Close chat when clicking outside
   useEffect(() => {
@@ -36,50 +53,175 @@ export function AiChatAgent() {
   }, [isOpen]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [session.messages, typing]);
+    // isOpen is also a dependency: reopening the panel with an unchanged
+    // thread (no new messages since it was last open) wouldn't otherwise
+    // re-run this — the panel would render still scrolled to wherever it
+    // was left, or its unmount/remount default (top), instead of the
+    // latest message.
+    if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+  }, [ticket?.thread.length, typing, adminIsTyping, isOpen]);
 
   useEffect(() => {
-    if (isOpen) inputRef.current?.focus();
-  }, [isOpen]);
+    if (isOpen && ticket) inputRef.current?.focus();
+  }, [isOpen, ticket]);
 
-  // Personalize welcome message with user's name when authenticated
-  useEffect(() => {
-    if (user?.name && session.messages.length === 1 && session.messages[0].role === "assistant") {
-      const welcomeMsg = session.messages[0];
-      if (!welcomeMsg.text.includes(user.name)) {
-        setSession((prev) => ({
-          ...prev,
-          messages: [
-            {
-              ...welcomeMsg,
-              text: `Hello ${user.name}! I am FreshKart Assistant. I can help you with orders, returns, delivery, payments, and store policies. What can I help you with today?`,
-            },
-          ],
-        }));
-      }
+  const loadTicket = useCallback(async () => {
+    if (!user) return;
+    setTicketLoading(true);
+    setTicketError(null);
+    try {
+      const t = await api.getOrCreateSupportTicket({
+        buyerId: user.id,
+        businessName: user.businessName || user.name,
+        buyerPhone: user.phone,
+        buyerName: user.name,
+      });
+      setTicket(t);
+    } catch (e) {
+      setTicketError(e instanceof Error ? e.message : "Couldn't load chat. Please try again.");
+    } finally {
+      setTicketLoading(false);
     }
-  }, [user?.name]);
+  }, [user]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    const userText = input.trim();
-    setInput("");
-    setTyping(true);
-    setTimeout(() => {
-      const { updatedSession } = processUserMessage(session, userText);
-      setSession(updatedSession);
-      setTyping(false);
-    }, 600);
+  // Live: while the chat panel is open, subscribe to this buyer's tickets so
+  // an admin's reply / close / reopen lands in the thread in real time — no
+  // need to close and reopen the panel to see it. A 5s background poll backs
+  // the subscription up in case the live socket drops (App Check, ad-blockers,
+  // mobile network churn), so the thread still catches up on its own.
+  useEffect(() => {
+    if (!isOpen || !user?.id || !ticket?.id) return;
+    const ticketId = ticket.id;
+
+    let active = true;
+    const cleanups: Array<() => void> = [];
+
+    if (typeof api.subscribeSupportTickets === "function") {
+      const unsubscribe = api.subscribeSupportTickets(user.id, (tickets) => {
+        if (!active) return;
+        const fresh = tickets.find((t) => t.id === ticketId);
+        if (fresh) setTicket(fresh);
+      });
+      cleanups.push(unsubscribe);
+    }
+
+    const interval = setInterval(() => {
+      if (!active || document.visibilityState === "hidden") return;
+      api.getSupportTicket(ticketId).then((fresh) => {
+        if (active && fresh) setTicket(fresh);
+      }).catch(() => {});
+    }, 5000);
+    cleanups.push(() => clearInterval(interval));
+
+    return () => {
+      active = false;
+      cleanups.forEach((c) => c());
+    };
+  }, [isOpen, user?.id, ticket?.id]);
+
+  const handleOpen = () => {
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        // Opening: refresh so any admin reply sent while the panel was
+        // closed shows up, instead of only refetching on first load.
+        if (ticket) {
+          setTicketLoading(true);
+          api.getSupportTicket(ticket.id)
+            .then((fresh) => {
+              if (fresh) setTicket(fresh);
+            })
+            .catch((e) => {
+              setTicketError(e instanceof Error ? e.message : "Couldn't refresh chat.");
+            })
+            .finally(() => setTicketLoading(false));
+        } else if (!ticketLoading) {
+          loadTicket();
+        }
+      }
+      return next;
+    });
   };
 
-  const handleQuickAction = (query: string) => {
-    setTyping(true);
-    setTimeout(() => {
-      const { updatedSession } = processUserMessage(session, query);
-      setSession(updatedSession);
+  const handleSend = async () => {
+    if (!input.trim() || !ticket) return;
+    const userText = input.trim();
+    setInput("");
+    setTicketError(null);
+
+    try {
+      if (userText === TALK_TO_HUMAN) {
+        setTyping(true);
+        const updated = await api.addSupportTicketMessage(ticket.id, "buyer", userText);
+        const escalated = await api.escalateSupportTicket(updated.id);
+        setTicket(escalated);
+        return;
+      }
+
+      setTyping(true);
+      const afterBuyer = await api.addSupportTicketMessage(ticket.id, "buyer", userText);
+      setTicket(afterBuyer);
+
+      const lower = userText.toLowerCase();
+      if (lower.includes("return") || lower.includes("refund")) contextRef.current = "returns";
+      else if (lower.includes("order") || lower.includes("track")) contextRef.current = "order_help";
+      else if (lower.includes("price") || lower.includes("cost")) contextRef.current = "pricing";
+
+      const { text, suggestions } = generateAIResponse(userText, contextRef.current);
+      const afterAssistant = await new Promise<SupportTicket>((resolve, reject) => {
+        setTimeout(() => {
+          api.addSupportTicketMessage(afterBuyer.id, "assistant", text, suggestions).then(resolve, reject);
+        }, 500);
+      });
+      setTicket(afterAssistant);
+    } catch (e) {
+      setTicketError(e instanceof Error ? e.message : "Message didn't send. Please try again.");
+    } finally {
       setTyping(false);
-    }, 400);
+    }
+  };
+
+  const handleQuickAction = async (query: string) => {
+    if (!ticket) return;
+    setTicketError(null);
+    try {
+      if (query === TALK_TO_HUMAN) {
+        setTyping(true);
+        const afterBuyer = await api.addSupportTicketMessage(ticket.id, "buyer", query);
+        const escalated = await api.escalateSupportTicket(afterBuyer.id);
+        setTicket(escalated);
+        return;
+      }
+      setTyping(true);
+      const afterBuyer = await api.addSupportTicketMessage(ticket.id, "buyer", query);
+      setTicket(afterBuyer);
+      const { text, suggestions } = generateAIResponse(query, contextRef.current);
+      const afterAssistant = await new Promise<SupportTicket>((resolve, reject) => {
+        setTimeout(() => {
+          api.addSupportTicketMessage(afterBuyer.id, "assistant", text, suggestions).then(resolve, reject);
+        }, 400);
+      });
+      setTicket(afterAssistant);
+    } catch (e) {
+      setTicketError(e instanceof Error ? e.message : "Message didn't send. Please try again.");
+    } finally {
+      setTyping(false);
+    }
+  };
+
+  const handleEndChat = async () => {
+    if (!ticket) return;
+    try {
+      const closed = await api.closeSupportTicket(ticket.id);
+      setTicket(closed);
+    } catch (e) {
+      setTicketError(e instanceof Error ? e.message : "Couldn't end the chat. Please try again.");
+    }
+  };
+
+  const handleStartNew = () => {
+    setTicket(null);
+    loadTicket();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -89,23 +231,46 @@ export function AiChatAgent() {
     }
   };
 
-  // Only show chat for authenticated buyers. Hide for:
-  // - Guests (not logged in)
-  // - Admins
-  // - Login page (double safety)
-  // - Admin pages (double safety)
+  // Show the bubble for every signed-in user on buyer-facing pages. Hidden on
+  // "/" (sign-in / shop home, where the cart bar owns that corner) and on
+  // /admin/* (the admin shell has its own navigation). For ADMINS browsing
+  // buyer pages the bubble stays visible but jumps to the Support inbox —
+  // opening the buyer chat panel would file a ticket from the admin to
+  // themselves, and silently hiding it just looks broken.
   const isLoginPage = pathname === "/" || pathname === "";
   const isAdminPage = pathname?.startsWith("/admin");
-  const shouldShowChat = isAuthenticated && !isAdmin && !isLoginPage && !isAdminPage;
+  // The return-thread screen (/returns/<id>) has its own bottom message
+  // composer whose Send button lives in exactly this corner — the floating
+  // bubble would sit right on top of it, hiding the Send arrow and hijacking
+  // the tap (opening the bot instead of sending). Hide the bubble there.
+  const isReturnThread = /^\/returns\/[^/]+$/.test(pathname ?? "");
+  const shouldShowChat = isAuthenticated && !isLoginPage && !isAdminPage && !isReturnThread;
 
   if (!shouldShowChat) return null;
+
+  if (isAdmin) {
+    return (
+      <button
+        data-chat-button
+        onClick={() => router.push("/admin/support")}
+        className="fixed bottom-20 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-brand-500 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:bg-brand-600 md:bottom-8"
+        aria-label="Open support inbox"
+        title="Support inbox"
+      >
+        <MessageCircle className="h-5 w-5" />
+      </button>
+    );
+  }
+
+  const canReply = ticket ? canBuyerMessage(ticket.status) : false;
+  const lastMessage = ticket?.thread[ticket.thread.length - 1];
 
   return (
     <>
       {/* Floating Chat Button - always shows MessageCircle */}
       <button
         data-chat-button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleOpen}
         className={cn(
           "fixed bottom-20 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-300 md:bottom-8 hover:scale-105",
           isOpen
@@ -123,17 +288,27 @@ export function AiChatAgent() {
           ref={panelRef}
           className="fixed bottom-36 right-4 z-50 flex h-[480px] w-[calc(100vw-2rem)] max-w-[360px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl md:bottom-24"
         >
-          {/* Header - single close button in top-right */}
+          {/* Header */}
           <div className="flex items-center gap-3 border-b border-line bg-brand-500 px-4 py-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
               <Bot className="h-4 w-4 text-white" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-bold text-white">FreshKart Assistant</p>
+              <p className="text-sm font-bold text-white">Green Basket Assistant</p>
               <p className="flex items-center gap-1 text-[10px] text-white/80">
                 <Sparkles className="h-3 w-3" /> AI Powered
               </p>
             </div>
+            {ticket && canReply && (
+              <button
+                onClick={handleEndChat}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30"
+                title="End chat"
+                aria-label="End chat"
+              >
+                <LogOut className="h-3.5 w-3.5 text-white" />
+              </button>
+            )}
             <button
               onClick={() => setIsOpen(false)}
               className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30"
@@ -145,7 +320,30 @@ export function AiChatAgent() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {session.messages.map((msg) => (
+            {ticketLoading && !ticket && (
+              <div className="flex h-full items-center justify-center">
+                <div className="flex gap-1">
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-fg-subtle" style={{ animationDelay: "0ms" }} />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-fg-subtle" style={{ animationDelay: "150ms" }} />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-fg-subtle" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+            )}
+
+            {!ticketLoading && !ticket && ticketError && (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                <p className="text-sm font-semibold text-fg">Couldn&apos;t load chat</p>
+                <p className="max-w-[240px] text-xs text-fg-subtle">{ticketError}</p>
+                <button
+                  onClick={loadTicket}
+                  className="mt-1 rounded-full bg-brand-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+
+            {ticket?.thread.map((msg) => (
               <ChatBubble key={msg.id} message={msg} />
             ))}
 
@@ -164,63 +362,95 @@ export function AiChatAgent() {
               </div>
             )}
 
-            {!typing && session.messages.length > 0 &&
-              session.messages[session.messages.length - 1].role === "assistant" &&
-              session.messages[session.messages.length - 1].suggestions && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {session.messages[session.messages.length - 1].suggestions!.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      onClick={() => handleQuickAction(suggestion)}
-                      className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:bg-brand-500/10 hover:text-brand-500 hover:border-brand-500/30"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              )}
+            {/* A real support agent typing (after escalation) — distinct
+                signal from the bot's simulated `typing` above, never shown
+                at the same time since one implies the other just finished. */}
+            {!typing && canReply && adminIsTyping && (
+              <TypingBubble label="Support agent is typing…" align="start" />
+            )}
+
+            {!typing && canReply && lastMessage?.sender === "assistant" && lastMessage.suggestions && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {lastMessage.suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => handleQuickAction(suggestion)}
+                    className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:bg-brand-500/10 hover:text-brand-500 hover:border-brand-500/30"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          <div className="border-t border-line bg-surface px-3 py-2">
-            <div className="flex items-center gap-2 rounded-xl border border-line bg-raised px-3 py-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask about orders, returns..."
-                className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
-              />
+          {/* Input / closed state */}
+          {ticket && !canReply ? (
+            <div className="border-t border-line bg-surface px-3 py-3 text-center">
+              <p className="text-xs text-fg-subtle">This conversation has ended.</p>
               <button
-                onClick={handleSend}
-                disabled={!input.trim() || typing}
-                className={cn(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all",
-                  input.trim() && !typing
-                    ? "bg-brand-500 text-white hover:bg-brand-600"
-                    : "bg-line text-fg-subtle"
-                )}
+                onClick={handleStartNew}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-brand-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600"
               >
-                <Send className="h-3.5 w-3.5" />
+                <RotateCcw className="h-3.5 w-3.5" /> Start a new conversation
               </button>
             </div>
-            <p className="mt-1.5 text-center text-[9px] text-fg-subtle">
-              Powered by FreshKart AI
-            </p>
-          </div>
+          ) : (
+            <div className="border-t border-line bg-surface px-3 py-2">
+              {ticket && ticketError && (
+                <p className="mb-1.5 text-center text-[11px] font-medium text-red-500">{ticketError}</p>
+              )}
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-raised px-3 py-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    if (e.target.value.trim()) notifyTyping();
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask about orders, returns..."
+                  disabled={!ticket}
+                  className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle disabled:opacity-50"
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || typing || !ticket}
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all",
+                    input.trim() && !typing && ticket
+                      ? "bg-brand-500 text-white hover:bg-brand-600"
+                      : "bg-line text-fg-subtle"
+                  )}
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p className="mt-1.5 text-center text-[9px] text-fg-subtle">
+                Powered by Green Basket AI
+              </p>
+            </div>
+          )}
         </div>
       )}
     </>
   );
 }
 
-function ChatBubble({ message }: { message: ChatMessage }) {
-  const isUser = message.role === "user";
-  const isSystem = message.role === "system";
-  if (isSystem) return null;
+function ChatBubble({ message }: { message: TicketMessage }) {
+  const isUser = message.sender === "buyer";
+  const isSystem = message.sender === "system";
+  if (isSystem) {
+    return (
+      <div className="flex justify-center">
+        <div className="max-w-[90%] rounded-lg bg-raised px-3 py-1.5 text-center text-xs text-fg-subtle">
+          {message.text}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={cn("flex items-start gap-2", isUser ? "flex-row-reverse" : "flex-row")}>
       <div className={cn(

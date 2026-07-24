@@ -8,10 +8,10 @@ import { getFirebaseAuth } from "./client";
 /**
  * Firebase Phone Authentication helpers (browser only).
  *
- * We use a **visible** reCAPTCHA v2 widget instead of invisible because invisible
- * reCAPTCHA frequently fails silently on mobile (challenge never surfaces,
- * CSP/fetch blocked, or the user never sees the image challenge). The visible
- * checkbox is one extra tap but works reliably across devices and browsers.
+ * We use an **invisible** reCAPTCHA v2 verifier so the login screen shows no
+ * visible "I'm not a robot" widget. The challenge is only presented when
+ * Firebase suspects abuse, keeping the UI clean while still satisfying
+ * Firebase's bot-protection requirement for phone OTP.
  *
  * For local/test sign-in without real SMS, add a test phone number in
  * Firebase console → Authentication → Sign-in method → Phone → "Phone numbers
@@ -82,7 +82,7 @@ function normalizeFirebaseError(e: unknown): PhoneAuthError {
     case code.includes("recaptcha"):
       return new PhoneAuthError(
         code,
-        "reCAPTCHA check failed. Complete the 'I'm not a robot' box, disable ad-blockers, and try again."
+        "Security check failed. Refresh the page, disable ad-blockers, and try again."
       );
     case code.includes("network-request-failed"):
       return new PhoneAuthError(code, "Network error. Please check your connection and try again.");
@@ -111,9 +111,10 @@ export function toE164(input: string, countryCode = "+91"): string {
 }
 
 /**
- * Render a visible reCAPTCHA widget in the given container.
- * Resolves once the widget is rendered, and calls the callbacks when the user
- * checks the box or the challenge expires.
+ * Render an invisible reCAPTCHA verifier in the given container.
+ * The container can be hidden; only the inline badge (if shown) lives there.
+ * Calls `onVerified` once the verifier is ready, and `onExpired` if the token
+ * expires before the OTP is sent.
  */
 export async function renderRecaptcha(
   containerId: string,
@@ -125,7 +126,8 @@ export async function renderRecaptcha(
 
   try {
     verifier = new RecaptchaVerifier(getFirebaseAuth(), container, {
-      size: "normal",
+      size: "invisible",
+      badge: "inline",
       callback: () => {
         onVerified();
       },
@@ -134,6 +136,8 @@ export async function renderRecaptcha(
       },
     });
     await verifier.render();
+    // Invisible verifier is ready to execute when the user requests the code.
+    onVerified();
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error("[reCAPTCHA] render failed:", e);
@@ -152,7 +156,7 @@ export async function sendOtp(
     if (!verifier) {
       throw new PhoneAuthError(
         "RECAPTCHA_NOT_READY",
-        "Please complete the reCAPTCHA check before requesting the code."
+        "Security check is not ready. Please refresh the page and try again."
       );
     }
     return await signInWithPhoneNumber(auth, phoneE164, verifier);

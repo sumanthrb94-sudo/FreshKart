@@ -15,16 +15,31 @@ import {
   Bot,
   User,
   Shield,
+  RotateCcw,
+  MessageCircleQuestion,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { RETURN_REASON_LABELS, canBuyerMessage, addThreadMessage, demoReturnRequests } from "@/lib/returns";
+import {
+  RETURN_REASON_LABELS,
+  canBuyerMessage,
+  canRequestReopen,
+  isSupersededEstimate,
+} from "@/lib/returns";
 import type { ReturnRequest, ReturnMessage, ReturnStatus } from "@/lib/returns";
+import { api } from "@/lib/api";
+import { useLiveReturns } from "@/lib/live-hooks";
+import { useTypingActive, useTypingHeartbeat } from "@/lib/hooks";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "@/components/buyer/BuyerHeader";
+import { BuyerBottomNav } from "@/components/buyer/BuyerBottomNav";
+import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FullScreenLoader } from "@/components/ui/Spinner";
+import { useImageLightbox } from "@/components/ui/ImageLightbox";
+import { TypingBubble } from "@/components/ui/TypingIndicator";
 
 const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: typeof Clock }> = {
   REQUESTED: { label: "Requested", color: "text-amber-500 bg-amber-500/10", icon: Clock },
@@ -35,86 +50,73 @@ const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: 
   COMPLETED: { label: "Completed", color: "text-brand-500 bg-brand-500/10", icon: CheckCircle2 },
 };
 
-// FIX: Static import instead of dynamic import (Critical Bug #4)
-function useReturnRequest(id: string) {
-  const [data, setData] = useState<ReturnRequest | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Check localStorage first
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-    const found = stored.find((r: ReturnRequest) => r.id === id);
-    if (found) {
-      setData(found);
-    } else {
-      // Check demo data (static import)
-      const demo = demoReturnRequests.find((r) => r.id === id);
-      if (demo) setData(demo);
-    }
-    setLoading(false);
-  }, [id]);
-
-  const refresh = () => {
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-    const found = stored.find((r: ReturnRequest) => r.id === id);
-    if (found) {
-      setData(found);
-    } else {
-      const demo = demoReturnRequests.find((r) => r.id === id);
-      setData(demo || null);
-    }
-  };
-
-  return { data, loading, refresh };
-}
 
 export function ReturnThreadScreen({ id }: { id: string }) {
   const router = useRouter();
-  const { data: returnReq, loading, refresh } = useReturnRequest(id);
+  const { user } = useAuth();
+  // Live: subscribe to this buyer's returns and derive the open thread by id,
+  // so an admin's reply / status change shows up instantly, no reload.
+  const { data: myReturns, loading, error, refetch } = useLiveReturns(user?.id, !!user?.id);
+  const returnReq = myReturns?.find((r) => r.id === id) ?? null;
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [requestingReopen, setRequestingReopen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lightbox = useImageLightbox();
+
+  const adminIsTyping = useTypingActive(returnReq?.adminTypingAt);
+  const notifyTyping = useTypingHeartbeat(
+    returnReq ? () => api.setReturnTyping?.(returnReq.id, "buyer") : undefined
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [returnReq?.thread.length]);
+  }, [returnReq?.thread.length, adminIsTyping]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!reply.trim() || !returnReq) return;
     setSending(true);
-
-    // Update localStorage
-    const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-    const idx = stored.findIndex((r: ReturnRequest) => r.id === id);
-    if (idx !== -1) {
-      addThreadMessage(stored[idx], "buyer", reply.trim());
-      localStorage.setItem("freshkart_returns", JSON.stringify(stored));
+    try {
+      await api.addReturnMessage(id, "buyer", reply.trim());
       setReply("");
-      refresh();
-    } else {
-      // For demo data, create a localStorage copy
-      const demoCopy = { ...returnReq, thread: [...returnReq.thread] };
-      addThreadMessage(demoCopy, "buyer", reply.trim());
-      localStorage.setItem("freshkart_returns", JSON.stringify([...stored, demoCopy]));
-      setReply("");
-      refresh();
+      await refetch();
+    } finally {
+      setSending(false);
     }
-    setSending(false);
+  };
+
+  const handleRequestReopen = async () => {
+    if (!returnReq || !api.requestReturnReopen) return;
+    setRequestingReopen(true);
+    try {
+      await api.requestReturnReopen(returnReq.id);
+      await refetch();
+    } finally {
+      setRequestingReopen(false);
+    }
   };
 
   if (loading) {
     return (
-      <AppShell header={<BuyerHeader />}>
+      <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />} sidebar={<BuyerSidebar />}>
         <FullScreenLoader />
       </AppShell>
     );
   }
 
-  if (!returnReq) {
+  if (error || !returnReq) {
+    // Never surface a raw backend error (e.g. Firestore's "Missing or
+    // insufficient permissions.") — a stale notification link, an old
+    // session's deep link, or a return that belongs to a different account
+    // all end up here, and none of that is meaningful to the buyer.
     return (
-      <AppShell header={<BuyerHeader />}>
-        <div className="flex h-full items-center justify-center">
-          <p className="text-fg-muted">Return request not found</p>
+      <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />} sidebar={<BuyerSidebar />}>
+        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+          <p className="text-fg-muted">This return request could not be found.</p>
+          <Button variant="outline" onClick={() => router.push("/returns")}>
+            Back to Returns
+          </Button>
         </div>
       </AppShell>
     );
@@ -124,7 +126,7 @@ export function ReturnThreadScreen({ id }: { id: string }) {
   const canMessage = canBuyerMessage(returnReq.status);
 
   return (
-    <AppShell header={<BuyerHeader />}>
+    <AppShell header={<BuyerHeader />} footer={<BuyerBottomNav />} sidebar={<BuyerSidebar />}>
       <div className="flex h-[calc(100dvh-56px)] flex-col">
         <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
           <button onClick={() => router.back()} className="flex items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg-muted">
@@ -187,9 +189,14 @@ export function ReturnThreadScreen({ id }: { id: string }) {
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {returnReq.images.map((img) => (
-                    <div key={img.id} className="h-20 w-20 overflow-hidden rounded-lg border border-line">
+                    <button
+                      key={img.id}
+                      type="button"
+                      onClick={() => lightbox.open(img.url, img.filename)}
+                      className="h-20 w-20 overflow-hidden rounded-lg border border-line"
+                    >
                       <img src={img.url} alt={img.filename} className="h-full w-full object-cover" />
-                    </div>
+                    </button>
                   ))}
                 </div>
               </CardBody>
@@ -201,19 +208,28 @@ export function ReturnThreadScreen({ id }: { id: string }) {
               <Shield className="h-3.5 w-3.5" /> Conversation
             </h3>
             {returnReq.thread.map((msg) => (
-              <ThreadMessage key={msg.id} message={msg} />
+              <ThreadMessage
+                key={msg.id}
+                message={msg}
+                returnStatus={returnReq.status}
+                onImageClick={lightbox.open}
+              />
             ))}
+            {canMessage && adminIsTyping && <TypingBubble label="Support is typing…" align="start" />}
             <div ref={messagesEndRef} />
           </div>
         </div>
 
-        {canMessage && (
+        {canMessage ? (
           <div className="shrink-0 border-t border-line bg-surface px-4 py-3">
             <div className="flex items-center gap-2 rounded-xl border border-line bg-raised px-3 py-2">
               <input
                 type="text"
                 value={reply}
-                onChange={(e) => setReply(e.target.value)}
+                onChange={(e) => {
+                  setReply(e.target.value);
+                  if (e.target.value.trim()) notifyTyping();
+                }}
                 onKeyDown={(e) => e.key === "Enter" && !sending && handleSend()}
                 placeholder="Type a message..."
                 disabled={sending}
@@ -231,20 +247,61 @@ export function ReturnThreadScreen({ id }: { id: string }) {
               </button>
             </div>
           </div>
+        ) : (
+          <div className="shrink-0 border-t border-line bg-surface px-4 py-3 text-center">
+            {returnReq.status === "REJECTED" ? (
+              canRequestReopen(returnReq) ? (
+                <>
+                  <p className="text-xs text-fg-subtle">This return request was rejected.</p>
+                  <button
+                    onClick={handleRequestReopen}
+                    disabled={requestingReopen || !api.requestReturnReopen}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-brand-500 px-3.5 py-2 text-xs font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-50"
+                  >
+                    <MessageCircleQuestion className="h-3.5 w-3.5" />
+                    {requestingReopen ? "Sending…" : "Ask us to take another look"}
+                  </button>
+                </>
+              ) : (
+                <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-fg-muted">
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  We&apos;ve been asked to review this again — hang tight for an update here.
+                </p>
+              )
+            ) : (
+              <p className="text-xs text-fg-subtle">This return request is complete.</p>
+            )}
+          </div>
         )}
       </div>
+
+      {lightbox.node}
     </AppShell>
   );
 }
 
-function ThreadMessage({ message }: { message: ReturnMessage }) {
+function ThreadMessage({
+  message,
+  returnStatus,
+  onImageClick,
+}: {
+  message: ReturnMessage;
+  returnStatus: ReturnStatus;
+  onImageClick: (src: string, alt?: string) => void;
+}) {
   const isSystem = message.sender === "system";
   const isBuyer = message.sender === "buyer";
 
   if (isSystem) {
+    const superseded = isSupersededEstimate(message, returnStatus);
     return (
       <div className="flex justify-center">
-        <div className="max-w-[90%] rounded-lg bg-raised px-3 py-1.5 text-center text-xs text-fg-subtle">
+        <div
+          className={cn(
+            "max-w-[90%] rounded-lg bg-raised px-3 py-1.5 text-center text-xs text-fg-subtle",
+            superseded && "line-through opacity-50"
+          )}
+        >
           {message.text}
         </div>
       </div>
@@ -267,9 +324,14 @@ function ThreadMessage({ message }: { message: ReturnMessage }) {
         {message.images && message.images.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {message.images.map((img) => (
-              <div key={img.id} className="h-16 w-16 overflow-hidden rounded-lg">
+              <button
+                key={img.id}
+                type="button"
+                onClick={() => onImageClick(img.url, img.filename)}
+                className="h-16 w-16 overflow-hidden rounded-lg"
+              >
                 <img src={img.url} alt="" className="h-full w-full object-cover" />
-              </div>
+              </button>
             ))}
           </div>
         )}

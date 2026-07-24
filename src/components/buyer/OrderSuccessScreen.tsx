@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CheckCircle2, MapPin, Package, Truck } from "lucide-react";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { formatCurrency, PAYMENT_LABELS } from "@/lib/format";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
@@ -49,21 +50,26 @@ export function OrderSuccessScreen({ id }: { id: string }) {
 
   return (
     <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4">
-        {/* Hero */}
-        <div className="flex flex-col items-center gap-2 py-4 text-center">
-          <div className="flex h-16 w-16 animate-pop items-center justify-center rounded-full bg-brand-500/15">
-            <CheckCircle2 className="h-9 w-9 text-brand-500" />
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-b-[28px] bg-gradient-to-br from-brand-500 via-brand-600 to-brand-700 px-5 pb-10 pt-6 text-center text-white lg:rounded-b-3xl">
+        <div className="pointer-events-none absolute -right-14 -top-16 h-44 w-44 rounded-full bg-white/10" />
+        <div className="pointer-events-none absolute -left-10 top-16 h-32 w-32 rounded-full bg-brand-300/20 blur-2xl" />
+        <div className="relative z-10 flex flex-col items-center gap-2">
+          <div className="flex h-16 w-16 animate-pop items-center justify-center rounded-full bg-white/15">
+            <CheckCircle2 className="h-9 w-9 text-white" />
           </div>
-          <h1 className="text-xl font-bold text-fg">Order placed!</h1>
-          <p className="max-w-xs text-sm text-fg-muted">
+          <h1 className="text-xl font-bold">Order placed!</h1>
+          <p className="max-w-xs text-sm text-white/80">
             Thanks — your order is confirmed and being prepared.
           </p>
-          <span className="rounded-full bg-raised px-3 py-1 text-xs font-semibold text-fg-muted">
+          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
             {order.orderNumber}
           </span>
         </div>
+      </div>
 
+      <div className="relative z-10 -mt-6 rounded-t-[26px] bg-canvas">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4">
         {/* ETA strip */}
         <div className="flex items-center gap-3 rounded-xl bg-brand-500 px-4 py-3 text-white">
           <Truck className="h-5 w-5 shrink-0" />
@@ -95,6 +101,17 @@ export function OrderSuccessScreen({ id }: { id: string }) {
                 </li>
               ))}
             </ul>
+            <div className="my-3 border-t border-dashed border-line" />
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-fg-muted">Subtotal</span>
+              <span className="font-semibold text-fg">{formatCurrency(order.subtotal)}</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between text-sm">
+              <span className="text-fg-muted">Delivery</span>
+              <span className={cn("font-semibold", order.deliveryFee === 0 ? "text-brand-500" : "text-fg")}>
+                {order.deliveryFee === 0 ? "FREE" : formatCurrency(order.deliveryFee)}
+              </span>
+            </div>
             <div className="my-3 border-t border-dashed border-line" />
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-fg">Total paid</span>
@@ -133,6 +150,7 @@ export function OrderSuccessScreen({ id }: { id: string }) {
             </Button>
           </Link>
         </div>
+      </div>
       </div>
     </AppShell>
   );

@@ -44,7 +44,7 @@ export function BrandSplash() {
         {/* Subtle wordmark */}
         <div className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-1">
           <p className="text-sm font-extrabold tracking-tight text-gray-200">
-            Fresh<span className="text-brand-500">Kart</span>
+            Green <span className="text-brand-500">Basket</span>
           </p>
           <p className="text-2xs font-medium text-fg-subtle">Wholesale B2B · per kg</p>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   Ban,
@@ -449,12 +450,29 @@ export function useAdminOrders() {
 }
 
 export function AdminOrdersScreen() {
+  const router = useRouter();
+  const params = useSearchParams();
   const { orders, loading, error } = useAdminOrders();
   const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+
+  // Deep-link support: /admin/orders?status=CONFIRMED&open=<id> — used by
+  // the "N new" header badge to jump straight to a specific order.
+  useEffect(() => {
+    const status = params.get("status");
+    if (status && FILTERS.includes(status as OrderStatus)) {
+      setFilter(status as OrderStatus);
+    }
+    const open = params.get("open");
+    if (open) {
+      setOpenId(open);
+      router.replace("/admin/orders");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Per-status counts for the filter chips.
   const counts = useMemo(() => {
@@ -742,6 +760,7 @@ export function AdminOrdersScreen() {
         open={active !== null}
         onClose={() => setOpenId(null)}
         title={active ? active.orderNumber : "Order"}
+        size="lg"
       >
         {active && <OrderDetail order={active} onMutated={handleMutated} />}
       </Sheet>
