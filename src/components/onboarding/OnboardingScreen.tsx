@@ -7,6 +7,12 @@ import { Check, Loader2, ShieldCheck, Store, Sun, Moon } from "lucide-react";
 import { api, ApiError, usingMockBackend } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import {
+  isPlausibleIndianMobile,
+  isValidEmail,
+  isDisposableEmail,
+  normalizeEmail,
+} from "@/lib/format";
+import {
   sendOtp,
   toE164,
   resetRecaptcha,
@@ -248,6 +254,13 @@ export function OnboardingScreen() {
       setError("Enter a valid 10-digit mobile number.");
       return;
     }
+    // Turn away throwaway numbers (0000000000, 1234567890, a 0–5 leading
+    // digit) before spending an SMS on them — the cheapest cut at fake
+    // phone↔account links. Genuine Indian mobiles (6–9 lead) sail through.
+    if (!isPlausibleIndianMobile(phone)) {
+      setError("That doesn't look like a real mobile number. Please check and try again.");
+      return;
+    }
     if (!firebaseConfigured) {
       setError("Auth is not configured. Set the Firebase env vars to enable sign-in.");
       return;
@@ -303,21 +316,31 @@ export function OnboardingScreen() {
     }
     // Every account ends up with BOTH a phone and an email: the sign-in method
     // supplies one, and we require the other here — never asking for the same
-    // detail twice (no duplication).
-    if (method === "google" && addrPhone.trim().length < 10) {
-      setError("Please enter your 10-digit mobile number.");
+    // detail twice (no duplication). This is the second half of the phone↔email
+    // link, so it gets the same fake-number / disposable-email screening as the
+    // sign-in step — a Google user can't tie a throwaway phone to the account,
+    // and a phone user can't tie a temp inbox to it.
+    if (method === "google" && !isPlausibleIndianMobile(addrPhone)) {
+      setError("Please enter a valid 10-digit Indian mobile number.");
       return;
     }
-    if (method === "phone" && !/^\S+@\S+\.\S+$/.test(addrEmail.trim())) {
-      setError("Please enter a valid email address.");
-      return;
+    if (method === "phone") {
+      const email = normalizeEmail(addrEmail);
+      if (!isValidEmail(email)) {
+        setError("Please enter a valid email address.");
+        return;
+      }
+      if (isDisposableEmail(email)) {
+        setError("Please use a permanent email — temporary inboxes aren't allowed.");
+        return;
+      }
     }
     setBusy(true);
     setError(null);
     try {
       await api.completeProfile({
         phone: addrPhone.trim() || undefined,
-        email: addrEmail.trim() || undefined,
+        email: normalizeEmail(addrEmail) || undefined,
         address: addr.address,
         city: addr.city,
         pincode: addr.pincode,
