@@ -75,17 +75,38 @@ export function AiChatAgent() {
   }, [user]);
 
   // Live: while the chat panel is open, subscribe to this buyer's tickets so
-  // an admin's reply / close / reopen lands in the thread in real time —
-  // no need to close and reopen the panel to see it.
+  // an admin's reply / close / reopen lands in the thread in real time — no
+  // need to close and reopen the panel to see it. A 5s background poll backs
+  // the subscription up in case the live socket drops (App Check, ad-blockers,
+  // mobile network churn), so the thread still catches up on its own.
   useEffect(() => {
     if (!isOpen || !user?.id || !ticket?.id) return;
-    if (typeof api.subscribeSupportTickets !== "function") return;
     const ticketId = ticket.id;
-    const unsubscribe = api.subscribeSupportTickets(user.id, (tickets) => {
-      const fresh = tickets.find((t) => t.id === ticketId);
-      if (fresh) setTicket(fresh);
-    });
-    return unsubscribe;
+
+    let active = true;
+    const cleanups: Array<() => void> = [];
+
+    if (typeof api.subscribeSupportTickets === "function") {
+      const unsubscribe = api.subscribeSupportTickets(user.id, (tickets) => {
+        if (!active) return;
+        const fresh = tickets.find((t) => t.id === ticketId);
+        if (fresh) setTicket(fresh);
+      });
+      cleanups.push(unsubscribe);
+    }
+
+    const interval = setInterval(() => {
+      if (!active || document.visibilityState === "hidden") return;
+      api.getSupportTicket(ticketId).then((fresh) => {
+        if (active && fresh) setTicket(fresh);
+      }).catch(() => {});
+    }, 5000);
+    cleanups.push(() => clearInterval(interval));
+
+    return () => {
+      active = false;
+      cleanups.forEach((c) => c());
+    };
   }, [isOpen, user?.id, ticket?.id]);
 
   const handleOpen = () => {

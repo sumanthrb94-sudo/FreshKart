@@ -22,7 +22,8 @@ function useLiveList<T>(
   subscribeFn: ((cb: (items: T[]) => void) => () => void) | null,
   fetchFn: () => Promise<T[]>,
   deps: unknown[],
-  enabled: boolean
+  enabled: boolean,
+  pollMs = 0
 ): LiveResult<T> {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,15 +31,19 @@ function useLiveList<T>(
   const fetchRef = useRef(fetchFn);
   fetchRef.current = fetchFn;
 
-  const runFetch = useCallback(() => {
+  const runFetch = useCallback((silent = false) => {
     if (!enabled) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     fetchRef
       .current()
       .then((items) => setData(items))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Something went wrong."))
-      .finally(() => setLoading(false));
+      .catch((e: unknown) => {
+        if (!silent) setError(e instanceof Error ? e.message : "Something went wrong.");
+      })
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, ...deps]);
 
@@ -48,8 +53,10 @@ function useLiveList<T>(
     // which a buyer's security rules would reject.
     if (!enabled) return;
 
+    let active = true;
+    const cleanups: Array<() => void> = [];
+
     if (subscribeFn) {
-      let active = true;
       setLoading(true);
       const unsubscribe = subscribeFn((items) => {
         if (!active) return;
@@ -57,16 +64,31 @@ function useLiveList<T>(
         setError(null);
         setLoading(false);
       });
-      return () => {
-        active = false;
-        unsubscribe();
-      };
+      cleanups.push(unsubscribe);
+    } else {
+      runFetch();
     }
-    runFetch();
+
+    // Safety-net polling: even with a live subscription, real-time sockets can
+    // silently drop (App Check, ad-blockers, mobile network churn, a stale tab
+    // that lost focus). A quiet background re-fetch every `pollMs` guarantees a
+    // conversation still catches up on its own — no manual refresh — regardless
+    // of the subscription's health. `silent` avoids flashing a loading spinner.
+    if (pollMs > 0) {
+      const interval = setInterval(() => {
+        if (active && document.visibilityState !== "hidden") runFetch(true);
+      }, pollMs);
+      cleanups.push(() => clearInterval(interval));
+    }
+
+    return () => {
+      active = false;
+      cleanups.forEach((c) => c());
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, ...deps]);
 
-  return { data, loading, error, refetch: runFetch };
+  return { data, loading, error, refetch: () => runFetch() };
 }
 
 /** Live returns for a buyer (buyerId set) or all returns (admin, buyerId
@@ -78,7 +100,8 @@ export function useLiveReturns(buyerId?: string, enabled = true): LiveResult<Ret
     canSubscribe ? (cb) => api.subscribeReturns!(buyerId, cb) : null,
     () => api.listReturns(buyerId),
     [buyerId],
-    enabled
+    enabled,
+    5000
   );
 }
 
@@ -89,6 +112,7 @@ export function useLiveSupportTickets(buyerId?: string, enabled = true): LiveRes
     canSubscribe ? (cb) => api.subscribeSupportTickets!(buyerId, cb) : null,
     () => api.listSupportTickets(buyerId),
     [buyerId],
-    enabled
+    enabled,
+    5000
   );
 }
