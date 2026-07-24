@@ -3,6 +3,9 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  type User as FirebaseUser,
 } from "firebase/auth";
 import {
   collection,
@@ -11,12 +14,14 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteField,
   query,
   where,
   orderBy,
   runTransaction,
   writeBatch,
   onSnapshot,
+  arrayUnion,
   type DocumentData,
   type DocumentReference,
   type DocumentSnapshot,
@@ -34,16 +39,45 @@ import type {
   ProductInput,
   User,
 } from "@/lib/types";
-import { generateOrderNumber } from "@/lib/format";
+import {
+  RETURN_REASON_LABELS,
+  RETURN_REOPEN_REQUEST_TEXT,
+  generateAdjustedInvoiceNumber,
+  buildStatusChangeMessage,
+} from "@/lib/returns";
+import type {
+  CreateReturnInput,
+  ReturnRequest,
+  ReturnStatus,
+  ReturnMessage,
+} from "@/lib/returns";
+import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
+import type {
+  CreateSupportTicketInput,
+  SupportTicket,
+  TicketSender,
+  TicketMessage,
+} from "@/lib/support-tickets";
+import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
+import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
 import { DataSource, ApiError } from "./datasource";
 
-const COL = { users: "users", products: "products", orders: "orders", settings: "settings" } as const;
+const COL = {
+  users: "users",
+  products: "products",
+  orders: "orders",
+  returns: "returns",
+  supportTickets: "supportTickets",
+  settings: "settings",
+  emailIndex: "emailIndex",
+  phoneIndex: "phoneIndex",
+} as const;
 
 // Emails auto-granted ADMIN on Google sign-in. Keep this in sync with the
 // `isAdminEmail()` allowlist in firestore.rules (rules can't import from here).
-const ADMIN_EMAILS = ["sumanthbolla97@gmail.com"];
+const ADMIN_EMAILS = ["sumanthbolla97@gmail.com", "sivakishore43@gmail.com"];
 function isAdminEmail(email?: string | null): boolean {
   return !!email && ADMIN_EMAILS.includes(email.trim().toLowerCase());
 }
@@ -97,6 +131,88 @@ async function readDoc(
     }
   }
   throw lastErr;
+}
+
+/**
+ * Write a signed-in user's own doc, forcing a fresh ID token first and
+ * retrying once on `permission-denied`. Firestore's client can briefly lag
+ * behind Auth right after a sign-in (the token hasn't propagated to the
+ * outgoing request yet) — worse on browsers with slower/partitioned storage
+ * (iOS Safari, Brave, in-app browsers) — so the very first write after
+ * sign-in can race ahead of what the security rules see, producing a
+ * spurious "Missing or insufficient permissions" error during onboarding.
+ */
+async function writeUserDoc(
+  fbUser: FirebaseUser,
+  ref: DocumentReference<DocumentData>,
+  data: DocumentData,
+  ms: number
+): Promise<void> {
+  await fbUser.getIdToken();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await withTimeout(setDoc(ref, data, { merge: true }), ms);
+      return;
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      if (code !== "permission-denied" || attempt === 1) throw e;
+      await fbUser.getIdToken(true);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+}
+
+/**
+ * Same token-refresh-and-retry idea as writeUserDoc(), generalized for any
+ * write (in particular runTransaction calls, which can't reuse writeUserDoc
+ * directly). Placing an order/cancelling/returning shortly after sign-in —
+ * or just after a long-idle tab wakes back up — can race Firestore's client
+ * ahead of a stale ID token, producing a spurious "Missing or insufficient
+ * permissions" for a perfectly legitimate write. Only retries on the
+ * Firestore SDK's own `permission-denied` code; app-level ApiErrors (out of
+ * stock, cart empty, etc.) always propagate immediately on first try.
+ */
+async function withFreshTokenRetry<T>(op: () => Promise<T>): Promise<T> {
+  const fbUser = getFirebaseAuth().currentUser;
+  if (fbUser) await fbUser.getIdToken();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await op();
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      if (code !== "permission-denied" || attempt === 1 || !fbUser) throw e;
+      await fbUser.getIdToken(true);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+  // Unreachable: the loop above always returns or throws.
+  throw new ApiError("Could not complete the request. Please try again.");
+}
+
+/**
+ * Claim a unique value (email or phone) for this user via an index doc whose
+ * ID is the normalized value itself. Firestore security rules only allow
+ * `create` on a slot this user doesn't already own (see firestore.rules) —
+ * writing to a slot already claimed by someone else is evaluated as an
+ * `update` and denied, which is how "already taken" is detected. No read of
+ * other users' data is ever needed, unlike a `list` query across `users`
+ * filtered by email/phone (which rules can't safely grant to a non-admin —
+ * it would let any signed-in buyer dump every other buyer's profile).
+ */
+async function claimUnique(
+  fbUser: FirebaseUser,
+  ref: DocumentReference<DocumentData>,
+  label: string
+): Promise<void> {
+  try {
+    await setDoc(ref, { uid: fbUser.uid });
+  } catch (e) {
+    const code = (e as { code?: string })?.code ?? "";
+    if (code === "permission-denied") {
+      throw new ApiError(`This ${label} is already linked to another account.`);
+    }
+    throw e;
+  }
 }
 
 /**
@@ -165,11 +281,35 @@ export class FirebaseDataSource implements DataSource {
     const auth = getFirebaseAuth();
     const fb = auth.currentUser;
     if (!fb) throw new ApiError("Not signed in.", 401);
+
+    const email = (fb.email || input.email?.trim() || "").toLowerCase();
+    const phone = fb.phoneNumber || input.phone?.trim() || "";
+
+    // Force a fresh ID token before any of the writes below — right after
+    // sign-in, Firestore's client can briefly lag behind Auth (worse on
+    // browsers with slower/partitioned storage), and a stale token here would
+    // get a spurious permission-denied misread as "already taken" by the
+    // claim writes just below.
+    await fb.getIdToken();
+
+    // Enforce one account per email and one account per phone via claim docs
+    // (id = the normalized value) instead of querying across `users` — a
+    // `list` query filtered by email/phone can never be granted to a
+    // non-admin without letting them dump every buyer's profile, so
+    // Firestore rejected it outright for every sign-up ("Missing or
+    // insufficient permissions" on every new Google/phone account). Claiming
+    // only ever needs `create` on a doc this user doesn't already own; the
+    // rules deny writing to a slot owned by someone else, which is how
+    // "taken" is detected — no read of other users' data required.
+    const db = getDb();
+    if (email) await claimUnique(fb, doc(db, COL.emailIndex, email), "email");
+    if (phone) await claimUnique(fb, doc(db, COL.phoneIndex, phone), "phone number");
+
     const name = input.name?.trim() || fb.displayName || fb.phoneNumber || "Customer";
     const profile: Omit<User, "id"> = {
       name,
-      email: fb.email || input.email?.trim() || "",
-      phone: fb.phoneNumber || input.phone?.trim() || "",
+      email,
+      phone,
       role: isAdminEmail(fb.email) ? "ADMIN" : "BUYER",
       businessName: input.businessName?.trim() || name,
       businessType: input.businessType,
@@ -188,10 +328,7 @@ export class FirebaseDataSource implements DataSource {
     // Bound the write so a stalled connection surfaces a retryable error
     // instead of hanging forever on "Saving…".
     try {
-      await withTimeout(
-        setDoc(doc(getDb(), COL.users, fb.uid), data, { merge: true }),
-        12000
-      );
+      await writeUserDoc(fb, doc(db, COL.users, fb.uid), data, 12000);
     } catch (e) {
       if (e instanceof ApiError && e.status === 599) {
         throw new ApiError("Couldn't save — your connection dropped. Please try again.", 599);
@@ -201,39 +338,21 @@ export class FirebaseDataSource implements DataSource {
     return { ...profile, id: fb.uid };
   }
 
-  async signInWithGoogle(): Promise<User | null> {
-    const auth = getFirebaseAuth();
-    let cred;
-    try {
-      cred = await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (e) {
-      const code = (e as { code?: string })?.code ?? "";
-      // User dismissed the popup — surface a sentinel the UI can ignore quietly.
-      if (code.includes("popup-closed-by-user") || code.includes("cancelled-popup-request")) {
-        throw new ApiError("Sign-in cancelled.", 499);
-      }
-      if (code.includes("popup-blocked")) {
-        throw new ApiError("Your browser blocked the sign-in popup — allow popups and try again.");
-      }
-      if (code.includes("operation-not-allowed")) {
-        throw new ApiError("Google sign-in isn't enabled for this project yet.");
-      }
-      if (code.includes("unauthorized-domain")) {
-        throw new ApiError("This domain isn't authorized for sign-in. Add it in Firebase Auth settings.");
-      }
-      throw new ApiError(e instanceof Error ? e.message : "Google sign-in failed.");
-    }
-
-    // Auth succeeded (the Firebase user now exists). Try to load the profile —
-    // but if Firestore is momentarily unreachable, DON'T dead-end the sign-in
-    // with an error. Treat it as a fresh account and let the user set up their
-    // shop; completeProfile uses { merge: true }, so it's safe even if a
-    // profile already exists. This is the fix for "Google created the user but
-    // the app showed 'Connection timed out' and never let me in".
-    // Load (or bootstrap) the profile. Configured admin email(s) are promoted to
-    // ADMIN here so they land straight in the console — no buyer onboarding.
-    const ref = doc(getDb(), COL.users, cred.user.uid);
-    const wantsAdmin = isAdminEmail(cred.user.email);
+  /**
+   * Load (or bootstrap) the Firestore profile for a Google-authenticated
+   * Firebase user, shared by both the popup and redirect sign-in paths.
+   * Configured admin email(s) are promoted to ADMIN here so they land
+   * straight in the console — no buyer onboarding.
+   */
+  private async resolveGoogleUser(fbUser: FirebaseUser): Promise<User | null> {
+    // Try to load the profile — but if Firestore is momentarily unreachable,
+    // DON'T dead-end the sign-in with an error. Treat it as a fresh account
+    // and let the user set up their shop; completeProfile uses { merge: true },
+    // so it's safe even if a profile already exists. This is the fix for
+    // "Google created the user but the app showed 'Connection timed out' and
+    // never let me in".
+    const ref = doc(getDb(), COL.users, fbUser.uid);
+    const wantsAdmin = isAdminEmail(fbUser.email);
     try {
       const snap = await readDoc(ref);
       if (snap.exists()) {
@@ -246,20 +365,72 @@ export class FirebaseDataSource implements DataSource {
       }
       if (wantsAdmin) {
         const adminProfile: Omit<User, "id"> = {
-          name: cred.user.displayName || "Admin",
-          email: cred.user.email || "",
-          phone: cred.user.phoneNumber || "",
+          name: fbUser.displayName || "Admin",
+          email: fbUser.email || "",
+          phone: fbUser.phoneNumber || "",
           role: "ADMIN",
-          businessName: "FreshKart Admin",
+          businessName: "Green Basket Admin",
           createdAt: new Date().toISOString(),
         };
         await setDoc(ref, adminProfile as DocumentData);
-        return { ...adminProfile, id: cred.user.uid };
+        return { ...adminProfile, id: fbUser.uid };
       }
       return null;
     } catch {
       return null;
     }
+  }
+
+  async signInWithGoogle(): Promise<User | null | undefined> {
+    const auth = getFirebaseAuth();
+    let cred;
+    try {
+      cred = await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      // User dismissed the popup — surface a sentinel the UI can ignore quietly.
+      if (code.includes("popup-closed-by-user") || code.includes("cancelled-popup-request")) {
+        throw new ApiError("Sign-in cancelled.", 499);
+      }
+      // Popups are blocked or simply unsupported in this environment — the
+      // most common reason Google sign-in works on desktop Chrome but fails
+      // on iOS Safari (popups routinely blocked) and in-app browsers like
+      // Instagram/Facebook (no window.open at all). Fall back to a full-page
+      // redirect instead of dead-ending the user with a cryptic Firebase
+      // error; the result is picked up by completeGoogleRedirect() on the
+      // next page load.
+      if (
+        code.includes("popup-blocked") ||
+        code.includes("operation-not-supported-in-this-environment")
+      ) {
+        await signInWithRedirect(auth, new GoogleAuthProvider());
+        return undefined; // browser is navigating away
+      }
+      if (code.includes("operation-not-allowed")) {
+        throw new ApiError("Google sign-in isn't enabled for this project yet.");
+      }
+      if (code.includes("unauthorized-domain")) {
+        throw new ApiError("This domain isn't authorized for sign-in. Add it in Firebase Auth settings.");
+      }
+      throw new ApiError(e instanceof Error ? e.message : "Google sign-in failed.");
+    }
+    return this.resolveGoogleUser(cred.user);
+  }
+
+  async completeGoogleRedirect(): Promise<{ user: User | null } | null> {
+    const auth = getFirebaseAuth();
+    let cred;
+    try {
+      cred = await getRedirectResult(auth);
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      if (code.includes("unauthorized-domain")) {
+        throw new ApiError("This domain isn't authorized for sign-in. Add it in Firebase Auth settings.");
+      }
+      throw new ApiError(e instanceof Error ? e.message : "Google sign-in failed.");
+    }
+    if (!cred) return null; // no redirect sign-in was pending
+    return { user: await this.resolveGoogleUser(cred.user) };
   }
 
   // --- Catalog ------------------------------------------------------------
@@ -275,29 +446,60 @@ export class FirebaseDataSource implements DataSource {
     return snap.exists() ? { ...(snap.data() as Omit<Product, "id">), id: snap.id } : null;
   }
 
-  async updateProduct(id: string, patch: Partial<Product>): Promise<Product> {
+  async updateProduct(
+    id: string,
+    patch: Partial<Omit<Product, "imageUrl">> & { imageUrl?: string | null }
+  ): Promise<Product> {
     const db = getDb();
     const FIELDS = [
-      "name", "category", "unit", "price", "minOrderQty", "stock", "origin", "active", "imageUrl",
+      "name", "category", "unit", "price", "minOrderQty", "stock", "origin", "active",
     ] as const;
     const allowed: DocumentData = {};
     for (const k of FIELDS) {
       if (patch[k] !== undefined) allowed[k] = patch[k];
     }
+    if (patch.imageUrl === null) {
+      allowed.imageUrl = deleteField();
+    } else if (patch.imageUrl !== undefined) {
+      allowed.imageUrl = patch.imageUrl;
+    }
     await updateDoc(doc(db, COL.products, id), allowed);
+    // Mirror any price change into settings/priceSheet — the order-create
+    // rule reads this single doc (one get() call, regardless of cart size)
+    // instead of one get() per line item, which is what let the item cap be
+    // lifted. Must stay in lockstep or orders start failing with
+    // "Missing or insufficient permissions" again.
+    if (patch.price !== undefined) {
+      await setDoc(
+        doc(db, COL.settings, "priceSheet"),
+        { prices: { [id]: patch.price } },
+        { merge: true }
+      );
+    }
     const snap = await getDoc(doc(db, COL.products, id));
     if (!snap.exists()) throw new ApiError("Product not found.", 404);
     return { ...(snap.data() as Omit<Product, "id">), id: snap.id };
   }
 
   async createProduct(input: ProductInput): Promise<Product> {
-    const ref = doc(collection(getDb(), COL.products));
+    const db = getDb();
+    const ref = doc(collection(db, COL.products));
+    // Normalise minOrderQty so every product defaults to 1 kg/pc if omitted.
+    const normalised: ProductInput = {
+      ...input,
+      minOrderQty: Number.isFinite(input.minOrderQty) && input.minOrderQty > 0 ? input.minOrderQty : 1,
+    };
     // Firestore rejects `undefined` field values — drop any unset optionals.
     const data = Object.fromEntries(
-      Object.entries(input).filter(([, v]) => v !== undefined)
+      Object.entries(normalised).filter(([, v]) => v !== undefined)
     ) as DocumentData;
     await setDoc(ref, data);
-    return { ...input, id: ref.id };
+    await setDoc(
+      doc(db, COL.settings, "priceSheet"),
+      { prices: { [ref.id]: normalised.price } },
+      { merge: true }
+    );
+    return { ...normalised, id: ref.id };
   }
 
   async updateProductPrices(updates: { id: string; price: number }[]): Promise<Product[]> {
@@ -305,9 +507,13 @@ export class FirebaseDataSource implements DataSource {
     const db = getDb();
     const batch = writeBatch(db);
     const refs = updates.map((u) => doc(db, COL.products, u.id));
+    const priceMap: Record<string, number> = {};
     for (let i = 0; i < updates.length; i++) {
       batch.update(refs[i], { price: updates[i].price });
+      priceMap[updates[i].id] = updates[i].price;
     }
+    // Same batch, same atomicity guarantee as the product price writes.
+    batch.set(doc(db, COL.settings, "priceSheet"), { prices: priceMap }, { merge: true });
     await batch.commit();
     const snaps = await Promise.all(refs.map((r) => getDoc(r)));
     return snaps
@@ -320,10 +526,17 @@ export class FirebaseDataSource implements DataSource {
     await this.ready();
     const db = getDb();
     if (!input.items.length) throw new ApiError("Your cart is empty.");
-    if (input.paymentMethod === "CREDIT") {
-      throw new ApiError("Business credit is not available.");
+    const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
+    if (totalQty < MIN_ORDER_TOTAL_QTY) {
+      throw new ApiError(
+        `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`
+      );
     }
-
+    if (totalQty > MAX_ORDER_TOTAL_QTY) {
+      throw new ApiError(
+        `Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`
+      );
+    }
     const settingsSnap = await readDoc(doc(db, COL.settings, "dailyPrices"));
     const settings = settingsSnap.exists()
       ? (settingsSnap.data() as DailyPricesSettings)
@@ -342,7 +555,7 @@ export class FirebaseDataSource implements DataSource {
     const now = new Date();
     let built: Order | null = null;
 
-    await runTransaction(db, async (tx) => {
+    await withFreshTokenRetry(() => runTransaction(db, async (tx) => {
       const refs = input.items.map((i) => doc(db, COL.products, i.productId));
       const snaps = await Promise.all(refs.map((r) => tx.get(r)));
 
@@ -371,6 +584,7 @@ export class FirebaseDataSource implements DataSource {
       });
 
       const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
+      const deliveryFee = calculateDeliveryFee(subtotal);
       built = {
         id: orderRef.id,
         orderNumber: generateOrderNumber(orderRef.id, now),
@@ -381,14 +595,18 @@ export class FirebaseDataSource implements DataSource {
         paymentMethod: input.paymentMethod,
         paymentStatus: input.paid ? "PAID" : "UNPAID",
         subtotal,
-        deliveryFee: 0,
-        total: subtotal,
+        deliveryFee,
+        total: subtotal + deliveryFee,
         delivery: input.delivery,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
-      tx.set(orderRef, built as DocumentData);
-    });
+      // Firestore rules whitelist the order fields and exclude `id` (the
+      // document ID is already the path segment; storing it inside the doc is
+      // redundant and breaks the security-rules field allow-list for buyers).
+      const { id, ...orderData } = built;
+      tx.set(orderRef, orderData as DocumentData);
+    }));
 
     return built!;
   }
@@ -443,6 +661,26 @@ export class FirebaseDataSource implements DataSource {
     return orders.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
   }
 
+  /**
+   * `createdAt` is always written as `new Date().toISOString()` — fixed-width
+   * and Z-suffixed — so lexicographic order is chronological order and a string
+   * range is exact. The range and the orderBy sit on the same single field,
+   * which Firestore indexes automatically: no composite index is needed, and
+   * only that day's docs are read rather than the whole collection.
+   */
+  async listOrdersByRange(startIso: string, endIso: string): Promise<Order[]> {
+    await this.ready();
+    const snap = await getDocs(
+      query(
+        collection(getDb(), COL.orders),
+        where("createdAt", ">=", startIso),
+        where("createdAt", "<", endIso),
+        orderBy("createdAt", "desc")
+      )
+    );
+    return snap.docs.map((d) => ({ ...(d.data() as Omit<Order, "id">), id: d.id }));
+  }
+
   async getOrder(id: string): Promise<Order | null> {
     await this.ready();
     const snap = await getDoc(doc(getDb(), COL.orders, id));
@@ -454,13 +692,16 @@ export class FirebaseDataSource implements DataSource {
     const db = getDb();
     let updated: Order | null = null;
 
-    await runTransaction(db, async (tx) => {
+    await withFreshTokenRetry(() => runTransaction(db, async (tx) => {
       const oRef = doc(db, COL.orders, id);
       const oSnap = await tx.get(oRef);
       if (!oSnap.exists()) throw new ApiError("Order not found.", 404);
       const order = { ...(oSnap.data() as Omit<Order, "id">), id: oRef.id } as Order;
 
       const patch: DocumentData = { status, updatedAt: new Date().toISOString() };
+      if (status === "DELIVERED" && order.status !== "DELIVERED") {
+        patch.deliveredAt = new Date().toISOString();
+      }
 
       if (status === "CANCELLED" && order.status !== "CANCELLED") {
         const refs = order.items.map((i) => doc(db, COL.products, i.productId));
@@ -476,7 +717,7 @@ export class FirebaseDataSource implements DataSource {
 
       tx.update(oRef, patch);
       updated = { ...order, ...(patch as Partial<Order>) };
-    });
+    }));
 
     return updated!;
   }
@@ -509,9 +750,13 @@ export class FirebaseDataSource implements DataSource {
           updatedAt: new Date().toISOString(),
         });
       } else {
-        batch.update(oRef, { status, updatedAt: new Date().toISOString() });
+        const patch: DocumentData = { status, updatedAt: new Date().toISOString() };
+        if (status === "DELIVERED" && order.status !== "DELIVERED") {
+          patch.deliveredAt = new Date().toISOString();
+        }
+        batch.update(oRef, patch);
       }
-      updated.push({ ...order, status });
+      updated.push({ ...order, status, deliveredAt: order.deliveredAt });
     }
 
     await batch.commit();
@@ -531,6 +776,423 @@ export class FirebaseDataSource implements DataSource {
     const snap = await getDoc(doc(db, COL.orders, id));
     if (!snap.exists()) throw new ApiError("Order not found.", 404);
     return { ...(snap.data() as Omit<Order, "id">), id: snap.id };
+  }
+
+  // --- Returns --------------------------------------------------------------
+  /**
+   * Real-time returns subscription. Admin (no buyerId) gets all returns newest-first;
+   * buyers get only their own returns.
+   */
+  subscribeReturns(buyerId?: string, cb?: (returns: ReturnRequest[]) => void): () => void {
+    const db = getDb();
+    const base = collection(db, COL.returns);
+    const q = buyerId
+      ? query(base, where("buyerId", "==", buyerId))
+      : query(base, orderBy("requestedAt", "desc"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const returns = snap.docs.map((d) => ({
+          ...(d.data() as Omit<ReturnRequest, "id">),
+          id: d.id,
+        }));
+        const sorted = returns.sort(
+          (a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt)
+        );
+        cb?.(sorted);
+      },
+      (err) => {
+        console.warn("Returns subscription error:", err.message);
+      }
+    );
+
+    return unsubscribe;
+  }
+
+  async listReturns(buyerId?: string): Promise<ReturnRequest[]> {
+    await this.ready();
+    const base = collection(getDb(), COL.returns);
+    const snap = buyerId
+      ? await getDocs(query(base, where("buyerId", "==", buyerId)))
+      : await getDocs(query(base, orderBy("requestedAt", "desc")));
+    const returns = snap.docs.map((d) => ({
+      ...(d.data() as Omit<ReturnRequest, "id">),
+      id: d.id,
+    }));
+    return returns.sort((a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt));
+  }
+
+  async getReturn(id: string): Promise<ReturnRequest | null> {
+    await this.ready();
+    const snap = await getDoc(doc(getDb(), COL.returns, id));
+    return snap.exists() ? { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id } : null;
+  }
+
+  async createReturn(input: CreateReturnInput): Promise<ReturnRequest> {
+    await this.ready();
+    const db = getDb();
+
+    // Prevent duplicate return requests for the same order.
+    // Query by buyerId (required by security rules) and filter by orderId in JS.
+    const existingSnap = await getDocs(
+      query(collection(db, COL.returns), where("buyerId", "==", input.buyerId))
+    );
+    const existingReturn = existingSnap.docs.find((d) => d.data().orderId === input.orderId);
+    if (existingReturn) {
+      throw new ApiError("A return request already exists for this order.", 409);
+    }
+
+    const ref = doc(collection(db, COL.returns));
+    const id = ref.id;
+    const now = new Date().toISOString();
+
+    const items = input.items.map((item) => ({
+      ...item,
+      lineRefund: item.returnQty * item.unitPrice,
+    }));
+    const totalRefund = items.reduce((sum, item) => sum + item.lineRefund, 0);
+
+    const systemMessage: ReturnMessage = {
+      id: `msg-${Date.now()}-sys`,
+      sender: "system",
+      text: `Return request ${id} created for order ${input.orderNumber}. Status: REQUESTED. Reason: ${RETURN_REASON_LABELS[input.reason]}. Estimated refund: Rs. ${totalRefund}.`,
+      sentAt: now,
+    };
+
+    const returnReq: ReturnRequest = {
+      id,
+      orderId: input.orderId,
+      orderNumber: input.orderNumber,
+      buyerId: input.buyerId,
+      businessName: input.businessName,
+      buyerPhone: input.buyerPhone,
+      items,
+      status: "REQUESTED",
+      reason: input.reason,
+      notes: input.notes,
+      requestedAt: now,
+      totalRefund,
+      adjustedInvoiceNumber: generateAdjustedInvoiceNumber(`INV-${input.orderNumber}`, 1),
+      images: input.images,
+      thread: [systemMessage],
+    };
+
+    // Strip id before writing — the Firestore document path is the canonical id.
+    // Also drop undefined optional fields so Firestore doesn't reject them.
+    const { id: _id, ...data } = returnReq;
+    void _id;
+    await withFreshTokenRetry(() =>
+      setDoc(
+        ref,
+        Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) as DocumentData
+      )
+    );
+    return returnReq;
+  }
+
+  async updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest> {
+    await this.ready();
+    const db = getDb();
+    const ref = doc(db, COL.returns, id);
+    const now = new Date().toISOString();
+
+    // When a refund is processed, adjust the parent order's total so the
+    // customer bill reflects the refund.
+    if (status === "REFUNDED") {
+      const updated = await runTransaction(db, async (tx) => {
+        const retSnap = await tx.get(ref);
+        if (!retSnap.exists()) throw new ApiError("Return request not found.", 404);
+        const ret = { ...(retSnap.data() as Omit<ReturnRequest, "id">), id: retSnap.id };
+
+        const orderRef = doc(db, COL.orders, ret.orderId);
+        const orderSnap = await tx.get(orderRef);
+        if (!orderSnap.exists()) throw new ApiError("Order not found.", 404);
+        const order = { ...(orderSnap.data() as Omit<Order, "id">), id: orderSnap.id };
+
+        const originalTotal = order.subtotal + order.deliveryFee;
+        const newTotal = Math.max(0, originalTotal - ret.totalRefund);
+
+        // Company policy: every status change gets its own confirmed system
+        // message — the buyer shouldn't have to infer the outcome from the
+        // original "Estimated refund" message.
+        const statusMessage: ReturnMessage = {
+          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          sender: "system",
+          text: buildStatusChangeMessage(status, ret.totalRefund),
+          sentAt: now,
+        };
+
+        const retPatch: DocumentData = {
+          status,
+          updatedAt: now,
+          resolvedAt: now,
+          thread: arrayUnion(statusMessage),
+        };
+        const orderPatch: DocumentData = {
+          refundAmount: ret.totalRefund,
+          refundedAt: now,
+          adjustedInvoiceNumber: ret.adjustedInvoiceNumber,
+          total: newTotal,
+          updatedAt: now,
+        };
+
+        tx.update(ref, retPatch);
+        tx.update(orderRef, orderPatch);
+        return { ...ret, ...retPatch, thread: [...ret.thread, statusMessage] } as ReturnRequest;
+      });
+      return updated;
+    }
+
+    const statusMessage: ReturnMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      sender: "system",
+      text: buildStatusChangeMessage(status, 0),
+      sentAt: now,
+    };
+    const patch: DocumentData = {
+      status,
+      updatedAt: now,
+      thread: arrayUnion(statusMessage),
+      // Any admin transition answers a pending "please review this again"
+      // nudge one way or another — clear it so the flag can't outlive the
+      // request it was raised about. reopenRequestedAt only ever gets set
+      // while status is REJECTED (see requestReturnReopen), so this is a
+      // no-op field delete on every other transition.
+      reopenRequestedAt: deleteField(),
+    };
+    if ((["REJECTED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
+      patch.resolvedAt = now;
+    } else if (status === "REQUESTED") {
+      // Reopen path (REJECTED → REQUESTED): the return is active again, so
+      // it's no longer "resolved" — clear the stale timestamp rather than
+      // leave it pointing at the rejection this just reversed.
+      patch.resolvedAt = deleteField();
+    }
+    await updateDoc(ref, patch);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
+    return { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
+  }
+
+  async addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest> {
+    await this.ready();
+    const ref = doc(getDb(), COL.returns, id);
+    const message: ReturnMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      sender,
+      text: text.trim(),
+      sentAt: new Date().toISOString(),
+    };
+    await updateDoc(ref, {
+      thread: arrayUnion(message),
+      updatedAt: new Date().toISOString(),
+    });
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
+    return { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
+  }
+
+  async updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest> {
+    await this.ready();
+    const ref = doc(getDb(), COL.returns, id);
+    await updateDoc(ref, { adminNotes: notes, updatedAt: new Date().toISOString() });
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
+    return { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
+  }
+
+  /** Heartbeat only — deliberately does NOT touch `updatedAt`, or every
+   *  keystroke would reorder the admin's return list mid-type. Best-effort:
+   *  a typing indicator failing silently is never worth surfacing an error
+   *  for, so failures are swallowed rather than thrown. */
+  async setReturnTyping(id: string, sender: "buyer" | "admin"): Promise<void> {
+    try {
+      const field = sender === "buyer" ? "buyerTypingAt" : "adminTypingAt";
+      await updateDoc(doc(getDb(), COL.returns, id), { [field]: new Date().toISOString() });
+    } catch {
+      /* cosmetic — never let this interrupt messaging */
+    }
+  }
+
+  async requestReturnReopen(id: string): Promise<ReturnRequest> {
+    await this.ready();
+    const ref = doc(getDb(), COL.returns, id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
+    const current = { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
+    if (current.status !== "REJECTED") {
+      throw new ApiError("Only a rejected return can be asked for another look.", 409);
+    }
+    const now = new Date().toISOString();
+    const message: ReturnMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      sender: "buyer",
+      text: RETURN_REOPEN_REQUEST_TEXT,
+      sentAt: now,
+    };
+    await updateDoc(ref, {
+      thread: arrayUnion(message),
+      reopenRequestedAt: now,
+      updatedAt: now,
+    });
+    const after = await getDoc(ref);
+    if (!after.exists()) throw new ApiError("Return request not found.", 404);
+    return { ...(after.data() as Omit<ReturnRequest, "id">), id: after.id };
+  }
+
+  // --- Support tickets ------------------------------------------------------
+  subscribeSupportTickets(buyerId?: string, cb?: (tickets: SupportTicket[]) => void): () => void {
+    const db = getDb();
+    const base = collection(db, COL.supportTickets);
+    const q = buyerId
+      ? query(base, where("buyerId", "==", buyerId))
+      : query(base, orderBy("updatedAt", "desc"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const tickets = snap.docs.map((d) => ({
+          ...(d.data() as Omit<SupportTicket, "id">),
+          id: d.id,
+        }));
+        const sorted = tickets.sort(
+          (a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)
+        );
+        cb?.(sorted);
+      },
+      (err) => {
+        console.warn("Support tickets subscription error:", err.message);
+      }
+    );
+
+    return unsubscribe;
+  }
+
+  async listSupportTickets(buyerId?: string): Promise<SupportTicket[]> {
+    await this.ready();
+    const base = collection(getDb(), COL.supportTickets);
+    const snap = buyerId
+      ? await getDocs(query(base, where("buyerId", "==", buyerId)))
+      : await getDocs(query(base, orderBy("updatedAt", "desc")));
+    const tickets = snap.docs.map((d) => ({
+      ...(d.data() as Omit<SupportTicket, "id">),
+      id: d.id,
+    }));
+    return tickets.sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+  }
+
+  async getSupportTicket(id: string): Promise<SupportTicket | null> {
+    await this.ready();
+    const snap = await getDoc(doc(getDb(), COL.supportTickets, id));
+    return snap.exists() ? { ...(snap.data() as Omit<SupportTicket, "id">), id: snap.id } : null;
+  }
+
+  async getOrCreateSupportTicket(input: CreateSupportTicketInput): Promise<SupportTicket> {
+    await this.ready();
+    const db = getDb();
+
+    const existingSnap = await getDocs(
+      query(
+        collection(db, COL.supportTickets),
+        where("buyerId", "==", input.buyerId),
+        where("status", "==", "OPEN")
+      )
+    );
+    if (!existingSnap.empty) {
+      const d = existingSnap.docs[0];
+      return { ...(d.data() as Omit<SupportTicket, "id">), id: d.id };
+    }
+
+    const ref = doc(collection(db, COL.supportTickets));
+    const ticket = { ...openNewTicket(input), id: ref.id };
+    const { id: _id, ...data } = ticket;
+    void _id;
+    await withFreshTokenRetry(() =>
+      setDoc(ref, Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) as DocumentData)
+    );
+    return ticket;
+  }
+
+  async addSupportTicketMessage(
+    id: string,
+    sender: Extract<TicketSender, "buyer" | "admin" | "assistant">,
+    text: string,
+    suggestions?: string[]
+  ): Promise<SupportTicket> {
+    await this.ready();
+    const ref = doc(getDb(), COL.supportTickets, id);
+    const message = buildTicketMessage(sender, text, suggestions);
+    const patch: DocumentData = { thread: arrayUnion(message), updatedAt: new Date().toISOString() };
+    // A human reply resolves the "needs a human" flag that got it here.
+    if (sender === "admin") patch.needsHuman = false;
+    await withFreshTokenRetry(() => updateDoc(ref, patch));
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Support ticket not found.", 404);
+    return { ...(snap.data() as Omit<SupportTicket, "id">), id: snap.id };
+  }
+
+  async escalateSupportTicket(id: string): Promise<SupportTicket> {
+    await this.ready();
+    const ref = doc(getDb(), COL.supportTickets, id);
+    const message = buildTicketMessage("system", ESCALATION_NOTICE);
+    await withFreshTokenRetry(() =>
+      updateDoc(ref, {
+        thread: arrayUnion(message),
+        needsHuman: true,
+        updatedAt: new Date().toISOString(),
+      })
+    );
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Support ticket not found.", 404);
+    return { ...(snap.data() as Omit<SupportTicket, "id">), id: snap.id };
+  }
+
+  async closeSupportTicket(id: string): Promise<SupportTicket> {
+    await this.ready();
+    const ref = doc(getDb(), COL.supportTickets, id);
+    const now = new Date().toISOString();
+    await withFreshTokenRetry(() =>
+      updateDoc(ref, { status: "CLOSED", closedAt: now, updatedAt: now })
+    );
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Support ticket not found.", 404);
+    return { ...(snap.data() as Omit<SupportTicket, "id">), id: snap.id };
+  }
+
+  async reopenSupportTicket(id: string): Promise<SupportTicket> {
+    await this.ready();
+    const ref = doc(getDb(), COL.supportTickets, id);
+    const now = new Date().toISOString();
+    const systemMessage: TicketMessage = {
+      id: `tm-${Date.now()}-sys`,
+      sender: "system",
+      text: "Conversation reopened.",
+      sentAt: now,
+    };
+    await withFreshTokenRetry(() =>
+      updateDoc(ref, {
+        status: "OPEN",
+        closedAt: deleteField(),
+        updatedAt: now,
+        thread: arrayUnion(systemMessage),
+      })
+    );
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new ApiError("Support ticket not found.", 404);
+    return { ...(snap.data() as Omit<SupportTicket, "id">), id: snap.id };
+  }
+
+  /** Heartbeat only — deliberately does NOT touch `updatedAt`, or every
+   *  keystroke would reorder the admin's ticket list mid-type. Best-effort,
+   *  same as setReturnTyping. */
+  async setSupportTicketTyping(id: string, sender: "buyer" | "admin"): Promise<void> {
+    try {
+      const field = sender === "buyer" ? "buyerTypingAt" : "adminTypingAt";
+      await updateDoc(doc(getDb(), COL.supportTickets, id), { [field]: new Date().toISOString() });
+    } catch {
+      /* cosmetic — never let this interrupt messaging */
+    }
   }
 
   // --- Admin --------------------------------------------------------------

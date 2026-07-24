@@ -48,18 +48,6 @@ const STRINGS: Record<string, Dict> = {
     te: "వేరే శోధన లేదా వర్గాన్ని ప్రయత్నించండి.",
     mr: "वेगळा शोध किंवा श्रेणी वापरून पाहा.",
   },
-  promoTitle: {
-    en: "Wholesale fruits & veggies",
-    hi: "थोक फल और सब्ज़ियाँ",
-    te: "హోల్‌సేల్ పండ్లు & కూరగాయలు",
-    mr: "घाऊक फळे आणि भाज्या",
-  },
-  promoSub: {
-    en: "Live B2B rates · order in bulk · pay COD, credit or online.",
-    hi: "लाइव B2B रेट · थोक में ऑर्डर · COD, क्रेडिट या ऑनलाइन भुगतान।",
-    te: "లైవ్ B2B రేట్లు · బల్క్‌గా ఆర్డర్ · COD, క్రెడిట్ లేదా ఆన్‌లైన్ చెల్లింపు.",
-    mr: "लाइव्ह B2B दर · घाऊक ऑर्डर · COD, क्रेडिट किंवा ऑनलाइन पेमेंट.",
-  },
   callSupport: {
     en: "Call support",
     hi: "सहायता को कॉल करें",
@@ -127,7 +115,7 @@ const PRODUCT_NAMES: Record<string, Dict> = {
   "Spring Onion": { en: "Spring Onion", hi: "हरा प्याज़", te: "ఉల్లికాడలు", mr: "हिरवा कांदा" },
 };
 
-const KEY = "freshkart.lang.v1";
+const KEY = "green-basket.lang.v1";
 
 interface LangValue {
   lang: Lang;

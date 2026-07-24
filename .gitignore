@@ -44,3 +44,7 @@ next-env.d.ts
 
 # browser automation artifacts (MCP / Playwright test screenshots)
 .playwright-mcp/
+/e2e/lighthouse/
+/e2e/report/
+/e2e/results/
+/e2e/screenshots/

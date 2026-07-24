@@ -9,7 +9,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 export function PrivacyPolicyScreen() {
   return (
     <AppShell header={<BuyerHeader />}>
-      <div className="flex flex-col gap-3 p-4">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4 lg:p-8">
         <Link href="/" className="flex w-fit items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg-muted">
           <ArrowLeft className="h-3.5 w-3.5" /> Back to shop
         </Link>
@@ -19,7 +19,7 @@ export function PrivacyPolicyScreen() {
             <Shield className="h-6 w-6 text-brand-500" />
             <h1 className="text-xl font-extrabold text-fg">Privacy Policy</h1>
           </div>
-          <p className="mt-1 text-xs text-fg-subtle">FreshKart B2B Wholesale Platform</p>
+          <p className="mt-1 text-xs text-fg-subtle">Green Basket B2B Wholesale Platform</p>
           <p className="text-xs text-fg-subtle">Last updated: July 3, 2026</p>
         </div>
 
@@ -135,9 +135,9 @@ export function PrivacyPolicyScreen() {
                   For privacy-related queries, data access requests, or account deletion requests, contact us:
                 </p>
                 <div className="mt-2 space-y-1 text-xs text-fg">
-                  <p>Email: privacy@freshkart.in</p>
-                  <p>Phone: +91-98765-43210</p>
-                  <p>Address: FreshKart HQ, Bengaluru, Karnataka 560001</p>
+                  <p>Email: privacy@green-basket.in</p>
+                  <p>Phone: +91 74166 20691</p>
+                  <p>Address: Green Basket HQ, Bengaluru, Karnataka 560001</p>
                 </div>
               </div>
             </div>
@@ -145,7 +145,7 @@ export function PrivacyPolicyScreen() {
         </Card>
 
         <p className="pb-4 text-center text-xs text-fg-subtle">
-          By using FreshKart, you agree to this Privacy Policy. We may update this policy from time to time.
+          By using Green Basket, you agree to this Privacy Policy. We may update this policy from time to time.
         </p>
       </div>
     </AppShell>

@@ -1,5 +1,5 @@
 /**
- * FreshKart domain model.
+ * Green Basket domain model.
  *
  * These types are the single source of truth shared by the UI, the mock data
  * layer, and the (future) GCP backend. The REST contract in `docs/BACKEND.md`
@@ -18,7 +18,7 @@ export type OrderStatus =
   | "DELIVERED"
   | "CANCELLED";
 
-export type PaymentMethod = "COD" | "CREDIT" | "ONLINE";
+export type PaymentMethod = "COD" | "ONLINE";
 
 export type PaymentStatus = "UNPAID" | "PAID";
 
@@ -76,6 +76,16 @@ export interface User {
   addressLabel?: string;
   gstin?: string;
   createdAt: string;
+  /** Cart contents, synced to this account only — never shared across
+   *  accounts on the same device (see CartProvider). */
+  cart?: StoredCartLine[];
+}
+
+/** Cart line as persisted server-side: just the productId + qty, rehydrated
+ *  against the live catalog on load so price/stock are never stale. */
+export interface StoredCartLine {
+  productId: string;
+  qty: number;
 }
 
 /** Address payload captured during onboarding / address edit (map picker). */
@@ -134,6 +144,14 @@ export interface Order {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  /** Set when the order is marked DELIVERED; used for the return window. */
+  deliveredAt?: string;
+  /** Refund amount (in rupees) after a return is marked REFUNDED. */
+  refundAmount?: number;
+  /** ISO timestamp when the refund was processed. */
+  refundedAt?: string;
+  /** Adjusted invoice number generated for the refund. */
+  adjustedInvoiceNumber?: string;
 }
 
 /** Aggregated buyer view for the admin "Customers" screen. */

@@ -13,15 +13,15 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "FreshKart — Wholesale B2B · per kg",
+  title: "Green Basket — Wholesale B2B · per kg",
   description:
-    "B2B wholesale fresh-produce marketplace. Live B2B rates · order in bulk · pay COD, credit or online · 1–2 day delivery.",
-  applicationName: "FreshKart",
+    "B2B wholesale fresh-produce marketplace. Live B2B rates · order in bulk · pay COD or online · 1–2 day delivery.",
+  applicationName: "Green Basket",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "FreshKart B2B",
+    title: "Green Basket B2B",
     startupImage: [
       {
         url: "/splash-dark.svg",
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     apple: [{ url: "/icon-192x192.svg", sizes: "192x192" }],
   },
   other: {
-    "msapplication-TileColor": "#e23744",
+    "msapplication-TileColor": "#059669",
     "msapplication-config": "none",
     "mobile-web-app-capable": "yes",
   },
@@ -69,7 +69,7 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  var theme = localStorage.getItem("freshkart-theme");
+                  var theme = localStorage.getItem("green-basket-theme");
                   if (theme === "light") {
                     document.documentElement.classList.add("light");
                   }

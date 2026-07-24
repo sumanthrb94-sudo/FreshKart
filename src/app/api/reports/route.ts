@@ -29,19 +29,19 @@ export async function GET(request: NextRequest) {
     switch (type) {
       case "inventory":
         data = generateInventoryReport();
-        filename = `freshkart-inventory-report-${new Date().toISOString().split("T")[0]}.csv`;
+        filename = `green-basket-inventory-report-${new Date().toISOString().split("T")[0]}.csv`;
         break;
       case "purchase":
         data = generatePurchaseReport();
-        filename = `freshkart-purchase-report-${new Date().toISOString().split("T")[0]}.csv`;
+        filename = `green-basket-purchase-report-${new Date().toISOString().split("T")[0]}.csv`;
         break;
       case "packaging":
         data = generatePackagingReport();
-        filename = `freshkart-packaging-report-${new Date().toISOString().split("T")[0]}.csv`;
+        filename = `green-basket-packaging-report-${new Date().toISOString().split("T")[0]}.csv`;
         break;
       case "invoices":
         data = generateInvoiceReportPerCustomer(businessName);
-        filename = `freshkart-invoice-report-${new Date().toISOString().split("T")[0]}.csv`;
+        filename = `green-basket-invoice-report-${new Date().toISOString().split("T")[0]}.csv`;
         break;
       default:
         return NextResponse.json({ error: "Unknown report type" }, { status: 400 });

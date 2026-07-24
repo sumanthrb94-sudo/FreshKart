@@ -10,6 +10,16 @@ import type {
   ProductInput,
   User,
 } from "@/lib/types";
+import type {
+  CreateReturnInput,
+  ReturnRequest,
+  ReturnStatus,
+} from "@/lib/returns";
+import type {
+  CreateSupportTicketInput,
+  SupportTicket,
+  TicketSender,
+} from "@/lib/support-tickets";
 
 /**
  * The contract every backend must satisfy. The UI depends ONLY on this
@@ -46,10 +56,21 @@ export interface DataSource {
    */
   completeProfile?(input: ProfileSetupInput): Promise<User>;
   /**
-   * Optional: sign in with Google (popup). Returns the existing profile, or
-   * null when the Google account is new and still needs the "set up shop" step.
+   * Optional: sign in with Google. Uses a popup where supported, falling back
+   * to a full-page redirect where it isn't (iOS Safari, in-app browsers that
+   * don't support `window.open`). Returns the existing profile, `null` when
+   * the Google account is new and still needs the "set up shop" step, or
+   * `undefined` when the browser navigated away for the redirect fallback
+   * (the result arrives later via `completeGoogleRedirect`).
    */
-  signInWithGoogle?(): Promise<User | null>;
+  signInWithGoogle?(): Promise<User | null | undefined>;
+  /**
+   * Optional: pick up the result of a Google sign-in that continued via
+   * full-page redirect. Call once on app load. Returns `null` when there is
+   * no pending redirect result, or `{ user }` when one just completed
+   * (`user` is `null` for a brand-new account still needing "set up shop").
+   */
+  completeGoogleRedirect?(): Promise<{ user: User | null } | null>;
   /**
    * Optional: email/password sign-in (used by mock/demo mode). Returns the
    * authenticated user profile.
@@ -60,7 +81,10 @@ export interface DataSource {
   listProducts(): Promise<Product[]>;
   getProduct(id: string): Promise<Product | null>;
   /** Admin: edit any product field (price / stock / active / details). */
-  updateProduct(id: string, patch: Partial<Product>): Promise<Product>;
+  updateProduct(
+    id: string,
+    patch: Partial<Omit<Product, "imageUrl">> & { imageUrl?: string | null }
+  ): Promise<Product>;
   /** Admin: add a new product to the catalog. */
   createProduct(input: ProductInput): Promise<Product>;
   /** Admin: bulk update prices for the daily price sheet. */
@@ -70,6 +94,16 @@ export interface DataSource {
   createOrder(buyerId: string, input: CreateOrderInput): Promise<Order>;
   /** buyerId omitted → all orders (admin). */
   listOrders(buyerId?: string): Promise<Order[]>;
+  /**
+   * Admin: orders created in the half-open instant range [startIso, endIso).
+   * Both bounds are UTC ISO-8601 strings as produced by `getIstBusinessDayRange()`.
+   * Powers the daily dashboard totals and the packing report.
+   *
+   * Deliberately does NOT filter by status: adding one would turn the
+   * single-field range into a composite query (manual index required) for a
+   * result set already small enough to filter in JS.
+   */
+  listOrdersByRange(startIso: string, endIso: string): Promise<Order[]>;
   /**
    * Real-time subscription to order changes. Fires immediately with current
    * data, then on every create/update/delete. Used by admin dashboard for
@@ -81,7 +115,7 @@ export interface DataSource {
   /** Bulk update status for multiple orders at once (morning delivery batch processing). */
   bulkUpdateOrderStatus(ids: string[], status: OrderStatus): Promise<Order[]>;
   cancelOrder(id: string): Promise<Order>;
-  /** Admin: mark an order paid / unpaid (COD / credit settlement). */
+  /** Admin: mark an order paid / unpaid (COD settlement). */
   setOrderPaid(id: string, paid: boolean): Promise<Order>;
 
   // --- Admin --------------------------------------------------------------
@@ -89,6 +123,70 @@ export interface DataSource {
   getAdminStats(): Promise<AdminStats>;
   /** Admin: read any user's full profile. */
   getUser(id: string): Promise<User | null>;
+
+  // --- Returns --------------------------------------------------------------
+  /** buyerId omitted → all returns (admin). */
+  listReturns(buyerId?: string): Promise<ReturnRequest[]>;
+  /**
+   * Real-time subscription to return changes. Fires immediately with current
+   * data, then on every create/update/delete. Used by admin for instant
+   * new-return-request notifications.
+   */
+  subscribeReturns?(buyerId?: string, cb?: (returns: ReturnRequest[]) => void): () => void;
+  getReturn(id: string): Promise<ReturnRequest | null>;
+  createReturn(input: CreateReturnInput): Promise<ReturnRequest>;
+  updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest>;
+  addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest>;
+  updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest>;
+  /**
+   * Optional: heartbeat a self-expiring "is typing" signal on a return
+   * thread (see lib/typing-indicator.ts — TTL-based, no explicit "stopped
+   * typing" call needed). Best-effort: callers must never let this failing
+   * block or surface an error for an otherwise-successful message send.
+   */
+  setReturnTyping?(id: string, sender: "buyer" | "admin"): Promise<void>;
+  /**
+   * Optional: buyer-triggered nudge on a REJECTED return asking an admin to
+   * take another look. Does NOT reopen the return itself — only an admin
+   * transition (REJECTED → REQUESTED) does that; this just raises a flag
+   * (`reopenRequestedAt`) and appends a buyer message so the ask is visible
+   * in both the admin's return list and the thread.
+   */
+  requestReturnReopen?(id: string): Promise<ReturnRequest>;
+
+  // --- Support tickets --------------------------------------------------------
+  /** buyerId omitted → all tickets (admin). */
+  listSupportTickets(buyerId?: string): Promise<SupportTicket[]>;
+  /**
+   * Real-time subscription to ticket changes, same shape as subscribeOrders /
+   * subscribeReturns. Used by admin for instant "needs a human" alerts.
+   */
+  subscribeSupportTickets?(buyerId?: string, cb?: (tickets: SupportTicket[]) => void): () => void;
+  getSupportTicket(id: string): Promise<SupportTicket | null>;
+  /**
+   * Returns the buyer's current OPEN ticket, creating one (seeded with the
+   * assistant greeting) if none exists. At most one OPEN ticket per buyer —
+   * this is the single entry point the AI chat widget calls on open.
+   */
+  getOrCreateSupportTicket(input: CreateSupportTicketInput): Promise<SupportTicket>;
+  addSupportTicketMessage(
+    id: string,
+    sender: Extract<TicketSender, "buyer" | "admin" | "assistant">,
+    text: string,
+    suggestions?: string[]
+  ): Promise<SupportTicket>;
+  /** Buyer-triggered: adds a system "connected to support" message and flags the ticket for a human. */
+  escalateSupportTicket(id: string): Promise<SupportTicket>;
+  /** Ends the conversation — locks the thread (mirrors return REJECTED/COMPLETED). */
+  closeSupportTicket(id: string): Promise<SupportTicket>;
+  /** Reopens a closed conversation so admin (and the buyer) can reply again. */
+  reopenSupportTicket(id: string): Promise<SupportTicket>;
+  /**
+   * Optional: heartbeat a self-expiring "is typing" signal on a support
+   * ticket (see lib/typing-indicator.ts). Same best-effort contract as
+   * setReturnTyping — never let a failure here interrupt messaging.
+   */
+  setSupportTicketTyping?(id: string, sender: "buyer" | "admin"): Promise<void>;
 
   // --- Settings -------------------------------------------------------------
   /** Read the daily price-update gate status (world-readable). */

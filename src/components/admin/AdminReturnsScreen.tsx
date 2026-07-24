@@ -20,14 +20,19 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  demoReturnRequests,
   RETURN_REASON_LABELS,
   allowedTransitions,
   canAdminRespond,
-  addThreadMessage,
+  isSupersededEstimate,
 } from "@/lib/returns";
 import type { ReturnRequest, ReturnStatus, ReturnMessage } from "@/lib/returns";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { api } from "@/lib/api";
+import { useLiveReturns } from "@/lib/live-hooks";
+import { useTypingActive, useTypingHeartbeat } from "@/lib/hooks";
+import { Spinner } from "@/components/ui/Spinner";
+import { useImageLightbox } from "@/components/ui/ImageLightbox";
+import { TypingBubble } from "@/components/ui/TypingIndicator";
 
 const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: typeof CheckCircle2; nextAction: string }> = {
   REQUESTED: { label: "Requested", color: "bg-amber-500/10 text-amber-500", icon: Clock, nextAction: "Approve" },
@@ -38,90 +43,70 @@ const STATUS_CONFIG: Record<ReturnStatus, { label: string; color: string; icon: 
   COMPLETED: { label: "Completed", color: "bg-brand-500/10 text-brand-500", icon: CheckCircle2, nextAction: "" },
 };
 
+/** Label for the button that moves a return INTO the given status — keyed by
+ *  the transition's target, so "Process Refund" really sets REFUNDED (the old
+ *  `STATUS_CONFIG[next].nextAction` labels were one step ahead of the click). */
+const TRANSITION_LABELS: Partial<Record<ReturnStatus, string>> = {
+  REQUESTED: "Reopen request",
+  APPROVED: "Approve",
+  REJECTED: "Reject",
+  PICKED_UP: "Mark Picked Up",
+  REFUNDED: "Process Refund",
+  COMPLETED: "Mark Complete",
+};
+
+const FILTER_OPTIONS = ["all", "reopenRequested", "REQUESTED", "APPROVED", "PICKED_UP", "REFUNDED", "COMPLETED", "REJECTED"] as const;
+
 export function AdminReturnsScreen() {
-  const [returns, setReturns] = useState<ReturnRequest[]>(demoReturnRequests);
-  const [filter, setFilter] = useState<ReturnStatus | "all">("all");
+  const { data: returns, loading, error, refetch } = useLiveReturns();
+  const [filter, setFilter] = useState<ReturnStatus | "all" | "reopenRequested">("all");
   const [search, setSearch] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [threadVersion, setThreadVersion] = useState(0);
 
-  useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-      setReturns([...demoReturnRequests, ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id))]);
-    } catch {
-      setReturns(demoReturnRequests);
-    }
-  }, []);
+  const list = returns ?? [];
 
-  const refresh = () => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-      setReturns([...demoReturnRequests, ...stored.filter((s: ReturnRequest) => !demoReturnRequests.some((d) => d.id === s.id))]);
-    } catch {
-      setReturns(demoReturnRequests);
-    }
-  };
-
-  const filtered = returns.filter((r) => {
-    if (filter !== "all" && r.status !== filter) return false;
+  const filtered = list.filter((r) => {
+    if (filter === "reopenRequested" && !r.reopenRequestedAt) return false;
+    if (filter !== "all" && filter !== "reopenRequested" && r.status !== filter) return false;
     if (search && !r.businessName.toLowerCase().includes(search.toLowerCase()) &&
         !r.orderNumber.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  const handleStatusChange = (id: string, newStatus: ReturnStatus) => {
-    setReturns((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: newStatus, resolvedAt: new Date().toISOString() } : r))
-    );
-    try {
-      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-      const idx = stored.findIndex((r: ReturnRequest) => r.id === id);
-      if (idx !== -1) {
-        stored[idx].status = newStatus;
-        stored[idx].resolvedAt = new Date().toISOString();
-        localStorage.setItem("freshkart_returns", JSON.stringify(stored));
-      }
-    } catch { /* noop */ }
+  const handleStatusChange = async (id: string, newStatus: ReturnStatus) => {
+    await api.updateReturnStatus(id, newStatus);
+    await refetch();
   };
 
-  const handleSendReply = (returnId: string, text: string) => {
+  const handleSendReply = async (returnId: string, text: string) => {
     if (!text.trim()) return;
-
-    setReturns((prev) =>
-      prev.map((r) => {
-        if (r.id !== returnId) return r;
-        const newMsg: ReturnMessage = {
-          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          sender: "admin",
-          text: text.trim(),
-          sentAt: new Date().toISOString(),
-        };
-        return { ...r, thread: [...r.thread, newMsg] };
-      })
-    );
+    await api.addReturnMessage(returnId, "admin", text.trim());
     setThreadVersion((v) => v + 1);
-
-    try {
-      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-      const idx = stored.findIndex((r: ReturnRequest) => r.id === returnId);
-      if (idx !== -1) {
-        addThreadMessage(stored[idx], "admin", text.trim());
-        localStorage.setItem("freshkart_returns", JSON.stringify(stored));
-      }
-    } catch { /* noop */ }
+    await refetch();
   };
 
-  const activeReturn = detailId ? returns.find((r) => r.id === detailId) || null : null;
+  const activeReturn = detailId ? list.find((r) => r.id === detailId) || null : null;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {!activeReturn ? (
-        <>
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Spinner className="h-8 w-8" />
+        </div>
+      ) : error ? (
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-fg-subtle">{error}</p>
+        </div>
+      ) : !activeReturn ? (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Single-column layout — the status filters live inline above the
+              request list (as chips) rather than in a separate left sub-column,
+              so the whole width belongs to the returns the admin is working. */}
           <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
-            <h1 className="text-lg font-extrabold text-fg">Returns & Refunds</h1>
+            <h1 className="text-lg font-extrabold text-fg">Returns &amp; Refunds</h1>
             <p className="text-xs text-fg-subtle">Manage customer returns and process refunds</p>
-            <div className="mt-2 flex items-center gap-2 rounded-xl border border-line bg-surface px-3">
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-line bg-surface px-3">
               <Search className="h-4 w-4 text-fg-subtle" />
               <input
                 type="text"
@@ -131,33 +116,61 @@ export function AdminReturnsScreen() {
                 className="h-9 flex-1 bg-transparent text-sm text-fg outline-none"
               />
             </div>
-            <div className="mt-2 flex gap-2 overflow-x-auto">
-              {(["all", "REQUESTED", "APPROVED", "PICKED_UP", "REFUNDED", "COMPLETED", "REJECTED"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setFilter(s)}
-                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold transition-colors ${
-                    filter === s ? "bg-brand-500 text-white" : "bg-raised text-fg-subtle hover:bg-surface"
-                  }`}
-                >
-                  {s === "all" ? `All (${returns.length})` : `${s} (${returns.filter((r) => r.status === s).length})`}
-                </button>
-              ))}
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-0.5">
+              {FILTER_OPTIONS.map((s) => {
+                const count =
+                  s === "all"
+                    ? list.length
+                    : s === "reopenRequested"
+                      ? list.filter((r) => r.reopenRequestedAt).length
+                      : list.filter((r) => r.status === s).length;
+                const Icon = s === "all" || s === "reopenRequested" ? RotateCcw : STATUS_CONFIG[s].icon;
+                const active = filter === s;
+                const label = s === "all" ? "All" : s === "reopenRequested" ? "Review requested" : STATUS_CONFIG[s].label;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setFilter(s)}
+                    className={cn(
+                      "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors",
+                      active
+                        ? s === "reopenRequested"
+                          ? "bg-rose-500 text-white"
+                          : "bg-brand-500 text-white"
+                        : "bg-raised text-fg-muted hover:bg-line hover:text-fg"
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                    <span
+                      className={cn(
+                        "min-w-[18px] rounded-full px-1 py-0.5 text-center text-[10px] font-bold leading-none",
+                        active ? "bg-white/25 text-white" : "bg-surface text-fg-subtle"
+                      )}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          <div className="flex-1 overflow-y-auto px-4 py-4">
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16">
                 <RotateCcw className="h-12 w-12 text-fg-subtle" />
                 <p className="mt-3 text-base font-bold text-fg">No returns found</p>
               </div>
             ) : (
-              filtered.map((ret) => (
-                <ReturnCard key={ret.id} ret={ret} onOpen={() => { refresh(); setDetailId(ret.id); }} />
-              ))
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                {filtered.map((ret) => (
+                  <ReturnCard key={ret.id} ret={ret} onOpen={() => { refetch(); setDetailId(ret.id); }} />
+                ))}
+              </div>
             )}
           </div>
-        </>
+        </div>
       ) : (
         <ReturnDetail
           key={activeReturn.id + threadVersion}
@@ -185,6 +198,11 @@ function ReturnCard({ ret, onOpen }: { ret: ReturnRequest; onOpen: () => void })
               {cfg.label}
             </span>
             <span className="text-xs font-mono text-fg-muted">{ret.id}</span>
+            {ret.reopenRequestedAt && (
+              <span className="flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-500">
+                <RotateCcw className="h-3 w-3" /> Review requested
+              </span>
+            )}
           </div>
           <p className="mt-1 text-sm font-bold text-fg">{ret.businessName}</p>
           <p className="text-xs text-fg-subtle">{ret.orderNumber}</p>
@@ -221,10 +239,14 @@ function ReturnDetail({
   const [reply, setReply] = useState("");
   const [notes, setNotes] = useState(returnReq.adminNotes || "");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lightbox = useImageLightbox();
+
+  const buyerIsTyping = useTypingActive(returnReq.buyerTypingAt);
+  const notifyTyping = useTypingHeartbeat(() => api.setReturnTyping?.(returnReq.id, "admin"));
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [returnReq.thread.length]);
+  }, [returnReq.thread.length, buyerIsTyping]);
 
   const cfg = STATUS_CONFIG[returnReq.status];
   const transitions = allowedTransitions(returnReq.status);
@@ -236,16 +258,8 @@ function ReturnDetail({
     setReply("");
   };
 
-  const handleSaveNotes = () => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("freshkart_returns") || "[]");
-      const idx = stored.findIndex((r: ReturnRequest) => r.id === returnReq.id);
-      if (idx !== -1) {
-        stored[idx].adminNotes = notes;
-        localStorage.setItem("freshkart_returns", JSON.stringify(stored));
-      }
-      returnReq.adminNotes = notes;
-    } catch { /* noop */ }
+  const handleSaveNotes = async () => {
+    await api.updateReturnAdminNotes(returnReq.id, notes);
   };
 
   return (
@@ -269,6 +283,12 @@ function ReturnDetail({
           <span className="mx-1">|</span>
           <span>{returnReq.businessName}</span>
         </div>
+        {returnReq.reopenRequestedAt && (
+          <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-xs font-semibold text-rose-500">
+            <RotateCcw className="h-3.5 w-3.5" />
+            Buyer asked us to take another look at this rejection.
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
@@ -306,9 +326,14 @@ function ReturnDetail({
             </h3>
             <div className="flex flex-wrap gap-2">
               {returnReq.images.map((img) => (
-                <div key={img.id} className="h-24 w-24 overflow-hidden rounded-lg border border-line">
+                <button
+                  key={img.id}
+                  type="button"
+                  onClick={() => lightbox.open(img.url, img.filename)}
+                  className="h-24 w-24 overflow-hidden rounded-lg border border-line transition-opacity hover:opacity-80"
+                >
                   <img src={img.url} alt={img.filename} className="h-full w-full object-cover" />
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -328,26 +353,49 @@ function ReturnDetail({
 
         {transitions.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {transitions.map((nextStatus) => (
-              <button
-                key={nextStatus}
-                onClick={() => onStatusChange(returnReq.id, nextStatus)}
-                className="rounded-lg bg-brand-500 px-4 py-2 text-xs font-bold text-white hover:bg-brand-600"
-              >
-                {STATUS_CONFIG[nextStatus].nextAction || nextStatus}
-              </button>
-            ))}
+            {transitions.map((nextStatus) =>
+              // The reopen edge (REJECTED → REQUESTED) reads as a distinct
+              // action from every forward status change — outlined instead of
+              // solid, with the reopen glyph, so it doesn't look like just
+              // another step in the normal approve/reject flow.
+              nextStatus === "REQUESTED" ? (
+                <button
+                  key={nextStatus}
+                  onClick={() => onStatusChange(returnReq.id, nextStatus)}
+                  className="flex items-center gap-1.5 rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-2 text-xs font-bold text-brand-500 hover:bg-brand-500/20"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {TRANSITION_LABELS[nextStatus] ?? nextStatus}
+                </button>
+              ) : (
+                <button
+                  key={nextStatus}
+                  onClick={() => onStatusChange(returnReq.id, nextStatus)}
+                  className="rounded-lg bg-brand-500 px-4 py-2 text-xs font-bold text-white hover:bg-brand-600"
+                >
+                  {TRANSITION_LABELS[nextStatus] ?? nextStatus}
+                </button>
+              )
+            )}
           </div>
         )}
 
         <div className="space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wide text-fg-subtle">Conversation Thread</h3>
           {returnReq.thread.map((msg) => (
-            <AdminThreadMessage key={msg.id} message={msg} />
+            <AdminThreadMessage
+              key={msg.id}
+              message={msg}
+              returnStatus={returnReq.status}
+              onImageClick={lightbox.open}
+            />
           ))}
+          {canReply && buyerIsTyping && <TypingBubble label="Buyer is typing…" align="start" />}
           <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {lightbox.node}
 
       {canReply && (
         <div className="shrink-0 border-t border-line bg-surface px-4 py-3">
@@ -355,7 +403,10 @@ function ReturnDetail({
             <input
               type="text"
               value={reply}
-              onChange={(e) => setReply(e.target.value)}
+              onChange={(e) => {
+                setReply(e.target.value);
+                if (e.target.value.trim()) notifyTyping();
+              }}
               onKeyDown={(e) => e.key === "Enter" && handleSendReply()}
               placeholder="Reply to buyer..."
               className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
@@ -377,14 +428,28 @@ function ReturnDetail({
   );
 }
 
-function AdminThreadMessage({ message }: { message: ReturnMessage }) {
+function AdminThreadMessage({
+  message,
+  returnStatus,
+  onImageClick,
+}: {
+  message: ReturnMessage;
+  returnStatus: ReturnStatus;
+  onImageClick: (src: string, alt?: string) => void;
+}) {
   const isSystem = message.sender === "system";
   const isBuyer = message.sender === "buyer";
 
   if (isSystem) {
+    const superseded = isSupersededEstimate(message, returnStatus);
     return (
       <div className="flex justify-center">
-        <div className="max-w-[90%] rounded-lg bg-raised px-3 py-1.5 text-center text-xs text-fg-subtle">
+        <div
+          className={cn(
+            "max-w-[90%] rounded-lg bg-raised px-3 py-1.5 text-center text-xs text-fg-subtle",
+            superseded && "line-through opacity-50"
+          )}
+        >
           {message.text}
         </div>
       </div>
@@ -407,9 +472,14 @@ function AdminThreadMessage({ message }: { message: ReturnMessage }) {
         {message.images && message.images.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {message.images.map((img) => (
-              <div key={img.id} className="h-16 w-16 overflow-hidden rounded-lg">
+              <button
+                key={img.id}
+                type="button"
+                onClick={() => onImageClick(img.url, img.filename)}
+                className="h-16 w-16 overflow-hidden rounded-lg"
+              >
                 <img src={img.url} alt="" className="h-full w-full object-cover" />
-              </div>
+              </button>
             ))}
           </div>
         )}

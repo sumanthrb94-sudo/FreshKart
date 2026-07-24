@@ -1,4 +1,4 @@
-/** AI Chat Agent for FreshKart - Order Help & FAQ
+/** AI Chat Agent for Green Basket - Order Help & FAQ
  *  Provides intelligent responses for order tracking, returns, refunds,
  *  store policies, and basic product inquiries.
  */
@@ -32,13 +32,13 @@ const FAQ_RESPONSES: Record<string, string> = {
   "cancel": "You can cancel your order from the order tracking screen while it is in PENDING status. Once confirmed, cancellation requires contacting support.",
   "return": "To start a return, go to your order and tap Request Return. You can upload photos of damaged items and our team will respond within 24 hours.",
   "refund": "Refunds are processed within 3-5 business days after the returned items are picked up. The refund amount is credited to your original payment method.",
-  "payment": "We accept online payments via Razorpay (UPI, Cards, Net Banking), Cash on Delivery, and Credit for verified business accounts.",
-  "pay": "We accept online payments via Razorpay (UPI, Cards, Net Banking), Cash on Delivery, and Credit for verified business accounts.",
+  "payment": "We accept online payments via Razorpay (UPI, Cards, Net Banking) and Cash on Delivery.",
+  "pay": "We accept online payments via Razorpay (UPI, Cards, Net Banking) and Cash on Delivery.",
   "upi": "UPI payments are accepted via Razorpay. You can pay using any UPI app: GPay, PhonePe, Paytm, or any BHIM UPI app.",
   "invoice": "You can download your invoice from the order details screen. Tap Download Invoice to get a printable PDF.",
   "contact": "Need to talk? Tap the Call Now button anywhere in the app to reach our customer service team directly.",
   "call": "Tap the green Call Now button to speak with our customer service team. We are available during store hours (9 AM - 10 PM).",
-  "whatsapp": "You can reach us on WhatsApp at +91-98765-43210 for quick queries and order updates.",
+  "whatsapp": "You can reach us on WhatsApp at +91 74166 20691 for quick queries and order updates.",
   "quality": "All our produce is sourced fresh daily from local farms. If you receive items that do not meet quality standards, please initiate a return with photos.",
   "fresh": "We source directly from farms every morning. Produce is quality-checked before packing and dispatched in temperature-controlled vehicles.",
   "account": "You can update your business profile from the Profile screen. Tap your name in the header to access account settings.",
@@ -54,7 +54,7 @@ const FAQ_RESPONSES: Record<string, string> = {
   "lang": "The app supports multiple languages. Language selection will be available in your profile settings soon.",
 };
 
-const GREETING = "Hello! I am FreshKart Assistant. I can help you with orders, returns, delivery, payments, and store policies. What can I help you with today?";
+const GREETING = "Hello! I am Green Basket Assistant. I can help you with orders, returns, delivery, payments, and store policies. What can I help you with today?";
 
 const FOLLOW_UP_SUGGESTIONS = [
   "Track my order",
@@ -94,10 +94,10 @@ function matchFAQ(input: string): string | null {
     return "I am here to help! For urgent issues, tap the Call Now button to speak directly with our team. You can also describe your issue here and I will assist you.";
   }
   if (lower.includes("thank")) {
-    return "You are welcome! I am glad I could help. Have a great day and happy shopping with FreshKart!";
+    return "You are welcome! I am glad I could help. Have a great day and happy shopping with Green Basket!";
   }
   if (lower.includes("bye") || lower.includes("goodbye")) {
-    return "Goodbye! Feel free to come back anytime you need assistance. FreshKart is here for you 24/7!";
+    return "Goodbye! Feel free to come back anytime you need assistance. Green Basket is here for you 24/7!";
   }
 
   return null;
@@ -132,8 +132,10 @@ export function generateAIResponse(userMessage: string, context?: ChatSession["c
 
 /** Initialize a new chat session */
 export function createChatSession(): ChatSession {
+  // Random suffix (matches the id idiom used elsewhere, e.g. buildTicketMessage)
+  // so two sessions created within the same millisecond can't collide.
   return {
-    id: `chat-${Date.now()}`,
+    id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     startedAt: new Date().toISOString(),
     context: "general",
     messages: [

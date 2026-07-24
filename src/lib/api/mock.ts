@@ -10,8 +10,23 @@ import type {
   ProductInput,
   User,
 } from "@/lib/types";
-import { generateOrderNumber } from "@/lib/format";
-import { isDailyPriceUpdatePublished } from "@/lib/time";
+import type {
+  CreateReturnInput,
+  ReturnRequest,
+  ReturnStatus,
+  ReturnMessage,
+} from "@/lib/returns";
+import {
+  RETURN_REASON_LABELS,
+  RETURN_REOPEN_REQUEST_TEXT,
+  generateAdjustedInvoiceNumber,
+  buildStatusChangeMessage,
+} from "@/lib/returns";
+import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
+import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
+import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
+import { calculateDeliveryFee } from "@/lib/delivery";
+import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
 import { DataSource, ApiError } from "./datasource";
 import { store } from "./mock-store";
 
@@ -60,12 +75,19 @@ export class MockDataSource implements DataSource {
     return delay(p ? structuredClone(p) : null);
   }
 
-  async updateProduct(id: string, patch: Partial<Product>): Promise<Product> {
+  async updateProduct(
+    id: string,
+    patch: Partial<Omit<Product, "imageUrl">> & { imageUrl?: string | null }
+  ): Promise<Product> {
     let updated: Product | null = null;
     store.mutate((s) => {
       const p = s.products.find((x) => x.id === id);
       if (!p) return;
-      Object.assign(p, patch, { id: p.id });
+      const normalized = { ...patch } as Partial<Product> & { imageUrl?: string | null };
+      if (normalized.imageUrl === null) {
+        delete normalized.imageUrl;
+      }
+      Object.assign(p, normalized as Partial<Product>, { id: p.id });
       updated = p;
     });
     if (!updated) throw new ApiError("Product not found.", 404);
@@ -99,9 +121,6 @@ export class MockDataSource implements DataSource {
 
   // --- Orders -------------------------------------------------------------
   async createOrder(buyerId: string, input: CreateOrderInput): Promise<Order> {
-    if (input.paymentMethod === "CREDIT") {
-      throw new ApiError("Business credit is not available.");
-    }
     if (!isDailyPriceUpdatePublished(store.get().dailyPrices?.publishedAt)) {
       throw new ApiError(
         "Getting best live prices for you. Orders open after today's prices are published."
@@ -117,6 +136,15 @@ export class MockDataSource implements DataSource {
       }
       if (!input.items.length) {
         error = "Your cart is empty.";
+        return;
+      }
+      const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
+      if (totalQty < MIN_ORDER_TOTAL_QTY) {
+        error = `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
+        return;
+      }
+      if (totalQty > MAX_ORDER_TOTAL_QTY) {
+        error = `Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
         return;
       }
       const items: OrderItem[] = [];
@@ -146,6 +174,7 @@ export class MockDataSource implements DataSource {
         p.stock -= line.qty;
       }
       const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
+      const deliveryFee = calculateDeliveryFee(subtotal);
       const now = new Date();
       const id = `order-${Date.now()}-${++orderSeq}`;
       const order: Order = {
@@ -158,8 +187,8 @@ export class MockDataSource implements DataSource {
         paymentMethod: input.paymentMethod,
         paymentStatus: input.paid ? "PAID" : "UNPAID",
         subtotal,
-        deliveryFee: 0,
-        total: subtotal,
+        deliveryFee,
+        total: subtotal + deliveryFee,
         delivery: input.delivery,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
@@ -200,6 +229,14 @@ export class MockDataSource implements DataSource {
     return delay(structuredClone(sorted));
   }
 
+  async listOrdersByRange(startIso: string, endIso: string): Promise<Order[]> {
+    const list = filterOrdersByRange(store.get().orders, startIso, endIso);
+    const sorted = [...list].sort(
+      (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+    );
+    return delay(structuredClone(sorted));
+  }
+
   async getOrder(id: string): Promise<Order | null> {
     const o = store.get().orders.find((x) => x.id === id) ?? null;
     return delay(o ? structuredClone(o) : null);
@@ -217,6 +254,9 @@ export class MockDataSource implements DataSource {
           if (p) p.stock += i.qty;
         }
         o.notes = "Order cancelled — stock was released.";
+      }
+      if (status === "DELIVERED" && o.status !== "DELIVERED") {
+        o.deliveredAt = new Date().toISOString();
       }
       o.status = status;
       o.updatedAt = new Date().toISOString();
@@ -238,6 +278,9 @@ export class MockDataSource implements DataSource {
             const p = s.products.find((x) => x.id === i.productId);
             if (p) p.stock += i.qty;
           }
+        }
+        if (status === "DELIVERED" && o.status !== "DELIVERED") {
+          o.deliveredAt = new Date().toISOString();
         }
         o.status = status;
         o.updatedAt = new Date().toISOString();
@@ -262,6 +305,318 @@ export class MockDataSource implements DataSource {
     });
     if (!updated) throw new ApiError("Order not found.", 404);
     return delay(structuredClone(updated));
+  }
+
+  // --- Returns --------------------------------------------------------------
+  async listReturns(buyerId?: string): Promise<ReturnRequest[]> {
+    const all = store.get().returns;
+    const list = buyerId ? all.filter((r) => r.buyerId === buyerId) : all;
+    const sorted = [...list].sort(
+      (a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt)
+    );
+    return delay(structuredClone(sorted));
+  }
+
+  /** Real-time returns subscription — fires immediately and on every mutation,
+   *  so return threads update live (mirrors subscribeOrders). */
+  subscribeReturns(buyerId?: string, cb?: (returns: ReturnRequest[]) => void): () => void {
+    const deliver = () => {
+      const all = store.get().returns;
+      const list = buyerId ? all.filter((r) => r.buyerId === buyerId) : all;
+      const sorted = [...list].sort(
+        (a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt)
+      );
+      cb?.(structuredClone(sorted));
+    };
+    deliver();
+    return store.subscribe(deliver);
+  }
+
+  async getReturn(id: string): Promise<ReturnRequest | null> {
+    const r = store.get().returns.find((x) => x.id === id) ?? null;
+    return delay(r ? structuredClone(r) : null);
+  }
+
+  async createReturn(input: CreateReturnInput): Promise<ReturnRequest> {
+    const existing = store.get().returns.find((r) => r.orderId === input.orderId);
+    if (existing) {
+      throw new ApiError("A return request already exists for this order.", 409);
+    }
+    let created: ReturnRequest | null = null;
+    store.mutate((s) => {
+      const id = `RET-${Date.now()}-${s.returns.length + 1}`;
+      const now = new Date().toISOString();
+      const items = input.items.map((item) => ({
+        ...item,
+        lineRefund: item.returnQty * item.unitPrice,
+      }));
+      const totalRefund = items.reduce((sum, item) => sum + item.lineRefund, 0);
+      const systemMessage: ReturnMessage = {
+        id: `msg-${Date.now()}-sys`,
+        sender: "system",
+        text: `Return request ${id} created for order ${input.orderNumber}. Status: REQUESTED. Reason: ${RETURN_REASON_LABELS[input.reason]}. Estimated refund: Rs. ${totalRefund}.`,
+        sentAt: now,
+      };
+      const returnReq: ReturnRequest = {
+        id,
+        orderId: input.orderId,
+        orderNumber: input.orderNumber,
+        buyerId: input.buyerId,
+        businessName: input.businessName,
+        buyerPhone: input.buyerPhone,
+        items,
+        status: "REQUESTED",
+        reason: input.reason,
+        notes: input.notes,
+        requestedAt: now,
+        totalRefund,
+        adjustedInvoiceNumber: generateAdjustedInvoiceNumber(`INV-${input.orderNumber}`, 1),
+        images: input.images,
+        thread: [systemMessage],
+      };
+      s.returns.unshift(returnReq);
+      created = returnReq;
+    });
+    return delay(structuredClone(created!), 200);
+  }
+
+  async updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest> {
+    let updated: ReturnRequest | null = null;
+    store.mutate((s) => {
+      const r = s.returns.find((x) => x.id === id);
+      if (!r) return;
+      const now = new Date().toISOString();
+      r.status = status;
+      r.updatedAt = now;
+      // Any admin transition is the answer to a pending "please review this
+      // again" nudge, one way or another — clear it so the flag can't outlive
+      // the request it was raised about.
+      r.reopenRequestedAt = undefined;
+      if ((["REJECTED", "REFUNDED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
+        r.resolvedAt = now;
+      } else if (status === "REQUESTED") {
+        // Reopen path (REJECTED → REQUESTED): the return is active again, so
+        // it's no longer "resolved" — clear the stale timestamp rather than
+        // leave it pointing at the rejection this just reversed.
+        r.resolvedAt = undefined;
+      }
+      // Company policy: every status change gets its own confirmed system
+      // message — the buyer shouldn't have to infer the outcome from the
+      // original "Estimated refund" message.
+      r.thread.push({
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sender: "system",
+        text: buildStatusChangeMessage(status, r.totalRefund),
+        sentAt: now,
+      });
+      // When a refund is processed, adjust the parent order's total so the
+      // customer's invoice reflects the refund immediately — mirrors
+      // FirebaseDataSource.updateReturnStatus's transactional order patch.
+      if (status === "REFUNDED") {
+        const order = s.orders.find((o) => o.id === r.orderId);
+        if (order) {
+          const originalTotal = order.subtotal + order.deliveryFee;
+          order.refundAmount = r.totalRefund;
+          order.refundedAt = now;
+          order.adjustedInvoiceNumber = r.adjustedInvoiceNumber;
+          order.total = Math.max(0, originalTotal - r.totalRefund);
+          order.updatedAt = now;
+        }
+      }
+      updated = r;
+    });
+    if (!updated) throw new ApiError("Return request not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest> {
+    let updated: ReturnRequest | null = null;
+    store.mutate((s) => {
+      const r = s.returns.find((x) => x.id === id);
+      if (!r) return;
+      const message: ReturnMessage = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sender,
+        text: text.trim(),
+        sentAt: new Date().toISOString(),
+      };
+      r.thread.push(message);
+      r.updatedAt = new Date().toISOString();
+      updated = r;
+    });
+    if (!updated) throw new ApiError("Return request not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest> {
+    let updated: ReturnRequest | null = null;
+    store.mutate((s) => {
+      const r = s.returns.find((x) => x.id === id);
+      if (!r) return;
+      r.adminNotes = notes;
+      r.updatedAt = new Date().toISOString();
+      updated = r;
+    });
+    if (!updated) throw new ApiError("Return request not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  /** Heartbeat only — deliberately does NOT touch `updatedAt`, or every
+   *  keystroke would reorder the admin's return list mid-type. */
+  async setReturnTyping(id: string, sender: "buyer" | "admin"): Promise<void> {
+    store.mutate((s) => {
+      const r = s.returns.find((x) => x.id === id);
+      if (!r) return;
+      if (sender === "buyer") r.buyerTypingAt = new Date().toISOString();
+      else r.adminTypingAt = new Date().toISOString();
+    });
+  }
+
+  async requestReturnReopen(id: string): Promise<ReturnRequest> {
+    let updated: ReturnRequest | null = null;
+    let error: string | null = null;
+    store.mutate((s) => {
+      const r = s.returns.find((x) => x.id === id);
+      if (!r) return;
+      if (r.status !== "REJECTED") {
+        error = "Only a rejected return can be asked for another look.";
+        return;
+      }
+      const now = new Date().toISOString();
+      r.thread.push({
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sender: "buyer",
+        text: RETURN_REOPEN_REQUEST_TEXT,
+        sentAt: now,
+      });
+      r.reopenRequestedAt = now;
+      r.updatedAt = now;
+      updated = r;
+    });
+    if (error) throw new ApiError(error, 409);
+    if (!updated) throw new ApiError("Return request not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  // --- Support tickets ------------------------------------------------------
+  async listSupportTickets(buyerId?: string): Promise<SupportTicket[]> {
+    const all = store.get().supportTickets;
+    const list = buyerId ? all.filter((t) => t.buyerId === buyerId) : all;
+    const sorted = [...list].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+    return delay(structuredClone(sorted));
+  }
+
+  /** Real-time support-ticket subscription — fires immediately and on every
+   *  mutation, so chat threads update live for both buyer and admin. */
+  subscribeSupportTickets(buyerId?: string, cb?: (tickets: SupportTicket[]) => void): () => void {
+    const deliver = () => {
+      const all = store.get().supportTickets;
+      const list = buyerId ? all.filter((t) => t.buyerId === buyerId) : all;
+      const sorted = [...list].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+      cb?.(structuredClone(sorted));
+    };
+    deliver();
+    return store.subscribe(deliver);
+  }
+
+  async getSupportTicket(id: string): Promise<SupportTicket | null> {
+    const t = store.get().supportTickets.find((x) => x.id === id) ?? null;
+    return delay(t ? structuredClone(t) : null);
+  }
+
+  async getOrCreateSupportTicket(input: CreateSupportTicketInput): Promise<SupportTicket> {
+    const existing = store.get().supportTickets.find(
+      (t) => t.buyerId === input.buyerId && t.status === "OPEN"
+    );
+    if (existing) return delay(structuredClone(existing));
+
+    let created: SupportTicket | null = null;
+    store.mutate((s) => {
+      const ticket = { ...openNewTicket(input), id: `TCK-${Date.now()}-${s.supportTickets.length + 1}` };
+      s.supportTickets.unshift(ticket);
+      created = ticket;
+    });
+    return delay(structuredClone(created!), 200);
+  }
+
+  async addSupportTicketMessage(
+    id: string,
+    sender: Extract<TicketSender, "buyer" | "admin" | "assistant">,
+    text: string,
+    suggestions?: string[]
+  ): Promise<SupportTicket> {
+    let updated: SupportTicket | null = null;
+    store.mutate((s) => {
+      const t = s.supportTickets.find((x) => x.id === id);
+      if (!t) return;
+      t.thread.push(buildTicketMessage(sender, text, suggestions));
+      if (sender === "admin") t.needsHuman = false;
+      t.updatedAt = new Date().toISOString();
+      updated = t;
+    });
+    if (!updated) throw new ApiError("Support ticket not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async escalateSupportTicket(id: string): Promise<SupportTicket> {
+    let updated: SupportTicket | null = null;
+    store.mutate((s) => {
+      const t = s.supportTickets.find((x) => x.id === id);
+      if (!t) return;
+      t.thread.push(buildTicketMessage("system", ESCALATION_NOTICE));
+      t.needsHuman = true;
+      t.updatedAt = new Date().toISOString();
+      updated = t;
+    });
+    if (!updated) throw new ApiError("Support ticket not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async closeSupportTicket(id: string): Promise<SupportTicket> {
+    let updated: SupportTicket | null = null;
+    store.mutate((s) => {
+      const t = s.supportTickets.find((x) => x.id === id);
+      if (!t) return;
+      const now = new Date().toISOString();
+      t.status = "CLOSED";
+      t.closedAt = now;
+      t.updatedAt = now;
+      updated = t;
+    });
+    if (!updated) throw new ApiError("Support ticket not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async reopenSupportTicket(id: string): Promise<SupportTicket> {
+    let updated: SupportTicket | null = null;
+    store.mutate((s) => {
+      const t = s.supportTickets.find((x) => x.id === id);
+      if (!t) return;
+      const now = new Date().toISOString();
+      t.status = "OPEN";
+      t.closedAt = undefined;
+      t.updatedAt = now;
+      t.thread.push({
+        id: `tm-${Date.now()}-sys`,
+        sender: "system",
+        text: "Conversation reopened.",
+        sentAt: now,
+      });
+      updated = t;
+    });
+    if (!updated) throw new ApiError("Support ticket not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  /** Heartbeat only — deliberately does NOT touch `updatedAt`, or every
+   *  keystroke would reorder the admin's ticket list mid-type. */
+  async setSupportTicketTyping(id: string, sender: "buyer" | "admin"): Promise<void> {
+    store.mutate((s) => {
+      const t = s.supportTickets.find((x) => x.id === id);
+      if (!t) return;
+      if (sender === "buyer") t.buyerTypingAt = new Date().toISOString();
+      else t.adminTypingAt = new Date().toISOString();
+    });
   }
 
   // --- Admin --------------------------------------------------------------

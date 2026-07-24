@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { formatCurrency, unitLabel } from "@/lib/format";
 import { useCart } from "@/components/providers/CartProvider";
@@ -15,58 +15,87 @@ export function ProductListItem({ product }: { product: Product }) {
   const outOfStock = product.stock < product.minOrderQty;
 
   return (
-    <div className="flex gap-3 rounded-xl border border-line bg-surface p-3 shadow-card">
-      <ProductThumb name={product.name} imageUrl={product.imageUrl} size={96} />
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <p className="text-sm font-bold leading-snug text-fg">{tProduct(product.name)}</p>
-        <p className="mt-0.5 flex items-center gap-1 text-[11px] text-fg-subtle">
-          <MapPin className="h-3 w-3" />
-          <span className="truncate">{product.origin}</span>
-        </p>
-
-        <div className="mt-1.5 flex items-baseline gap-1">
-          <span className="text-lg font-extrabold text-fg">
-            {formatCurrency(product.price)}
-          </span>
-          <span className="text-xs text-fg-subtle">/ {unitLabel(product.unit)}</span>
-        </div>
-
-        <span className="mt-1.5 w-fit rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-semibold text-brand-300">
-          {t("minOrder")} {product.minOrderQty} {unitLabel(product.unit)}
-        </span>
+    <div
+      data-testid="product-card"
+      className="group flex flex-row items-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface p-2.5 shadow-card transition-shadow hover:shadow-card-hover md:flex-col md:items-stretch md:p-0"
+    >
+      {/* Thumbnail: fixed square on mobile, full-width aspect-square on desktop.
+          The size must live on THIS wrapper, not on ProductThumb's className —
+          next/image's `fill` mode injects its own inline
+          position:absolute;height:100%;width:100% on the <img>, which beats
+          any Tailwind size classes passed to it. Without an explicit size
+          here, the wrapper had nothing to size itself by on mobile (its only
+          child is out-of-flow) and collapsed to 0 width, making every
+          product photo invisible on mobile while still showing on desktop
+          (where md:aspect-square + md:w-full gave it a size). */}
+      <div className="relative h-20 w-20 shrink-0 md:h-auto md:aspect-square md:w-full">
+        <ProductThumb
+          name={product.name}
+          imageUrl={product.imageUrl}
+          size={80}
+          fill
+          className="md:rounded-b-none"
+        />
       </div>
 
-      <div className="flex shrink-0 flex-col items-end justify-center gap-1">
-        {outOfStock ? (
-          <span className="rounded-full bg-raised px-3 py-1.5 text-xs font-semibold text-fg-subtle">
-            {t("outOfStock")}
-          </span>
-        ) : qty === 0 ? (
-          <button
-            type="button"
-            onClick={() => add(product)}
-            className="flex items-center gap-1 rounded-full border border-brand-500 px-4 py-1.5 text-sm font-bold text-brand-400 transition-colors hover:bg-brand-500/15"
-          >
-            <Plus className="h-4 w-4" />
-            {t("add")}
-          </button>
-        ) : (
-          <>
-            <QuantityStepper
-              product={product}
-              qty={qty}
-              onIncrement={() => increment(product)}
-              onDecrement={() => decrement(product)}
-            />
-            <span className="text-xs font-bold text-fg">
-              {formatCurrency(product.price * qty)}
+      {/* Content */}
+      <div className="flex min-w-0 flex-1 flex-col md:p-3">
+        <p className="line-clamp-2 text-sm font-bold leading-snug text-fg">
+          {tProduct(product.name)}
+        </p>
+
+        {/* Price/chip and the action control (Add / stepper) sit side-by-side
+            on mobile, where the card is wide enough (image is a small fixed
+            square, not the whole card width). On the md+ grid, cards narrow
+            to ~180-200px — cramming a ~120px quantity stepper next to the
+            price+chip there left no room for either and they visibly
+            overlapped. Stacking them (price row, then a full-width action
+            row) fixes that regardless of exactly how narrow the column
+            gets. */}
+        <div className="mt-1.5 flex items-end justify-between gap-2 md:mt-auto md:flex-col md:items-stretch md:gap-1.5">
+          <div className="min-w-0">
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-extrabold text-fg">
+                {formatCurrency(product.price)}
+              </span>
+              <span className="text-xs text-fg-subtle">/ {unitLabel(product.unit)}</span>
+            </div>
+            <span className="mt-1 inline-flex w-fit whitespace-nowrap rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-semibold text-brand-300">
+              {t("minOrder")} {product.minOrderQty} {unitLabel(product.unit)}
             </span>
-            <span className="text-2xs text-fg-subtle">
-              +{product.minOrderQty} {unitLabel(product.unit)} / tap
-            </span>
-          </>
-        )}
+          </div>
+
+          <div className="shrink-0 md:w-full">
+            {outOfStock ? (
+              <span className="block rounded-full bg-raised px-2.5 py-1.5 text-center text-xs font-semibold text-fg-subtle">
+                {t("outOfStock")}
+              </span>
+            ) : qty === 0 ? (
+              <button
+                type="button"
+                data-testid="add-to-cart-btn"
+                onClick={() => add(product)}
+                className="flex items-center gap-1 rounded-full border border-brand-500 bg-brand-500/10 px-3 py-1.5 text-sm font-bold text-brand-400 transition-colors hover:bg-brand-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 md:w-full md:justify-center"
+              >
+                <Plus className="h-4 w-4" />
+                {t("add")}
+              </button>
+            ) : (
+              <div className="flex flex-col items-end gap-1 md:w-full md:flex-row md:items-center md:justify-between">
+                <QuantityStepper
+                  product={product}
+                  qty={qty}
+                  onIncrement={() => increment(product)}
+                  onDecrement={() => decrement(product)}
+                  size="sm"
+                />
+                <span className="text-xs font-bold text-fg">
+                  {formatCurrency(product.price * qty)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -2,41 +2,35 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Clock, Globe, Phone, Search, SearchX } from "lucide-react";
+import { Clock, Search, SearchX } from "lucide-react";
 import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
-import { isDailyPriceUpdatePublished } from "@/lib/time";
+import { formatLastPublished, isDailyPriceUpdatePublished } from "@/lib/time";
+import { getStoreStatus } from "@/lib/store-hours";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
-import { useLang, LANGS } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { useLang } from "@/lib/i18n";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { Chip } from "@/components/ui/Chip";
-import { Input } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader, Spinner } from "@/components/ui/Spinner";
 import { BuyerHeader } from "./BuyerHeader";
-import { PromoBanner } from "./PromoBanner";
+import { ShopHero } from "./ShopHero";
 import { ProductListItem } from "./ProductListItem";
 import { StickyCartBar } from "./StickyCartBar";
 import { BuyerBottomNav } from "./BuyerBottomNav";
 import { CheckoutSheet } from "./CheckoutSheet";
-import { PaymentSheet } from "./PaymentSheet";
 import { SuccessOverlay } from "./SuccessOverlay";
-
-// TODO: replace with your real support number (E.164). "Call support" opens the
-// phone's dialer with this number prefilled.
-const SUPPORT_PHONE = "+918000000000";
 
 export function ShopScreen() {
   const router = useRouter();
   const params = useSearchParams();
   const { user } = useAuth();
-  const { lines, subtotal, clear } = useCart();
-  const { t, tCategory, lang, setLang } = useLang();
+  const { lines, clear } = useCart();
+  const { t, tCategory } = useLang();
   const { data: products, loading, error } = useAsync(() => api.listProducts(), []);
   const { data: settings, loading: settingsLoading } = useAsync(
     () => api.getDailyPricesSettings(),
@@ -48,10 +42,8 @@ export function ShopScreen() {
 
   // Checkout flow state machine
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [paymentOpen, setPaymentOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
-  const [pending, setPending] = useState<{ delivery: DeliveryDetails; method: PaymentMethod } | null>(null);
   const [placed, setPlaced] = useState<Order | null>(null);
 
   // Open checkout when arriving via the header cart badge (/?cart=1).
@@ -63,6 +55,15 @@ export function ShopScreen() {
   }, [params, lines.length, router]);
 
   const pricesPublished = isDailyPriceUpdatePublished(settings?.publishedAt);
+
+  // Re-evaluate store open/closed status every minute.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const storeStatus = useMemo(() => getStoreStatus(now), [now]);
+  const canOrder = pricesPublished && storeStatus.isOpen;
 
   const visible = useMemo(() => {
     const list = (products ?? []).filter((p) => p.active);
@@ -80,7 +81,6 @@ export function ShopScreen() {
     city: user?.city ?? "",
     address: user?.address ?? "",
     pincode: user?.pincode ?? "",
-    // Conditional so we never write `undefined` (Firestore rejects it).
     ...(user?.lat != null ? { lat: user.lat } : {}),
     ...(user?.lng != null ? { lng: user.lng } : {}),
     ...(user?.addressLabel ? { label: user.addressLabel } : {}),
@@ -108,7 +108,6 @@ export function ShopScreen() {
       });
       clear();
       setCheckoutOpen(false);
-      setPaymentOpen(false);
       setPlaced(order);
     } catch (e) {
       setOrderError(e instanceof Error ? e.message : "Could not place order.");
@@ -119,114 +118,122 @@ export function ShopScreen() {
   }
 
   function handleContinue(delivery: DeliveryDetails, method: PaymentMethod) {
-    setPending({ delivery, method });
-    if (method === "ONLINE") {
-      setCheckoutOpen(false);
-      setPaymentOpen(true);
-    } else {
-      placeOrder(delivery, method, false);
-    }
+    placeOrder(delivery, method, false);
   }
+
+  const greetingPrefix = now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening";
+  const greetingName = user?.businessName || user?.name;
+  const greeting = greetingName ? `${greetingPrefix}, ${greetingName}` : "Welcome to Green Basket";
+  const liveStatusLabel =
+    pricesPublished && settings?.publishedAt
+      ? `Live prices · ${formatLastPublished(settings.publishedAt).split(",")[0]}`
+      : undefined;
 
   return (
     <AppShell
-      header={<BuyerHeader />}
+      header={
+        <BuyerHeader
+          searchSlot={
+            <label className="flex items-center gap-2 rounded-full bg-surface px-3 py-1.5">
+              <Search className="h-3.5 w-3.5 shrink-0 text-fg-subtle" aria-hidden />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("searchProduce")}
+                aria-label={t("searchProduce")}
+                className="min-w-0 flex-1 bg-transparent text-sm font-medium text-fg outline-none placeholder:text-fg-subtle"
+              />
+            </label>
+          }
+        />
+      }
       footer={
         <>
-          <StickyCartBar onReview={handleReview} disabled={!pricesPublished} />
+          <StickyCartBar onReview={handleReview} disabled={!canOrder} />
           <BuyerBottomNav />
         </>
       }
       sidebar={<BuyerSidebar />}
     >
-      {/* Sticky language + search + category rail */}
-      <div className="sticky top-0 z-20 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur">
-        {/* Daily price-update banner */}
-        {!settingsLoading && !pricesPublished && (
-          <div className="mb-3 -mt-1 rounded-lg border border-amber-500/30 bg-amber-500/15 px-3 py-2 text-center">
-            <p className="flex items-center justify-center gap-2 text-sm font-bold text-amber-100">
-              <Clock className="h-4 w-4 text-amber-400" aria-hidden />
+      <ShopHero
+        greeting={greeting}
+        itemCount={visible.length}
+        liveStatusLabel={liveStatusLabel}
+      />
+
+      <div className="relative z-10 -mt-6 rounded-t-[26px] bg-canvas">
+        {/* Daily price-update banner. Full-bleed strip flush against the hero's
+            curve, rounded to match the sheet's own top corners (rather than
+            clipping the sheet with overflow-hidden, which broke the sticky
+            category rail below) so it reads as a continuation of the hero
+            rather than a separate floating card. Text sits at the 600/700
+            weight of each hue (not 100/light) so it reads on both a
+            near-black AND a near-white tinted background — this app has no
+            dark:/light: variant split, so the same classes render in both
+            themes and need to work in both. */}
+        {!settingsLoading && !pricesPublished && storeStatus.isOpen && (
+          <div className="rounded-t-[26px] bg-amber-500/10 px-4 py-2.5 text-center">
+            <p className="flex items-center justify-center gap-2 text-sm font-bold text-amber-600">
+              <Clock className="h-4 w-4 text-amber-500" aria-hidden />
               Getting best live prices for you
             </p>
-            <p className="text-xs text-amber-200/80">Orders open after 7 AM daily price update</p>
+            <p className="text-xs text-amber-600/80">Orders open after 7 AM daily price update</p>
           </div>
         )}
 
-        {/* Language scroller — scroll & tap to switch */}
-        <div className="fc-scroll -mx-4 mb-3 flex items-center gap-2 overflow-x-auto px-4">
-          <Globe className="h-4 w-4 shrink-0 text-brand-500" />
-          {LANGS.map((l) => (
-            <button
-              key={l.code}
-              type="button"
-              onClick={() => setLang(l.code)}
-              className={cn(
-                "shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold transition-colors",
-                lang === l.code
-                  ? "bg-brand-500 text-white shadow-sm"
-                  : "border border-line bg-surface text-fg-muted hover:border-brand-500/30"
-              )}
-            >
-              {l.native}
-            </button>
-          ))}
-        </div>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
-          <Input
-            flavor="field"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("searchProduce")}
-            className="pl-9"
-            aria-label={t("searchProduce")}
-          />
-        </div>
-        <div className="fc-scroll -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
-          <Chip active={category === "all"} onClick={() => setCategory("all")}>
-            {t("all")}
-          </Chip>
-          {CATEGORIES.map((c) => (
-            <Chip key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
-              {tCategory(c.name)}
-            </Chip>
-          ))}
-        </div>
-      </div>
-
-      <div className="p-4">
-        <PromoBanner />
-
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <Spinner className="h-7 w-7" />
+        {/* Store closed banner — catalog hidden between 11:45 PM and 8:00 AM IST */}
+        {!storeStatus.isOpen && (
+          <div className="rounded-t-[26px] bg-brand-500/15 px-4 py-3 text-center">
+            <p className="flex items-center justify-center gap-2 text-sm font-bold text-brand-600">
+              <Clock className="h-4 w-4 text-brand-500" aria-hidden />
+              Gathering best prices across Hyderabad
+            </p>
+            <p className="text-xs text-brand-600/80">Will be online at 8 AM everyday</p>
           </div>
-        ) : error ? (
-          <EmptyState icon={SearchX} title={t("couldntLoad")} subtitle={error} />
-        ) : visible.length === 0 ? (
-          <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
-        ) : (
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-            {visible.map((p) => (
-              <ProductListItem key={p.id} product={p} />
+        )}
+
+        {/* Sticky category rail */}
+        <div className="sticky top-0 z-20 flex items-center gap-2 bg-canvas px-4 pb-1 pt-3">
+          <div className="fc-scroll flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5">
+            <Chip active={category === "all"} onClick={() => setCategory("all")}>
+              {t("all")}
+            </Chip>
+            {CATEGORIES.map((c) => (
+              <Chip key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
+                {tCategory(c.name)}
+              </Chip>
             ))}
           </div>
-        )}
-      </div>
-
-      {/* Call support — floating 3D dialer button (opens the phone dialer) */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-app lg:left-[var(--sidebar-width)] lg:right-0 lg:mx-0 lg:max-w-none">
-        <a
-          href={`tel:${SUPPORT_PHONE}`}
-          aria-label={t("callSupport")}
-          className={cn(
-            "animate-float pointer-events-auto absolute right-4 flex items-center gap-2 rounded-full bg-gradient-to-b from-brand-400 to-brand-600 px-4 py-3 text-sm font-extrabold text-white shadow-[0_8px_0_-2px_#a81824,0_16px_26px_-8px_rgba(0,0,0,.5)] transition-all active:translate-y-1 active:shadow-[0_4px_0_-2px_#a81824,0_8px_16px_-8px_rgba(0,0,0,.4)] motion-reduce:animate-none",
-            lines.length > 0 ? "bottom-40" : "bottom-24"
+          {storeStatus.isOpen && !loading && !error && visible.length > 0 && (
+            <span className="shrink-0 text-xs text-fg-subtle">{visible.length} items</span>
           )}
-        >
-          <Phone className="h-5 w-5" />
-          {t("callSupport")}
-        </a>
+        </div>
+
+        <div className="px-4 pb-4 lg:px-6">
+          {/* Closed state */}
+          {!storeStatus.isOpen ? (
+            <EmptyState
+              icon={Clock}
+              title="Gathering best prices across Hyderabad"
+              subtitle="Will be online at 8 AM everyday. Come back tomorrow!"
+            />
+          ) : loading ? (
+            <div className="flex justify-center py-16">
+              <Spinner className="h-7 w-7" />
+            </div>
+          ) : error ? (
+            <EmptyState icon={SearchX} title={t("couldntLoad")} subtitle={error} />
+          ) : visible.length === 0 ? (
+            <EmptyState icon={SearchX} title={t("noItemsTitle")} subtitle={t("noItemsSub")} />
+          ) : (
+            <div className="product-grid mt-2">
+              {visible.map((p) => (
+                <ProductListItem key={p.id} product={p} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Overlays */}
@@ -236,20 +243,11 @@ export function ShopScreen() {
         defaultDelivery={defaultDelivery}
         busy={busy}
         error={orderError}
-        disabled={!pricesPublished}
+        disabled={!canOrder}
         onContinue={handleContinue}
       />
-      <PaymentSheet
-        open={paymentOpen}
-        amount={subtotal}
-        onClose={() => {
-          setPaymentOpen(false);
-          setCheckoutOpen(true);
-        }}
-        onPaid={() => pending && placeOrder(pending.delivery, pending.method, true)}
-      />
-      {busy && !checkoutOpen && !paymentOpen && (
-        <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app items-center justify-center bg-canvas/95 backdrop-blur lg:left-[var(--sidebar-width)] lg:mx-0 lg:max-w-none">
+      {busy && !checkoutOpen && (
+        <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app items-center justify-center bg-canvas lg:left-[var(--sidebar-width)] lg:mx-0 lg:max-w-none">
           <FullScreenLoader label="Placing order…" />
         </div>
       )}

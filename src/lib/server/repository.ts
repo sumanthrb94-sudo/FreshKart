@@ -9,8 +9,9 @@ import type {
   Product,
   User,
 } from "@/lib/types";
-import { generateOrderNumber } from "@/lib/format";
+import { generateOrderNumber, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
+import { calculateDeliveryFee } from "@/lib/delivery";
 import { ORDERS, PRODUCTS, USERS } from "@/lib/mock-data";
 
 /**
@@ -59,9 +60,15 @@ export const repository = {
   updateProduct(id: string, patch: Partial<Product>): Product {
     const p = products.find((x) => x.id === id);
     if (!p) throw new RepoError("Product not found.", 404);
+    if (patch.name !== undefined) p.name = patch.name;
+    if (patch.category !== undefined) p.category = patch.category;
+    if (patch.unit !== undefined) p.unit = patch.unit;
     if (patch.price !== undefined) p.price = patch.price;
+    if (patch.minOrderQty !== undefined) p.minOrderQty = patch.minOrderQty;
     if (patch.stock !== undefined) p.stock = patch.stock;
+    if (patch.origin !== undefined) p.origin = patch.origin;
     if (patch.active !== undefined) p.active = patch.active;
+    if (patch.imageUrl !== undefined) p.imageUrl = patch.imageUrl;
     return p;
   },
 
@@ -77,9 +84,6 @@ export const repository = {
   },
 
   createOrder(buyerId: string, input: CreateOrderInput): Order {
-    if (input.paymentMethod === "CREDIT") {
-      throw new RepoError("Business credit is not available.");
-    }
     if (!isDailyPriceUpdatePublished(dailyPrices?.publishedAt)) {
       throw new RepoError(
         "Getting best live prices for you. Orders open after today's prices are published."
@@ -88,6 +92,10 @@ export const repository = {
     const buyer = users.find((u) => u.id === buyerId);
     if (!buyer) throw new RepoError("Buyer not found.", 404);
     if (!input.items?.length) throw new RepoError("Your cart is empty.");
+    const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
+    if (totalQty < MIN_ORDER_TOTAL_QTY) {
+      throw new RepoError(`Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`);
+    }
 
     const items: OrderItem[] = input.items.map((line) => {
       const p = products.find((x) => x.id === line.productId);
@@ -110,6 +118,7 @@ export const repository = {
     }
 
     const subtotal = items.reduce((s, i) => s + i.lineTotal, 0);
+    const deliveryFee = calculateDeliveryFee(subtotal);
     const now = new Date();
     const id = `order-${now.getTime()}-${++seq}`;
     const order: Order = {
@@ -122,8 +131,8 @@ export const repository = {
       paymentMethod: input.paymentMethod,
       paymentStatus: input.paid ? "PAID" : "UNPAID",
       subtotal,
-      deliveryFee: 0,
-      total: subtotal,
+      deliveryFee,
+      total: subtotal + deliveryFee,
       delivery: input.delivery,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),

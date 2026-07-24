@@ -1,4 +1,4 @@
-/** Persistent Toast Notification System for FreshKart
+/** Persistent Toast Notification System for Green Basket
  *  Provides non-blocking toast messages across the entire app.
  *  Supports success, error, warning, info types with auto-dismiss.
  */
@@ -80,29 +80,15 @@ export const toast = {
 
 // Play notification sound
 export function playNotificationSound(type: ToastType = "info") {
-  try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
+  // Lazy import avoids pulling the Web Audio module into every bundle that
+  // only needs the toast queue itself (server components, tests, etc).
+  import("@/lib/audio-chime").then(({ playChime }) => {
     const frequencies: Record<ToastType, number> = {
       success: 523, // C5
       error: 200,   // Low
       warning: 400, // Mid
       info: 660,    // E5
     };
-
-    osc.frequency.value = frequencies[type] || 523;
-    osc.type = "sine";
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.3);
-  } catch {
-    // Audio not supported, silent fallback
-  }
+    playChime([{ freq: frequencies[type] || 523, startOffset: 0, duration: 0.3, gain: 0.15 }]);
+  }).catch(() => {});
 }

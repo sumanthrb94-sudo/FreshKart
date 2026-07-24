@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CheckCircle2, Clock, Minus, Package, Pencil, Plus, Search, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { CheckCircle2, Clock, ImageIcon, Minus, Package, Pencil, Plus, Search, Sparkles, Upload, X } from "lucide-react";
 import type { Product, ProductInput, Unit } from "@/lib/types";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, backendKind } from "@/lib/api";
 import { formatCurrency, unitLabel } from "@/lib/format";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { useAsync } from "@/lib/hooks";
@@ -20,8 +21,25 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Sheet } from "@/components/ui/Sheet";
 import { ProductThumb } from "@/components/ui/ProductThumb";
 import { FullScreenLoader, Spinner } from "@/components/ui/Spinner";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getFirebaseStorage } from "@/lib/firebase/client";
 
 const ALL = "__all__";
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB, matches storage.rules
+
+async function uploadProductImage(file: File, productId: string): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new ApiError("Please select an image file.");
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    throw new ApiError("Image must be smaller than 5 MB.");
+  }
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `products/${productId}/${Date.now()}.${ext}`;
+  const storageRef = ref(getFirebaseStorage(), path);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
 
 /** A product is low when stock is within twice its minimum order quantity. */
 function isLowStock(p: Product): boolean {
@@ -51,6 +69,8 @@ interface FormState {
   stock: string;
   origin: string;
   active: boolean;
+  imageUrl: string;
+
 }
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -61,10 +81,11 @@ function emptyForm(): FormState {
     category: CATEGORIES[0]?.id ?? "",
     unit: "kg",
     price: "",
-    minOrderQty: "",
+    minOrderQty: "1",
     stock: "",
     origin: "",
     active: true,
+    imageUrl: "",
   };
 }
 
@@ -78,6 +99,7 @@ function formFromProduct(p: Product): FormState {
     stock: String(p.stock),
     origin: p.origin,
     active: p.active,
+    imageUrl: p.imageUrl ?? "",
   };
 }
 
@@ -87,6 +109,7 @@ function validate(form: FormState): { errors: FormErrors; input: ProductInput | 
 
   const name = form.name.trim();
   const origin = form.origin.trim();
+  const imageUrl = form.imageUrl.trim();
   const price = Number(form.price);
   const minOrderQty = Number(form.minOrderQty);
   const stock = Number(form.stock);
@@ -118,6 +141,7 @@ function validate(form: FormState): { errors: FormErrors; input: ProductInput | 
       stock,
       origin,
       active: form.active,
+      imageUrl: form.imageUrl || undefined,
     },
   };
 }
@@ -126,6 +150,7 @@ function ProductForm({
   title,
   open,
   initial,
+  productId,
   submitLabel,
   onClose,
   onSubmit,
@@ -133,14 +158,30 @@ function ProductForm({
   title: string;
   open: boolean;
   initial: FormState;
+  productId?: string;
   submitLabel: string;
   onClose: () => void;
-  onSubmit: (input: ProductInput) => Promise<void>;
+  onSubmit: (input: ProductInput, file?: File) => Promise<void>;
 }) {
   const [form, setForm] = useState<FormState>(initial);
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const previewUrl = useMemo(
+    () => (imageFile ? URL.createObjectURL(imageFile) : form.imageUrl || undefined),
+    [imageFile, form.imageUrl]
+  );
+
+  useEffect(() => {
+    // Revoke the temporary object URL when the file changes or the sheet closes.
+    return () => {
+      if (imageFile) URL.revokeObjectURL(URL.createObjectURL(imageFile));
+    };
+  }, [imageFile]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -155,13 +196,44 @@ function ProductForm({
     setSaving(true);
     setSubmitError(null);
     try {
-      await onSubmit(input);
+      let imageUrl = input.imageUrl;
+      if (imageFile) {
+        setImageUploading(true);
+        const { uploadProductImage } = await import("@/lib/firebase/storage");
+        imageUrl = await uploadProductImage(imageFile, productId);
+      }
+      await onSubmit({ ...input, imageUrl });
     } catch (err) {
       setSubmitError(errorMessage(err));
     } finally {
       setSaving(false);
+      setImageUploading(false);
     }
   }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setSubmitError("Please select an image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setSubmitError("Image must be smaller than 5 MB.");
+      return;
+    }
+    setSubmitError(null);
+    setImageFile(file);
+  }
+
+  function clearImage() {
+    setImageFile(null);
+    setForm((f) => ({ ...f, imageUrl: "" }));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  const supportsUpload = backendKind === "firebase";
+  const busy = saving || imageUploading;
 
   return (
     <Sheet open={open} onClose={onClose} title={title}>
@@ -258,6 +330,70 @@ function ProductForm({
           />
         </Field>
 
+        {/* Product image */}
+        <div className="rounded-lg border border-line bg-raised p-3">
+          <p className="mb-2 text-sm font-medium text-fg">Product image</p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-canvas">
+              {previewUrl ? (
+                <img
+                  src={previewUrl}
+                  alt="Product preview"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <ImageIcon className="h-6 w-6 text-fg-subtle" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              {imageFile ? (
+                <p className="truncate text-xs text-fg-muted">{imageFile.name}</p>
+              ) : form.imageUrl ? (
+                <p className="truncate text-xs text-fg-muted">{form.imageUrl.split("?")[0].split("/").pop()}</p>
+              ) : (
+                <p className="text-xs text-fg-muted">No image selected</p>
+              )}
+              {supportsUpload ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-1 rounded-lg bg-brand-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-600"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {form.imageUrl || imageFile ? "Change" : "Upload"}
+                  </button>
+                  {(form.imageUrl || imageFile) && (
+                    <button
+                      type="button"
+                      onClick={clearImage}
+                      className="flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-fg-muted hover:bg-surface"
+                    >
+                      <X className="h-3.5 w-3.5" /> Remove
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <Field label="Image URL" className="mt-2">
+                  <Input
+                    flavor="field"
+                    placeholder="https://…"
+                    value={form.imageUrl}
+                    onChange={(e) => set("imageUrl", e.target.value)}
+                  />
+                </Field>
+              )}
+            </div>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+        </div>
+
         <label className="flex items-center justify-between rounded-lg border border-line bg-raised px-3.5 py-3">
           <span className="text-sm font-medium text-fg">Active in catalog</span>
           <input
@@ -269,11 +405,11 @@ function ProductForm({
         </label>
 
         <div className="flex gap-3 pt-1">
-          <Button type="button" variant="outline" fullWidth onClick={onClose} disabled={saving}>
+          <Button type="button" variant="outline" fullWidth onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button type="submit" fullWidth loading={saving} disabled={saving}>
-            {submitLabel}
+          <Button type="submit" fullWidth loading={busy} disabled={busy}>
+            {imageUploading ? "Uploading image…" : submitLabel}
           </Button>
         </div>
       </form>
@@ -563,6 +699,8 @@ function ProductTable({
 
 export function AdminProductsScreen() {
   const { user } = useAuth();
+  const router = useRouter();
+  const params = useSearchParams();
   const { data, loading, error, refetch } = useAsync(() => api.listProducts(), []);
   const {
     data: settings,
@@ -592,6 +730,18 @@ export function AdminProductsScreen() {
     return base.map((p) => overrides[p.id] ?? p);
   }, [data, overrides]);
 
+  // Deep-link support: /admin/products?open=<id> — used by the dashboard
+  // search bar to jump straight to a specific product's edit sheet.
+  useEffect(() => {
+    if (!data) return;
+    const open = params.get("open");
+    if (!open) return;
+    const match = data.find((p) => p.id === open);
+    if (match) setEditing(match);
+    router.replace("/admin/products");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter((p) => {
@@ -608,15 +758,28 @@ export function AdminProductsScreen() {
 
   const lowCount = useMemo(() => products.filter((p) => p.active && isLowStock(p)).length, [products]);
 
-  async function handleCreate(input: ProductInput) {
-    await api.createProduct(input);
+  async function handleCreate(input: ProductInput, file?: File) {
+    if (file) {
+      const created = await api.createProduct({ ...input, imageUrl: undefined });
+      const url = await uploadProductImage(file, created.id);
+      await api.updateProduct(created.id, { imageUrl: url });
+    } else {
+      await api.createProduct(input);
+    }
     setAdding(false);
     refetch();
   }
 
-  async function handleUpdate(input: ProductInput) {
+  async function handleUpdate(input: ProductInput, file?: File) {
     if (!editing) return;
-    const updated = await api.updateProduct(editing.id, input);
+    const patch: Parameters<typeof api.updateProduct>[1] = { ...input };
+    if (file) {
+      const url = await uploadProductImage(file, editing.id);
+      patch.imageUrl = url;
+    } else if (editing.imageUrl && !input.imageUrl) {
+      patch.imageUrl = null;
+    }
+    const updated = await api.updateProduct(editing.id, patch);
     applyOverride(updated);
     setEditing(null);
     refetch();
@@ -770,6 +933,7 @@ export function AdminProductsScreen() {
           title="Edit product"
           open={editing !== null}
           initial={formFromProduct(editing)}
+          productId={editing.id}
           submitLabel="Save changes"
           onClose={() => setEditing(null)}
           onSubmit={handleUpdate}

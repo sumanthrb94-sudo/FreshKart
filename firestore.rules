@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// FreshKart Firestore Security Rules.
+// Green Basket Firestore Security Rules.
 // The browser talks to Firestore directly, so these rules ARE the backend's
 // authorization layer. See docs/FIREBASE.md.
 service cloud.firestore {
@@ -12,13 +12,35 @@ service cloud.firestore {
 
     // Emails granted ADMIN regardless of their stored role. Keep in sync with
     // ADMIN_EMAILS in src/lib/api/firebase.ts.
+    //
+    // Phone-auth accounts have NO `email` claim on their token at all (not
+    // null — entirely absent), and reading a missing property throws in
+    // Firestore's rules language instead of returning false. isAdminEmail()
+    // is evaluated first in nearly every allow clause in this file (via
+    // isAdmin()), so this denied EVERY write from EVERY phone-only signed-in
+    // user — the real explanation for "some accounts, not all" (Google
+    // sign-in always carries an email claim; phone OTP never does). Guard
+    // with `'email' in request.auth.token` (safe presence check, never
+    // errors) before reading the value.
     function isAdminEmail() {
       return isSignedIn()
-             && request.auth.token.email in ['sumanthbolla97@gmail.com'];
+             && 'email' in request.auth.token
+             && request.auth.token.email in ['sumanthbolla97@gmail.com', 'sivakishore43@gmail.com'];
     }
 
+    // Reading `.data` off a get() for a document that doesn't exist throws —
+    // and an error anywhere in a rule evaluation is treated as an automatic
+    // deny for the WHOLE rule, not just this check. So any signed-in user
+    // whose users/{uid} doc is missing (incomplete onboarding, deleted
+    // profile, any other edge case) would get "Missing or insufficient
+    // permissions" on every single write, including their own orders —
+    // isAdmin() is evaluated first in nearly every allow clause in this
+    // file. Guard with exists() so a missing profile just resolves to "not
+    // admin" instead of blowing up the whole request.
     function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+             ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+             : null;
     }
 
     function isAdmin() {
@@ -37,46 +59,199 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Stock must only be decremented (not incremented or set arbitrarily)
-    // and by at most 500 units at a time.
-    function isStockDecrementValid() {
-      return request.resource.data.stock < resource.data.stock
-             && resource.data.stock - request.resource.data.stock <= 500;
+    // --- Settings: live price mirror ({ prices: { productId: price } }),
+    //     kept in sync by updateProduct/createProduct/updateProductPrices in
+    //     src/lib/api/firebase.ts on every price-changing admin write. The
+    //     order-create rule reads this ONE document instead of doing a
+    //     get() per line item — that's what lets a cart carry any number of
+    //     distinct products instead of being capped by Firestore's
+    //     get()-call budget per rule evaluation. World-readable (prices are
+    //     already public via the products catalog); admin-writable only.
+    match /settings/priceSheet {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
-    // Helper to validate a single order item's price and line total integrity
-    function validateItem(item) {
-      return item.price == get(/databases/$(database)/documents/products/$(item.productId)).data.price
+    // Signed-in buyers reserve/release stock during order/cancel transactions.
+    // The change must only touch `stock` and may move by at most 10,000 units
+    // (either direction) — generous headroom above any realistic single bulk
+    // B2B order, while still blocking a wildly out-of-range write. (This was
+    // previously capped at 500, which a legitimate bulk order could exceed on
+    // its own — e.g. ordering 550kg of an item seeded with 600kg of stock —
+    // failing the whole checkout with "Missing or insufficient permissions".)
+    function isStockChangeValid() {
+      return request.resource.data.stock >= 0
+             && request.resource.data.stock <= resource.data.stock + 10000
+             && request.resource.data.stock >= resource.data.stock - 10000;
+    }
+
+    // Same defensive pattern as userRole(): guard against settings/priceSheet
+    // ever being missing (shouldn't happen in normal use, but a raw get()
+    // here would error — and therefore deny — every single order if it
+    // ever were). Falls back to an empty map, which cleanly fails every
+    // item's `productId in prices` check instead of erroring.
+    function priceSheetPrices() {
+      return exists(/databases/$(database)/documents/settings/priceSheet)
+             ? get(/databases/$(database)/documents/settings/priceSheet).data.prices
+             : {};
+    }
+
+    // Helper to validate a single order item's price and line total integrity.
+    // `prices` is the pre-fetched settings/priceSheet map — passed in so this
+    // makes ZERO get() calls of its own, unlike the old per-item
+    // get(products/{id}) lookup. That's what removes the item-count ceiling
+    // that used to be forced by Firestore's get()-call budget per rule
+    // evaluation (10 for a single doc, 20 inside a transaction).
+    function validateItem(item, prices) {
+      // Indexing a map with a key it doesn't have also throws in Firestore's
+      // rules language — guard with `in` first so an untracked productId
+      // cleanly denies that order instead of erroring the whole request.
+      return item.productId in prices
+             && item.price == prices[item.productId]
              && item.lineTotal == item.price * item.qty;
     }
 
-    // Helper to validate order items array up to length of 10
-    function validateOrderItems(items) {
-      return items.size() > 0 && items.size() <= 10
-             && (items.size() < 1 || validateItem(items[0]))
-             && (items.size() < 2 || validateItem(items[1]))
-             && (items.size() < 3 || validateItem(items[2]))
-             && (items.size() < 4 || validateItem(items[3]))
-             && (items.size() < 5 || validateItem(items[4]))
-             && (items.size() < 6 || validateItem(items[5]))
-             && (items.size() < 7 || validateItem(items[6]))
-             && (items.size() < 8 || validateItem(items[7]))
-             && (items.size() < 9 || validateItem(items[8]))
-             && (items.size() < 10 || validateItem(items[9]));
+    // Validates every item in the cart. Firestore's rules language does
+    // NOT actually support the `all()` CEL macro despite it existing in
+    // standard CEL (confirmed against the Firestore emulator: "Function
+    // not found error: Name: [all]") — so like getExpectedSubtotal(),
+    // this has to be hand-unrolled. Each branch only costs a size check
+    // and one validateItem() call (no get() calls, since prices is
+    // pre-fetched), so unlike the old per-item get() approach this isn't
+    // bound by any call-budget limit — 50 is comfortably above the
+    // entire product catalog, so no real cart can ever hit it. The
+    // client mirrors the same number via MAX_ORDER_ITEM_TYPES in
+    // src/lib/format.ts.
+    function validateOrderItems(items, prices) {
+      return items.size() > 0 && items.size() <= 50
+             && (items.size() < 1 || validateItem(items[0], prices))
+             && (items.size() < 2 || validateItem(items[1], prices))
+             && (items.size() < 3 || validateItem(items[2], prices))
+             && (items.size() < 4 || validateItem(items[3], prices))
+             && (items.size() < 5 || validateItem(items[4], prices))
+             && (items.size() < 6 || validateItem(items[5], prices))
+             && (items.size() < 7 || validateItem(items[6], prices))
+             && (items.size() < 8 || validateItem(items[7], prices))
+             && (items.size() < 9 || validateItem(items[8], prices))
+             && (items.size() < 10 || validateItem(items[9], prices))
+             && (items.size() < 11 || validateItem(items[10], prices))
+             && (items.size() < 12 || validateItem(items[11], prices))
+             && (items.size() < 13 || validateItem(items[12], prices))
+             && (items.size() < 14 || validateItem(items[13], prices))
+             && (items.size() < 15 || validateItem(items[14], prices))
+             && (items.size() < 16 || validateItem(items[15], prices))
+             && (items.size() < 17 || validateItem(items[16], prices))
+             && (items.size() < 18 || validateItem(items[17], prices))
+             && (items.size() < 19 || validateItem(items[18], prices))
+             && (items.size() < 20 || validateItem(items[19], prices))
+             && (items.size() < 21 || validateItem(items[20], prices))
+             && (items.size() < 22 || validateItem(items[21], prices))
+             && (items.size() < 23 || validateItem(items[22], prices))
+             && (items.size() < 24 || validateItem(items[23], prices))
+             && (items.size() < 25 || validateItem(items[24], prices))
+             && (items.size() < 26 || validateItem(items[25], prices))
+             && (items.size() < 27 || validateItem(items[26], prices))
+             && (items.size() < 28 || validateItem(items[27], prices))
+             && (items.size() < 29 || validateItem(items[28], prices))
+             && (items.size() < 30 || validateItem(items[29], prices))
+             && (items.size() < 31 || validateItem(items[30], prices))
+             && (items.size() < 32 || validateItem(items[31], prices))
+             && (items.size() < 33 || validateItem(items[32], prices))
+             && (items.size() < 34 || validateItem(items[33], prices))
+             && (items.size() < 35 || validateItem(items[34], prices))
+             && (items.size() < 36 || validateItem(items[35], prices))
+             && (items.size() < 37 || validateItem(items[36], prices))
+             && (items.size() < 38 || validateItem(items[37], prices))
+             && (items.size() < 39 || validateItem(items[38], prices))
+             && (items.size() < 40 || validateItem(items[39], prices))
+             && (items.size() < 41 || validateItem(items[40], prices))
+             && (items.size() < 42 || validateItem(items[41], prices))
+             && (items.size() < 43 || validateItem(items[42], prices))
+             && (items.size() < 44 || validateItem(items[43], prices))
+             && (items.size() < 45 || validateItem(items[44], prices))
+             && (items.size() < 46 || validateItem(items[45], prices))
+             && (items.size() < 47 || validateItem(items[46], prices))
+             && (items.size() < 48 || validateItem(items[47], prices))
+             && (items.size() < 49 || validateItem(items[48], prices))
+             && (items.size() < 50 || validateItem(items[49], prices));
+    }
+    // Delivery fee slab based on subtotal (in rupees).
+    function getExpectedDeliveryFee(subtotal) {
+      return subtotal <= 0 ? 0 :
+             subtotal <= 1000 ? 75 :
+             subtotal <= 3000 ? 50 :
+             0;
     }
 
-    // Helper to compute expected subtotal from order items
+    // Helper to compute expected subtotal from order items. Firebase's rules
+    // parser rejects a single huge expression as "too complex to evaluate
+    // safely" (hit this with one flat 50-branch ternary) — so instead of one
+    // giant expression, this sums in chunks of 10 via small composed
+    // functions, each individually simple, covering up to 50 items total
+    // (comfortably above the whole product catalog). No get() calls
+    // anywhere here, so this isn't bound by any call-budget limit.
+    function partialSum(items, from, count) {
+      return count <= 0 ? 0 :
+             count == 1 ? items[from].lineTotal :
+             count == 2 ? items[from].lineTotal + items[from+1].lineTotal :
+             count == 3 ? items[from].lineTotal + items[from+1].lineTotal + items[from+2].lineTotal :
+             count == 4 ? items[from].lineTotal + items[from+1].lineTotal + items[from+2].lineTotal + items[from+3].lineTotal :
+             count == 5 ? items[from].lineTotal + items[from+1].lineTotal + items[from+2].lineTotal + items[from+3].lineTotal + items[from+4].lineTotal :
+             count == 6 ? items[from].lineTotal + items[from+1].lineTotal + items[from+2].lineTotal + items[from+3].lineTotal + items[from+4].lineTotal + items[from+5].lineTotal :
+             count == 7 ? items[from].lineTotal + items[from+1].lineTotal + items[from+2].lineTotal + items[from+3].lineTotal + items[from+4].lineTotal + items[from+5].lineTotal + items[from+6].lineTotal :
+             count == 8 ? items[from].lineTotal + items[from+1].lineTotal + items[from+2].lineTotal + items[from+3].lineTotal + items[from+4].lineTotal + items[from+5].lineTotal + items[from+6].lineTotal + items[from+7].lineTotal :
+             items[from].lineTotal + items[from+1].lineTotal + items[from+2].lineTotal + items[from+3].lineTotal + items[from+4].lineTotal + items[from+5].lineTotal + items[from+6].lineTotal + items[from+7].lineTotal + items[from+8].lineTotal;
+    }
+
+    function chunkSum(items, chunkStart) {
+      return items[chunkStart].lineTotal + items[chunkStart+1].lineTotal + items[chunkStart+2].lineTotal + items[chunkStart+3].lineTotal + items[chunkStart+4].lineTotal + items[chunkStart+5].lineTotal + items[chunkStart+6].lineTotal + items[chunkStart+7].lineTotal + items[chunkStart+8].lineTotal + items[chunkStart+9].lineTotal;
+    }
+
     function getExpectedSubtotal(items) {
-      return items.size() == 1 ? items[0].lineTotal :
-             items.size() == 2 ? items[0].lineTotal + items[1].lineTotal :
-             items.size() == 3 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal :
-             items.size() == 4 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal :
-             items.size() == 5 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal :
-             items.size() == 6 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal :
-             items.size() == 7 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal :
-             items.size() == 8 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal :
-             items.size() == 9 ? items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal :
-             items[0].lineTotal + items[1].lineTotal + items[2].lineTotal + items[3].lineTotal + items[4].lineTotal + items[5].lineTotal + items[6].lineTotal + items[7].lineTotal + items[8].lineTotal + items[9].lineTotal;
+      return items.size() <= 9 ? partialSum(items, 0, items.size()) :
+             items.size() <= 19 ? chunkSum(items, 0) + partialSum(items, 10, items.size() - 10) :
+             items.size() <= 29 ? chunkSum(items, 0) + chunkSum(items, 10) + partialSum(items, 20, items.size() - 20) :
+             items.size() <= 39 ? chunkSum(items, 0) + chunkSum(items, 10) + chunkSum(items, 20) + partialSum(items, 30, items.size() - 30) :
+             items.size() <= 49 ? chunkSum(items, 0) + chunkSum(items, 10) + chunkSum(items, 20) + chunkSum(items, 30) + partialSum(items, 40, items.size() - 40) :
+             chunkSum(items, 0) + chunkSum(items, 10) + chunkSum(items, 20) + chunkSum(items, 30) + chunkSum(items, 40);
+    }
+
+    // Total order weight (kg), summed the same chunked way as
+    // getExpectedSubtotal() above (and for the same reason — Firestore's
+    // rules parser rejects one large expression as "too complex to evaluate
+    // safely"). Mirrors MIN_ORDER_TOTAL_QTY / MAX_ORDER_TOTAL_QTY in
+    // src/lib/format.ts — the client's own check is not real enforcement on
+    // its own, since the browser talks to Firestore directly and a crafted
+    // write can skip the client entirely.
+    function partialSumQty(items, from, count) {
+      return count <= 0 ? 0 :
+             count == 1 ? items[from].qty :
+             count == 2 ? items[from].qty + items[from+1].qty :
+             count == 3 ? items[from].qty + items[from+1].qty + items[from+2].qty :
+             count == 4 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty :
+             count == 5 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty :
+             count == 6 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty :
+             count == 7 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty + items[from+6].qty :
+             count == 8 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty + items[from+6].qty + items[from+7].qty :
+             items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty + items[from+6].qty + items[from+7].qty + items[from+8].qty;
+    }
+
+    function chunkSumQty(items, chunkStart) {
+      return items[chunkStart].qty + items[chunkStart+1].qty + items[chunkStart+2].qty + items[chunkStart+3].qty + items[chunkStart+4].qty + items[chunkStart+5].qty + items[chunkStart+6].qty + items[chunkStart+7].qty + items[chunkStart+8].qty + items[chunkStart+9].qty;
+    }
+
+    function getExpectedTotalQty(items) {
+      return items.size() <= 9 ? partialSumQty(items, 0, items.size()) :
+             items.size() <= 19 ? chunkSumQty(items, 0) + partialSumQty(items, 10, items.size() - 10) :
+             items.size() <= 29 ? chunkSumQty(items, 0) + chunkSumQty(items, 10) + partialSumQty(items, 20, items.size() - 20) :
+             items.size() <= 39 ? chunkSumQty(items, 0) + chunkSumQty(items, 10) + chunkSumQty(items, 20) + partialSumQty(items, 30, items.size() - 30) :
+             items.size() <= 49 ? chunkSumQty(items, 0) + chunkSumQty(items, 10) + chunkSumQty(items, 20) + chunkSumQty(items, 30) + partialSumQty(items, 40, items.size() - 40) :
+             chunkSumQty(items, 0) + chunkSumQty(items, 10) + chunkSumQty(items, 20) + chunkSumQty(items, 30) + chunkSumQty(items, 40);
+    }
+
+    function isOrderWeightValid(items) {
+      return getExpectedTotalQty(items) >= 10 && getExpectedTotalQty(items) <= 500;
     }
 
     // Allowed top-level fields on a new order document. Prevents buyers from
@@ -86,14 +261,14 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly([
         'buyerId', 'businessName', 'items', 'status', 'paymentMethod',
         'paymentStatus', 'subtotal', 'deliveryFee', 'total', 'delivery',
-        'createdAt', 'updatedAt', 'orderNumber'
+        'createdAt', 'updatedAt', 'orderNumber', 'deliveredAt'
       ]);
     }
 
-    // Buyer cancel: only the `status` and `updatedAt` fields may change.
-    function onlyStatusChanged() {
+    // Buyer cancel: only the `status`, `updatedAt`, and `notes` fields may change.
+    function onlyCancelFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['status', 'updatedAt']);
+             .hasOnly(['status', 'updatedAt', 'notes']);
     }
 
     // --- Products: public catalog. Admins manage; signed-in users may only
@@ -101,7 +276,7 @@ service cloud.firestore {
     match /products/{productId} {
       allow read: if true;
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (isSignedIn() && onlyStockChanged() && isStockDecrementValid());
+      allow update: if isAdmin() || (isSignedIn() && onlyStockChanged() && isStockChangeValid());
     }
 
     // --- Users: a user reads/edits their own profile; admins read all.
@@ -117,6 +292,137 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // --- Email/phone uniqueness claims: id = the normalized email or phone,
+    //     value = { uid }. A signed-in user may only claim a slot nobody else
+    //     already owns (this is how onboarding enforces one account per
+    //     email/phone) — never listed or read back, so no buyer's email/phone
+    //     is ever exposed to another buyer. See src/lib/api/firebase.ts
+    //     completeProfile()/claimUnique().
+    function isOwnUidOnlyDoc() {
+      return request.resource.data.keys().hasOnly(['uid'])
+             && request.resource.data.uid == request.auth.uid;
+    }
+    match /emailIndex/{email} {
+      allow get, list: if false;
+      allow create: if isSignedIn() && isOwnUidOnlyDoc();
+      allow update: if isSignedIn() && isOwnUidOnlyDoc() && resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+    match /phoneIndex/{phone} {
+      allow get, list: if false;
+      allow create: if isSignedIn() && isOwnUidOnlyDoc();
+      allow update: if isSignedIn() && isOwnUidOnlyDoc() && resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Allowed top-level fields on a new return document.
+    function hasOnlyReturnFields() {
+      return request.resource.data.keys().hasOnly([
+        'buyerId', 'businessName', 'buyerPhone', 'orderId', 'orderNumber',
+        'items', 'status', 'reason', 'notes', 'requestedAt', 'totalRefund',
+        'adjustedInvoiceNumber', 'images', 'thread', 'updatedAt', 'resolvedAt'
+      ]);
+    }
+
+    // Buyer reply: only the thread and updatedAt may change, and the thread must grow.
+    function isBuyerReturnReply() {
+      return resource.data.buyerId == request.auth.uid
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['thread', 'updatedAt'])
+             && request.resource.data.thread.size() == resource.data.thread.size() + 1;
+    }
+
+    // Self-expiring "is typing" heartbeat (see lib/typing-indicator.ts): the
+    // buyer may touch ONLY their own single timestamp field, on any status —
+    // narrower than a reply (no thread growth, no updatedAt bump, which would
+    // otherwise reorder the admin's return list on every keystroke).
+    function isBuyerReturnTyping() {
+      return resource.data.buyerId == request.auth.uid
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['buyerTypingAt']);
+    }
+
+    // Buyer's "ask us to take another look" nudge on a REJECTED return: adds
+    // one buyer message and raises reopenRequestedAt — never changes status
+    // itself, only an admin transition (isAdmin()) actually reopens it.
+    function isBuyerReturnReopenRequest() {
+      return resource.data.buyerId == request.auth.uid
+             && resource.data.status == 'REJECTED'
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['thread', 'updatedAt', 'reopenRequestedAt'])
+             && request.resource.data.thread.size() == resource.data.thread.size() + 1;
+    }
+
+    // --- Returns: buyer creates/reads/replies on their own; admins manage all. ---
+    match /returns/{returnId} {
+      allow read: if isSignedIn()
+                  && (resource.data.buyerId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.status == 'REQUESTED'
+                    && hasOnlyReturnFields()
+                    && request.resource.data.items.size() > 0
+                    // Matches the order item cap — a return can never have
+                    // more items than the order it's for.
+                    && request.resource.data.items.size() <= 50;
+
+      allow update: if isAdmin()
+                    || isBuyerReturnReply()
+                    || isBuyerReturnTyping()
+                    || isBuyerReturnReopenRequest();
+
+      allow delete: if isAdmin();
+    }
+
+    // Allowed top-level fields on a new support ticket document.
+    function hasOnlySupportTicketFields() {
+      return request.resource.data.keys().hasOnly([
+        'buyerId', 'businessName', 'buyerPhone', 'status', 'needsHuman',
+        'thread', 'createdAt', 'updatedAt', 'closedAt'
+      ]);
+    }
+
+    // Buyer reply / escalation: only thread, updatedAt, and needsHuman may
+    // change, and the thread must grow by exactly one message.
+    function isBuyerTicketReply() {
+      return resource.data.buyerId == request.auth.uid
+             && resource.data.status == 'OPEN'
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['thread', 'updatedAt', 'needsHuman'])
+             && request.resource.data.thread.size() == resource.data.thread.size() + 1;
+    }
+
+    // Buyer ends their own open ticket — status flips to CLOSED and nothing
+    // else changes besides the close timestamps.
+    function isBuyerTicketClose() {
+      return resource.data.buyerId == request.auth.uid
+             && resource.data.status == 'OPEN'
+             && request.resource.data.status == 'CLOSED'
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'closedAt']);
+    }
+
+    // Self-expiring "is typing" heartbeat, same shape as isBuyerReturnTyping.
+    function isBuyerTicketTyping() {
+      return resource.data.buyerId == request.auth.uid
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['buyerTypingAt']);
+    }
+
+    // --- Support tickets: buyer creates/reads/replies/closes their own; admins manage all. ---
+    match /supportTickets/{ticketId} {
+      allow read: if isSignedIn()
+                  && (resource.data.buyerId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.status == 'OPEN'
+                    && hasOnlySupportTicketFields()
+                    && request.resource.data.thread.size() <= 1;
+
+      allow update: if isAdmin()
+                    || isBuyerTicketReply()
+                    || isBuyerTicketClose()
+                    || isBuyerTicketTyping();
+
+      allow delete: if isAdmin();
+    }
+
     // --- Orders: a buyer creates/reads/cancels their own; admins manage all. ---
     match /orders/{orderId} {
       allow read: if isSignedIn()
@@ -129,17 +435,28 @@ service cloud.firestore {
                         && hasOnlyOrderFields()
                         && request.resource.data.buyerId == request.auth.uid
                         && request.resource.data.status in ['CONFIRMED']
-                        && validateOrderItems(request.resource.data.items)
+                        && request.resource.data.paymentMethod in ['COD', 'ONLINE']
+                        // A buyer can never self-mark an order PAID — that
+                        // flips only via an admin (cash collected) or a
+                        // server-verified online payment. Without this a
+                        // buyer could write paymentStatus:'PAID' and receive
+                        // goods without paying.
+                        && request.resource.data.paymentStatus == 'UNPAID'
+                        && validateOrderItems(
+                             request.resource.data.items,
+                             priceSheetPrices())
+                        && isOrderWeightValid(request.resource.data.items)
                         && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items)
-                        && request.resource.data.total == request.resource.data.subtotal);
+                        && request.resource.data.deliveryFee == getExpectedDeliveryFee(request.resource.data.subtotal)
+                        && request.resource.data.total == request.resource.data.subtotal + request.resource.data.deliveryFee);
       // Admin can advance to any status; a buyer may only cancel while the
-      // order is still CONFIRMED and may ONLY change `status` + `updatedAt`
-      // (cannot tamper with items, totals, or other fields).
+      // order is still PENDING/CONFIRMED and may ONLY change `status`,
+      // `updatedAt`, and `notes` (cannot tamper with items, totals, etc.).
       allow update: if isAdmin()
                     || (resource.data.buyerId == request.auth.uid
-                        && resource.data.status in ['CONFIRMED']
+                        && resource.data.status in ['PENDING', 'CONFIRMED']
                         && request.resource.data.status == 'CANCELLED'
-                        && onlyStatusChanged());
+                        && onlyCancelFieldsChanged());
       allow delete: if isAdmin();
     }
   }
