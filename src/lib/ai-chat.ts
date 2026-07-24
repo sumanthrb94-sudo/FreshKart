@@ -132,8 +132,10 @@ export function generateAIResponse(userMessage: string, context?: ChatSession["c
 
 /** Initialize a new chat session */
 export function createChatSession(): ChatSession {
+  // Random suffix (matches the id idiom used elsewhere, e.g. buildTicketMessage)
+  // so two sessions created within the same millisecond can't collide.
   return {
-    id: `chat-${Date.now()}`,
+    id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     startedAt: new Date().toISOString(),
     context: "general",
     messages: [
