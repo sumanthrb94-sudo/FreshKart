@@ -62,6 +62,10 @@ const nextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "**.googleusercontent.com" },
+      // Product photos uploaded to Firebase Storage. The classic
+      // firebasestorage download host, the newer *.firebasestorage.app host,
+      // and the GCS bucket host are all used depending on how the download
+      // URL is generated.
       { protocol: "https", hostname: "firebasestorage.googleapis.com" },
       { protocol: "https", hostname: "*.firebasestorage.app" },
       { protocol: "https", hostname: "storage.googleapis.com" },
