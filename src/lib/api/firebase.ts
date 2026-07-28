@@ -61,6 +61,10 @@ import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
+// Shared with the sign-in UI, which routes allowlisted numbers straight to
+// admin; rules-side enforcement is the matching isAdminPhone() in
+// firestore.rules.
+import { isAdminPhone } from "@/lib/admin-phones";
 import { DataSource, ApiError, type WipeResult } from "./datasource";
 
 const COL = {
@@ -76,15 +80,6 @@ const COL = {
   phoneIndex: "phoneIndex",
 } as const;
 
-// Phone numbers (E.164, matching Firebase Auth's fb.phoneNumber exactly)
-// auto-granted ADMIN — the sole source of truth for identity is now the
-// verified OTP phone number, so this replaces the old Google-email
-// allowlist. Keep in sync with the `isAdminPhone()` allowlist in
-// firestore.rules (rules can't import from here).
-const ADMIN_PHONES = ["+919700144003"];
-function isAdminPhone(phone?: string | null): boolean {
-  return !!phone && ADMIN_PHONES.includes(phone.trim());
-}
 
 function snapToUser(snap: DocumentSnapshot<DocumentData>): User {
   return { ...(snap.data() as Omit<User, "id">), id: snap.id };
