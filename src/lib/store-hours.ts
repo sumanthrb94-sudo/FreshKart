@@ -4,12 +4,14 @@
 
 export const STORE_OPEN_HOUR = 8; // 8:00 AM IST
 export const STORE_OPEN_MINUTE = 0;
-export const STORE_CLOSE_HOUR = 23; // 11:45 PM IST
-export const STORE_CLOSE_MINUTE = 45;
+/** The cart closes at 9:00 PM IST — orders placed after this go to the next
+ *  day's delivery run, so ordering is shut off until the store reopens. */
+export const STORE_CLOSE_HOUR = 21; // 9:00 PM IST
+export const STORE_CLOSE_MINUTE = 0;
 export const PRICE_UPDATE_HOUR = 7; // 7:00 AM IST
 
 const OPEN_MINUTES = STORE_OPEN_HOUR * 60 + STORE_OPEN_MINUTE; // 480
-const CLOSE_MINUTES = STORE_CLOSE_HOUR * 60 + STORE_CLOSE_MINUTE; // 1425
+const CLOSE_MINUTES = STORE_CLOSE_HOUR * 60 + STORE_CLOSE_MINUTE; // 1260
 
 /** Store status at a given time (defaults to now, IST). */
 export function getStoreStatus(now = new Date()): {

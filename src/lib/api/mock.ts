@@ -26,7 +26,7 @@ import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/supp
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
-import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
+import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
 import { DataSource, ApiError, type WipeResult } from "./datasource";
@@ -141,10 +141,6 @@ export class MockDataSource implements DataSource {
         return;
       }
       const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
-      if (totalQty < MIN_ORDER_TOTAL_QTY) {
-        error = `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
-        return;
-      }
       if (totalQty > MAX_ORDER_TOTAL_QTY) {
         error = `Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
         return;

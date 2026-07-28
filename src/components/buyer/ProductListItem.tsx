@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import type { Product } from "@/lib/types";
-import { formatCurrency, unitLabel, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
+import { formatCurrency, unitLabel } from "@/lib/format";
 import { useCart } from "@/components/providers/CartProvider";
 import { useLang } from "@/lib/i18n";
 import { ProductThumb } from "@/components/ui/ProductThumb";
@@ -13,10 +13,9 @@ export function ProductListItem({ product }: { product: Product }) {
   const { t, tProduct } = useLang();
   const qty = qtyOf(product.id);
   const outOfStock = product.stock < product.minOrderQty;
-  // Still buyable, but not on its own: the cart caps at available stock, so a
-  // cart holding only this item can never reach the whole-order minimum. Say
-  // so up front rather than letting checkout be the first hint.
-  const lowStock = !outOfStock && product.stock < MIN_ORDER_TOTAL_QTY;
+  // Running low: fewer than two minimum orders left. Worth surfacing on the
+  // shelf so a buyer isn't surprised when the stepper refuses to go higher.
+  const lowStock = !outOfStock && product.stock < product.minOrderQty * 2;
 
   return (
     <div

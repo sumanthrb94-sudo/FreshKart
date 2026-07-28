@@ -58,7 +58,7 @@ import type {
 } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
-import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
+import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
@@ -485,11 +485,6 @@ export class FirebaseDataSource implements DataSource {
     const db = getDb();
     if (!input.items.length) throw new ApiError("Your cart is empty.");
     const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
-    if (totalQty < MIN_ORDER_TOTAL_QTY) {
-      throw new ApiError(
-        `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`
-      );
-    }
     if (totalQty > MAX_ORDER_TOTAL_QTY) {
       throw new ApiError(
         `Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`
@@ -616,9 +611,9 @@ export class FirebaseDataSource implements DataSource {
       }
 
       const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
-      if (totalQty < MIN_ORDER_TOTAL_QTY || totalQty > MAX_ORDER_TOTAL_QTY) {
+      if (totalQty > MAX_ORDER_TOTAL_QTY) {
         throw new ApiError(
-          `Orders must be between ${MIN_ORDER_TOTAL_QTY} and ${MAX_ORDER_TOTAL_QTY} kgs. Your cart is ${totalQty} kgs.`
+          `Orders can be at most ${MAX_ORDER_TOTAL_QTY} kgs. Your cart is ${totalQty} kgs.`
         );
       }
     } catch (inner) {

@@ -174,10 +174,12 @@ service cloud.firestore {
              && (items.size() < 50 || validateItem(items[49], prices));
     }
     // Delivery fee slab based on subtotal (in rupees).
+    // Mirrors calculateDeliveryFee() in src/lib/delivery.ts — keep in
+    // lockstep, or every checkout is denied.
     function getExpectedDeliveryFee(subtotal) {
       return subtotal <= 0 ? 0 :
-             subtotal <= 1000 ? 75 :
-             subtotal <= 3000 ? 50 :
+             subtotal < 1000 ? 50 :
+             subtotal <= 3000 ? 25 :
              0;
     }
 
@@ -247,8 +249,15 @@ service cloud.firestore {
              chunkSumQty(items, 0) + chunkSumQty(items, 10) + chunkSumQty(items, 20) + chunkSumQty(items, 30) + chunkSumQty(items, 40);
     }
 
+    // There is no whole-cart minimum any more — each product carries its own
+    // minimum order quantity (1kg leafy, 20kg onion/potato, 6pc cauliflower,
+    // …), enforced by the cart's quantity stepper, so a single 1kg bunch of
+    // coriander is a legitimate order. Rules can't check per-product minimums
+    // without a get() per line item, so they keep the gross sanity bounds:
+    // a cart must carry something, and can't exceed the 500-unit ceiling
+    // (MAX_ORDER_TOTAL_QTY in src/lib/format.ts).
     function isOrderWeightValid(items) {
-      return getExpectedTotalQty(items) >= 10 && getExpectedTotalQty(items) <= 500;
+      return getExpectedTotalQty(items) > 0 && getExpectedTotalQty(items) <= 500;
     }
 
     // Allowed top-level fields on a new order document. Prevents buyers from

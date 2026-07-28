@@ -20,7 +20,7 @@ export interface ChatSession {
 
 const FAQ_RESPONSES: Record<string, string> = {
   "hours": "Our store is open from 9:00 AM to 10:00 PM IST, seven days a week. Prices are updated daily at 7:00 AM before opening.",
-  "open": "We are open 9:00 AM - 10:00 PM IST daily. If you are seeing a closed message, we will be back at 9:00 AM tomorrow!",
+  "open": "We are open 8:00 AM - 9:00 PM IST daily. The cart closes at 9:00 PM — orders after that go to the next day's delivery run.",
   "close": "We close at 10:00 PM IST. Last order acceptance is at 9:30 PM for next-day delivery.",
   "closing": "We close at 10:00 PM IST. Last order acceptance is at 9:30 PM for next-day delivery.",
   "delivery": "We deliver fresh produce directly to your business location. Delivery is typically next-day for orders placed before 6:00 PM.",

@@ -1,20 +1,22 @@
 import type { OrderStatus, PaymentMethod, Unit, CartLine } from "./types";
 
-/** Whole-order minimum quantity (in kg / units). */
-export const MIN_ORDER_TOTAL_QTY = 10;
-
 /** Whole-order maximum quantity (in kg / units) for a buyer-placed order —
  *  mirrored in firestore.rules' isOrderWeightValid() (real enforcement,
  *  since the browser talks to Firestore directly) and in mock.ts/firebase.ts
  *  createOrder (friendly client-side error before attempting the write).
- *  Admin/POS orders are exempt, same as every other buyer-only order rule. */
+ *  Admin/POS orders are exempt, same as every other buyer-only order rule.
+ *
+ *  There is deliberately NO whole-cart minimum: each product carries its own
+ *  minOrderQty (1kg leafy greens, 20kg onion/potato/tomato/banana, 6pc
+ *  cauliflower, 3kg for everything else), which the cart's quantity stepper
+ *  enforces per line. A single 1kg bunch of coriander is a valid order. */
 export const MAX_ORDER_TOTAL_QTY = 500;
 
-/** True when a cart's total weight (kg) is within [MIN_ORDER_TOTAL_QTY,
- *  MAX_ORDER_TOTAL_QTY] — the single source of truth checkout/mock.ts/
- *  firebase.ts all gate order creation on. */
+/** True when a cart's total quantity is orderable: it must contain something
+ *  and stay under the ceiling. Per-product minimums are handled per line, not
+ *  here. Single source of truth for checkout/mock.ts/firebase.ts. */
 export function isValidOrderWeight(totalQty: number): boolean {
-  return totalQty >= MIN_ORDER_TOTAL_QTY && totalQty <= MAX_ORDER_TOTAL_QTY;
+  return totalQty > 0 && totalQty <= MAX_ORDER_TOTAL_QTY;
 }
 
 /**
