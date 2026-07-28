@@ -7,7 +7,7 @@ import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
 import { formatLastPublished, isDailyPriceUpdatePublished } from "@/lib/time";
-import { getStoreStatus, effectiveOverride } from "@/lib/store-hours";
+import { getStoreStatus, effectiveOverride, STORE_CLOSE_HOUR } from "@/lib/store-hours";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
@@ -73,6 +73,19 @@ export function ShopScreen() {
     [now, storeSettings]
   );
   const canOrder = pricesPublished && storeStatus.isOpen;
+  // Between the 9 PM close and midnight the shop shut *today*; before 8 AM it
+  // simply hasn't opened yet. Same closed state, very different message.
+  const justClosedForToday = useMemo(() => {
+    if (storeStatus.isOpen) return false;
+    const istHour = Number(
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        hour12: false,
+      }).format(now)
+    );
+    return istHour >= STORE_CLOSE_HOUR;
+  }, [storeStatus.isOpen, now]);
 
   const visible = useMemo(() => {
     const list = (products ?? []).filter((p) => p.active);
@@ -187,18 +200,24 @@ export function ShopScreen() {
               <Clock className="h-4 w-4 text-amber-500" aria-hidden />
               Getting best live prices for you
             </p>
-            <p className="text-xs text-amber-600/80">Orders open after 7 AM daily price update</p>
+            <p className="text-xs text-amber-600/80">Orders open once today&apos;s rates are in</p>
           </div>
         )}
 
-        {/* Store closed banner — catalog hidden between 11:45 PM and 8:00 AM IST */}
+        {/* Closed banner. After the 9 PM cart close a shopkeeper needs to know
+            their order missed today's van, not a generic "come back later" —
+            so the evening and the small hours say different things. */}
         {!storeStatus.isOpen && (
           <div className="rounded-t-[26px] bg-brand-500/15 px-4 py-3 text-center">
             <p className="flex items-center justify-center gap-2 text-sm font-bold text-brand-600">
               <Clock className="h-4 w-4 text-brand-500" aria-hidden />
-              Gathering best prices across Hyderabad
+              {justClosedForToday ? "Cart closed for today" : "Gathering best prices across Hyderabad"}
             </p>
-            <p className="text-xs text-brand-600/80">Will be online at 8 AM everyday</p>
+            <p className="text-xs text-brand-600/80">
+              {justClosedForToday
+                ? "Orders reopen at 8 AM tomorrow, for the next day's delivery"
+                : "Will be online at 8 AM everyday"}
+            </p>
           </div>
         )}
 
@@ -224,8 +243,12 @@ export function ShopScreen() {
           {!storeStatus.isOpen ? (
             <EmptyState
               icon={Clock}
-              title="Gathering best prices across Hyderabad"
-              subtitle="Will be online at 8 AM everyday. Come back tomorrow!"
+              title={justClosedForToday ? "Cart closed for today" : "Gathering best prices across Hyderabad"}
+              subtitle={
+                justClosedForToday
+                  ? "The 9 PM cut-off has passed and today's van is loaded. Orders reopen at 8 AM for tomorrow's delivery."
+                  : "Will be online at 8 AM everyday. Come back tomorrow!"
+              }
             />
           ) : loading ? (
             <div className="flex justify-center py-16">

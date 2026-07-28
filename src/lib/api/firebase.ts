@@ -830,7 +830,7 @@ export class FirebaseDataSource implements DataSource {
     );
     return snap.docs
       .map((d) => ({ ...(d.data() as Omit<Order, "id">), id: d.id }))
-      .filter((o) => o.status !== "DELIVERED" && o.status !== "CANCELLED")
+      .filter((o) => o.status !== "CANCELLED")
       .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
   }
 
@@ -844,9 +844,11 @@ export class FirebaseDataSource implements DataSource {
     return onSnapshot(
       q,
       (snap) => {
+        // Everything assigned to this driver, delivered included — the run
+        // list hides what's done, but the end-of-run cash summary needs it.
         const orders = snap.docs
           .map((d) => ({ ...(d.data() as Omit<Order, "id">), id: d.id }))
-          .filter((o) => o.status !== "DELIVERED" && o.status !== "CANCELLED")
+          .filter((o) => o.status !== "CANCELLED")
           .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
         cb(orders);
       },

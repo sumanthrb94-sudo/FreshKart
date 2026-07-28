@@ -336,7 +336,7 @@ export class MockDataSource implements DataSource {
     const list = store
       .get()
       .orders.filter(
-        (o) => o.driverId === driverId && o.status !== "DELIVERED" && o.status !== "CANCELLED"
+        (o) => o.driverId === driverId && o.status !== "CANCELLED"
       )
       .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
     return delay(structuredClone(list));
@@ -346,9 +346,7 @@ export class MockDataSource implements DataSource {
     const emit = () => {
       const list = store
         .get()
-        .orders.filter(
-          (o) => o.driverId === driverId && o.status !== "DELIVERED" && o.status !== "CANCELLED"
-        )
+        .orders.filter((o) => o.driverId === driverId && o.status !== "CANCELLED")
         .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
       cb(structuredClone(list));
     };

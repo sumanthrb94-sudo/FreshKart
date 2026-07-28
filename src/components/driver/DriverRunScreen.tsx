@@ -14,6 +14,7 @@ import {
   Map as MapIcon,
   MapPin,
   Navigation,
+  Package,
   Phone,
   Truck,
   X,
@@ -34,13 +35,18 @@ import {
   DEFAULT_SERVICE_AREA,
   formatKm,
   navigationUrl,
+  planRun,
   radiusOf,
   sequenceRun,
   summarizeRun,
+  visitTotal,
+  type GeoPoint,
   type RunStop,
+  type RunVisit,
   type ServiceArea,
 } from "@/lib/service-area";
 import { DriverRouteMap } from "./DriverRouteMap";
+import { onIstDay, summarizeCashRun } from "@/lib/cash-run";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -66,6 +72,7 @@ export function DriverRunScreen() {
   const router = useRouter();
   const { user, loading: authLoading, logout } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);
+  const [openVisitKey, setOpenVisitKey] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "map">("list");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -112,22 +119,32 @@ export function DriverRunScreen() {
   // so the starter area stands in rather than leaving the run unsequenced.
   const area: ServiceArea = savedArea ?? DEFAULT_SERVICE_AREA;
 
-  const stops = useMemo(() => sequenceRun(orders ?? [], area), [orders, area]);
+  // Everything still to do. The feed also carries today's completed drops,
+  // which the end-of-run cash summary needs but the route must not repeat.
+  const pending = useMemo(
+    () => (orders ?? []).filter((o) => o.status !== "DELIVERED"),
+    [orders]
+  );
+  const stops = useMemo(() => sequenceRun(pending, area), [pending, area]);
   const summary = useMemo(() => summarizeRun(stops), [stops]);
+  // The run is worked door by door: a shop that ordered three times today is
+  // one stop with three crates, not three knocks.
+  const visits = useMemo(() => planRun(pending, area), [pending, area]);
+  const openVisit = visits.find((v) => v.key === openVisitKey) ?? null;
 
   if (authLoading || !user) return <FullScreenLoader label="Loading your run…" />;
 
   const open = (orders ?? []).find((o) => o.id === openId) ?? null;
   const openStop = open ? stops.find((s) => s.order.id === open.id) ?? null : null;
-  const selected = stops.find((s) => s.order.id === selectedId) ?? null;
+  const selected = visits.find((v) => v.key === selectedId) ?? null;
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-canvas">
       <header className="sticky top-0 z-20 flex items-center gap-2.5 border-b border-line bg-surface px-4 py-3">
-        {open ? (
+        {open || openVisit ? (
           <button
             type="button"
-            onClick={() => setOpenId(null)}
+            onClick={() => (open ? setOpenId(null) : setOpenVisitKey(null))}
             className="flex h-9 w-9 items-center justify-center rounded-full text-fg-muted hover:bg-raised"
             aria-label="Back to my run"
           >
@@ -140,15 +157,17 @@ export function DriverRunScreen() {
         )}
         <div className="min-w-0 flex-1 leading-tight">
           <p className="truncate text-sm font-extrabold text-fg">
-            {open ? open.businessName : "My run"}
+            {open ? open.businessName : openVisit ? openVisit.businessName : "My run"}
           </p>
           <p className="truncate text-2xs text-fg-subtle">
             {open
               ? `${openStop ? `Stop ${openStop.seq} · ` : ""}${open.orderNumber}`
-              : `${user.name} · ${summary.stops} stops · ${formatKm(summary.totalKm)}`}
+              : openVisit
+                ? `Stop ${openVisit.seq} · ${openVisit.orders.length} orders · ${formatCurrency(visitTotal(openVisit))}`
+                : `${user.name} · ${visits.length} stops · ${formatKm(summary.totalKm)}`}
           </p>
         </div>
-        {!open && (
+        {!open && !openVisit && (
           <button
             type="button"
             onClick={async () => {
@@ -178,12 +197,10 @@ export function DriverRunScreen() {
             }}
             onChanged={refresh}
           />
-        ) : (orders ?? []).length === 0 ? (
-          <EmptyState
-            icon={Check}
-            title="Nothing left to deliver"
-            subtitle="Every stop on your run is done. Nice work!"
-          />
+        ) : openVisit ? (
+          <VisitScreen visit={openVisit} onOpenOrder={setOpenId} />
+        ) : visits.length === 0 ? (
+          <RunFinished orders={orders ?? []} />
         ) : (
           <div className="flex flex-col gap-3">
             {/* The run is sequenced nearest-first from the hub, so working
@@ -208,24 +225,35 @@ export function DriverRunScreen() {
               <>
                 <DriverRouteMap
                   area={area}
-                  stops={stops}
-                  selectedId={selectedId}
+                  visits={visits}
+                  selectedKey={selectedId}
                   onSelect={setSelectedId}
                   className="h-[52vh]"
                 />
                 {selected ? (
                   <div className="rounded-xl border border-line bg-surface p-3">
                     <p className="text-sm font-bold text-fg">
-                      {selected.seq}. {selected.order.businessName}
+                      {selected.seq}. {selected.businessName}
                     </p>
                     <p className="mt-0.5 text-xs text-fg-subtle">
-                      {selected.order.delivery.address}, {selected.order.delivery.city}
+                      {selected.address}, {selected.city}
+                    </p>
+                    <p className="mt-0.5 text-2xs font-semibold text-fg-subtle">
+                      {selected.orders.length} order{selected.orders.length === 1 ? "" : "s"} ·{" "}
+                      {formatCurrency(visitTotal(selected))}
                     </p>
                     <div className="mt-2.5 flex gap-2">
-                      <Button size="sm" onClick={() => setOpenId(selected.order.id)}>
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          selected.orders.length > 1
+                            ? setOpenVisitKey(selected.key)
+                            : setOpenId(selected.orders[0].id)
+                        }
+                      >
                         Open stop
                       </Button>
-                      <NavigateButton stop={selected} />
+                      <NavigateButton stop={{ point: selected.point, order: selected.orders[0] }} />
                     </div>
                   </div>
                 ) : (
@@ -238,84 +266,269 @@ export function DriverRunScreen() {
               </>
             ) : (
               <ul className="flex flex-col gap-2.5">
-                {stops.map((stop) => (
-                  <li key={stop.order.id}>
-                    <div className="flex items-stretch gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setOpenId(stop.order.id)}
-                        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface p-3 text-left shadow-card transition-shadow hover:shadow-card-hover"
-                      >
-                        <span
-                          className={cn(
-                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white",
-                            !stop.served || stop.beyondRadius
-                              ? "bg-amber-500"
-                              : stop.precision === "PINCODE"
-                                ? "bg-sky-500"
-                                : "bg-blue-600"
-                          )}
+                {visits.map((visit) => {
+                  const many = visit.orders.length > 1;
+                  const done = visit.orders.filter((o) => o.status === "DELIVERED").length;
+                  return (
+                    <li key={visit.key}>
+                      <div className="flex items-stretch gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            many ? setOpenVisitKey(visit.key) : setOpenId(visit.orders[0].id)
+                          }
+                          className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface p-3 text-left shadow-card transition-shadow hover:shadow-card-hover"
                         >
-                          {stop.seq}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-bold text-fg">
-                            {stop.order.businessName}
+                          <span
+                            className={cn(
+                              "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white",
+                              !visit.served || visit.beyondRadius
+                                ? "bg-amber-500"
+                                : visit.precision === "PINCODE"
+                                  ? "bg-sky-500"
+                                  : "bg-blue-600"
+                            )}
+                          >
+                            {visit.seq}
+                            {many && (
+                              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-surface bg-fg px-1 text-2xs font-extrabold text-canvas">
+                                {visit.orders.length}
+                              </span>
+                            )}
                           </span>
-                          <span className="block truncate text-xs text-fg-subtle">
-                            {stop.order.delivery.address}, {stop.order.delivery.city}
-                          </span>
-                          <span className="mt-0.5 block truncate text-2xs font-semibold text-fg-subtle">
-                            {stop.order.delivery.pincode || "no pincode"}
-                            {stop.legKm !== null &&
-                              ` · ${formatKm(stop.legKm)} ${stop.seq === 1 ? "from the hub" : "from previous"}`}
-                          </span>
-                          {/* Warnings get their own line — on a narrow phone
-                              they were the first thing an ellipsis ate. */}
-                          {(!stop.served || stop.beyondRadius || stop.precision !== "PIN") && (
-                            <span className="mt-1 flex flex-wrap gap-1">
-                              {!stop.served && <StopFlag tone="amber">outside our area</StopFlag>}
-                              {stop.beyondRadius && (
-                                <StopFlag tone="amber">
-                                  {formatKm(stop.hubKm)} out · past {radiusOf(area)} km
-                                </StopFlag>
-                              )}
-                              {stop.precision === "PINCODE" && (
-                                <StopFlag tone="sky">approx. location</StopFlag>
-                              )}
-                              {stop.precision === "NONE" && (
-                                <StopFlag tone="amber">not on the map</StopFlag>
-                              )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-bold text-fg">
+                              {visit.businessName}
                             </span>
-                          )}
-                        </span>
-                        <span className="shrink-0 text-right">
-                          <span className="block text-sm font-extrabold text-fg">
-                            {formatCurrency(payableTotal(stop.order))}
+                            <span className="block truncate text-xs text-fg-subtle">
+                              {visit.address}, {visit.city}
+                            </span>
+                            <span className="mt-0.5 block truncate text-2xs font-semibold text-fg-subtle">
+                              {visit.pincode || "no pincode"}
+                              {visit.legKm !== null &&
+                                ` · ${formatKm(visit.legKm)} ${visit.seq === 1 ? "from the hub" : "from previous"}`}
+                              {many && ` · ${visit.orders.length} orders`}
+                              {many && done > 0 && ` · ${done} done`}
+                            </span>
+                            {(!visit.served || visit.beyondRadius || visit.precision !== "PIN") && (
+                              <span className="mt-1 flex flex-wrap gap-1">
+                                {!visit.served && <StopFlag tone="amber">outside our area</StopFlag>}
+                                {visit.beyondRadius && (
+                                  <StopFlag tone="amber">
+                                    {formatKm(visit.hubKm)} out · past {radiusOf(area)} km
+                                  </StopFlag>
+                                )}
+                                {visit.precision === "PINCODE" && (
+                                  <StopFlag tone="sky">approx. location</StopFlag>
+                                )}
+                                {visit.precision === "NONE" && (
+                                  <StopFlag tone="amber">not on the map</StopFlag>
+                                )}
+                              </span>
+                            )}
                           </span>
-                          <span className="block text-2xs font-semibold text-fg-subtle">
-                            {stop.order.items.length} item
-                            {stop.order.items.length === 1 ? "" : "s"}
+                          <span className="shrink-0 text-right">
+                            <span className="block text-sm font-extrabold text-fg">
+                              {formatCurrency(visitTotal(visit))}
+                            </span>
+                            <span className="block text-2xs font-semibold text-fg-subtle">
+                              {visit.orders.reduce((n, o) => n + o.items.length, 0)} item
+                              {visit.orders.reduce((n, o) => n + o.items.length, 0) === 1 ? "" : "s"}
+                            </span>
                           </span>
-                        </span>
-                      </button>
-                      <a
-                        href={navigationUrl(stop)}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label={`Navigate to ${stop.order.businessName}`}
-                        className="flex w-12 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-brand-500 shadow-card"
-                      >
-                        <Navigation className="h-4 w-4" />
-                      </a>
-                    </div>
-                  </li>
-                ))}
+                        </button>
+                        <a
+                          href={navigationUrl({ point: visit.point, order: visit.orders[0] })}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Navigate to ${visit.businessName}`}
+                          className="flex w-12 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-brand-500 shadow-card"
+                        >
+                          <Navigation className="h-4 w-4" />
+                        </a>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+/**
+ * End of the run: what the driver is carrying.
+ *
+ * Cash was the least-controlled part of the day — an executive walked back in
+ * with several thousand rupees and nothing said how much that should be. The
+ * figure is computed from the orders themselves, already net of anything
+ * refused at the door, so there is nothing to reconcile by hand.
+ */
+function RunFinished({ orders }: { orders: Order[] }) {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const run = summarizeCashRun(onIstDay(orders, today));
+
+  if (run.delivered === 0) {
+    return (
+      <EmptyState
+        icon={Check}
+        title="Nothing left to deliver"
+        subtitle="Every stop on your run is done. Nice work!"
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-xl border border-brand-500/30 bg-brand-500/10 p-4 text-center">
+        <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
+          Cash to hand in
+        </p>
+        <p className="mt-1 text-3xl font-extrabold text-fg">{formatCurrency(run.cashDue)}</p>
+        <p className="mt-1 text-xs text-fg-subtle">
+          {run.delivered} delivered
+          {run.refunded > 0 && ` · ${formatCurrency(run.refunded)} refused at the door`}
+          {run.prepaid > 0 && ` · ${formatCurrency(run.prepaid)} already paid online`}
+        </p>
+      </div>
+
+      {run.unpaid.length > 0 && (
+        <Alert variant="error">
+          {run.unpaid.length} delivered order{run.unpaid.length === 1 ? " was" : "s were"} never
+          marked paid: {run.unpaid.map((l) => l.orderNumber).join(", ")}. Sort this out before you
+          hand the cash in.
+        </Alert>
+      )}
+
+      <div className="rounded-xl border border-line bg-surface">
+        <div className="border-b border-line px-3 py-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-fg-subtle">
+            Today&apos;s drops
+          </p>
+        </div>
+        <ul className="divide-y divide-line">
+          {run.lines.map((l) => (
+            <li key={l.orderId} className="flex items-center justify-between gap-3 px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-fg">{l.businessName}</p>
+                <p className="truncate text-2xs text-fg-subtle">
+                  {l.orderNumber}
+                  {l.refunded > 0 && ` · ${formatCurrency(l.refunded)} refused`}
+                  {l.method !== "COD" && " · paid online"}
+                </p>
+              </div>
+              <span className="shrink-0 text-sm font-bold text-fg">{formatCurrency(l.due)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One door, several crates.
+ *
+ * The driver works the orders one at a time — each is inspected and settled
+ * on its own, because a buyer can refuse produce from one order and accept
+ * another — but the header carries the combined figure, which is what
+ * actually changes hands at the door.
+ */
+function VisitScreen({
+  visit,
+  onOpenOrder,
+}: {
+  visit: RunVisit;
+  onOpenOrder: (orderId: string) => void;
+}) {
+  const remaining = visit.orders.filter((o) => o.status !== "DELIVERED");
+  const due = remaining.reduce((sum, o) => sum + payableTotal(o), 0);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-xl border border-line bg-surface p-3">
+        <p className="flex items-start gap-2 text-sm text-fg">
+          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
+          <span>
+            {visit.address}, {visit.city} — {visit.pincode}
+          </span>
+        </p>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <a
+            href={`tel:${visit.phone}`}
+            className="flex items-center gap-2 text-sm font-semibold text-brand-500"
+          >
+            <Phone className="h-4 w-4" aria-hidden />
+            {visit.phone}
+          </a>
+          <a
+            href={navigationUrl({ point: visit.point, order: visit.orders[0] })}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-raised px-3 text-sm font-bold text-brand-500"
+          >
+            <Navigation className="h-4 w-4" aria-hidden />
+            Navigate
+          </a>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-brand-500/30 bg-brand-500/10 p-3">
+        <p className="text-xs font-semibold text-fg-muted">
+          {visit.orders.length} orders at this door
+        </p>
+        <p className="text-2xl font-extrabold text-fg">{formatCurrency(due)}</p>
+        <p className="text-2xs text-fg-subtle">
+          {remaining.length === visit.orders.length
+            ? "Total to collect once every order is settled"
+            : `${visit.orders.length - remaining.length} already delivered`}
+        </p>
+      </div>
+
+      <ul className="flex flex-col gap-2.5">
+        {visit.orders.map((o) => {
+          const delivered = o.status === "DELIVERED";
+          const waiting = o.adjustment?.status === "PENDING";
+          return (
+            <li key={o.id}>
+              <button
+                type="button"
+                disabled={delivered}
+                onClick={() => onOpenOrder(o.id)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-xl border p-3 text-left shadow-card transition-shadow",
+                  delivered
+                    ? "border-line bg-raised opacity-70"
+                    : "border-line bg-surface hover:shadow-card-hover"
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                    delivered ? "bg-brand-500/15 text-brand-500" : "bg-brand-500/10 text-brand-500"
+                  )}
+                >
+                  {delivered ? <Check className="h-4 w-4" /> : <Package className="h-4 w-4" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-bold text-fg">{o.orderNumber}</span>
+                  <span className="block truncate text-xs text-fg-subtle">
+                    {o.items.length} item{o.items.length === 1 ? "" : "s"}
+                    {delivered && " · delivered"}
+                    {waiting && " · waiting for office"}
+                  </span>
+                </span>
+                <span className="shrink-0 text-sm font-extrabold text-fg">
+                  {formatCurrency(payableTotal(o))}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -335,7 +548,7 @@ function StopFlag({ tone, children }: { tone: "amber" | "sky"; children: React.R
 
 /** Hand the stop to the phone's maps app — drivers already trust it for
  *  traffic and one-ways, and it keeps working with the screen locked. */
-function NavigateButton({ stop }: { stop: RunStop }) {
+function NavigateButton({ stop }: { stop: { point: GeoPoint | null; order: Order } }) {
   return (
     <a
       href={navigationUrl(stop)}

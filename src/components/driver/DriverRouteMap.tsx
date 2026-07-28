@@ -6,7 +6,13 @@ import type { LayerGroup, Map as LeafletMap, Marker } from "leaflet";
 import { Crosshair, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { payableTotal } from "@/lib/delivery-adjustment";
-import { formatKm, radiusOf, type RunStop, type ServiceArea } from "@/lib/service-area";
+import {
+  formatKm,
+  radiusOf,
+  visitTotal,
+  type RunVisit,
+  type ServiceArea,
+} from "@/lib/service-area";
 import { cn } from "@/lib/utils";
 
 /** Roughly how far a pincode's deliveries spread from its centre. Only used
@@ -24,15 +30,16 @@ const PINCODE_RADIUS_M = 1600;
  */
 export function DriverRouteMap({
   area,
-  stops,
-  selectedId,
+  visits,
+  selectedKey,
   onSelect,
   className,
 }: {
   area: ServiceArea;
-  stops: RunStop[];
-  selectedId?: string | null;
-  onSelect: (orderId: string) => void;
+  /** One pin per door — several orders to the same shop share a marker. */
+  visits: RunVisit[];
+  selectedKey?: string | null;
+  onSelect: (visitKey: string) => void;
   className?: string;
 }) {
   const mapEl = useRef<HTMLDivElement | null>(null);
@@ -152,7 +159,7 @@ export function DriverRouteMap({
 
       // The line the driver actually follows, hub first.
       const path: [number, number][] = [[area.hub.lat, area.hub.lng]];
-      for (const s of stops) if (s.point) path.push([s.point.lat, s.point.lng]);
+      for (const v of visits) if (v.point) path.push([v.point.lat, v.point.lng]);
       if (path.length > 1) {
         L.polyline(path, {
           color: "#2563eb",
@@ -162,45 +169,51 @@ export function DriverRouteMap({
         }).addTo(layer);
       }
 
-      // Numbered stops.
-      for (const stop of stops) {
-        if (!stop.point) continue;
-        const approx = stop.precision === "PINCODE";
-        const bg = !stop.served || stop.beyondRadius ? "#f59e0b" : approx ? "#0ea5e9" : "#2563eb";
-        const marker = L.marker([stop.point.lat, stop.point.lng], {
+      // Numbered stops — one per door, with a badge when several orders are
+      // being dropped there.
+      for (const visit of visits) {
+        if (!visit.point) continue;
+        const approx = visit.precision === "PINCODE";
+        const bg = !visit.served || visit.beyondRadius ? "#f59e0b" : approx ? "#0ea5e9" : "#2563eb";
+        const count = visit.orders.length;
+        const badge =
+          count > 1
+            ? `<span style="position:absolute;top:-6px;right:-6px;display:flex;height:18px;min-width:18px;align-items:center;justify-content:center;border-radius:9999px;background:#0f172a;color:#fff;font-size:10px;font-weight:800;border:2px solid #fff;padding:0 3px">${count}</span>`
+            : "";
+        const marker = L.marker([visit.point.lat, visit.point.lng], {
           icon: L.divIcon({
             className: "",
-            html: `<span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9999px;background:${bg};color:#fff;font-size:13px;font-weight:800;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)">${stop.seq}</span>`,
+            html: `<span style="position:relative;display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9999px;background:${bg};color:#fff;font-size:13px;font-weight:800;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)">${visit.seq}${badge}</span>`,
             iconSize: [30, 30],
             iconAnchor: [15, 15],
           }),
-          title: `${stop.seq}. ${stop.order.businessName}`,
+          title: `${visit.seq}. ${visit.businessName}`,
         }).addTo(layer);
 
         marker.bindPopup(
           `<div style="min-width:170px">
-             <div style="font-weight:800;font-size:13px">${escapeHtml(stop.order.businessName)}</div>
-             <div style="font-size:11px;opacity:.75;margin-top:2px">${escapeHtml(
-               stop.order.delivery.address
-             )}${stop.order.delivery.pincode ? ` — ${escapeHtml(stop.order.delivery.pincode)}` : ""}</div>
+             <div style="font-weight:800;font-size:13px">${escapeHtml(visit.businessName)}</div>
+             <div style="font-size:11px;opacity:.75;margin-top:2px">${escapeHtml(visit.address)}${
+               visit.pincode ? ` — ${escapeHtml(visit.pincode)}` : ""
+             }</div>
              <div style="font-size:12px;font-weight:700;margin-top:4px">${escapeHtml(
-               formatCurrency(payableTotal(stop.order))
-             )} · ${escapeHtml(formatKm(stop.legKm))} ${
-               stop.seq === 1 ? "from the hub" : "from previous"
+               formatCurrency(visitTotal(visit))
+             )}${count > 1 ? ` · ${count} orders` : ""} · ${escapeHtml(formatKm(visit.legKm))} ${
+               visit.seq === 1 ? "from the hub" : "from previous"
              }</div>
              ${approx ? '<div style="font-size:11px;color:#0369a1;margin-top:3px">Pincode centre — exact door not pinned</div>' : ""}
-             ${!stop.served ? '<div style="font-size:11px;color:#b45309;margin-top:3px">Outside our delivery pincodes</div>' : ""}
+             ${!visit.served ? '<div style="font-size:11px;color:#b45309;margin-top:3px">Outside our delivery pincodes</div>' : ""}
              ${
-               stop.beyondRadius
+               visit.beyondRadius
                  ? `<div style="font-size:11px;color:#b45309;margin-top:3px">${escapeHtml(
-                     formatKm(stop.hubKm)
+                     formatKm(visit.hubKm)
                    )} out — beyond our ${radiusOf(area)} km radius</div>`
                  : ""
              }
            </div>`
         );
-        marker.on("click", () => selectRef.current(stop.order.id));
-        markersById.current[stop.order.id] = marker;
+        marker.on("click", () => selectRef.current(visit.key));
+        markersById.current[visit.key] = marker;
       }
 
       // Frame the whole run.
@@ -212,17 +225,17 @@ export function DriverRouteMap({
     return () => {
       cancelled = true;
     };
-  }, [ready, area, stops]);
+  }, [ready, area, visits]);
 
   // --- follow the selected stop ---
   useEffect(() => {
-    if (!selectedId) return;
-    const marker = markersById.current[selectedId];
+    if (!selectedKey) return;
+    const marker = markersById.current[selectedKey];
     const map = mapRef.current;
     if (!marker || !map) return;
     map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15), { animate: true });
     marker.openPopup();
-  }, [selectedId]);
+  }, [selectedKey]);
 
   const locateMe = useCallback(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
