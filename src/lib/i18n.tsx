@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 export type Lang = "en" | "hi" | "te" | "mr";
 
@@ -115,7 +116,14 @@ const PRODUCT_NAMES: Record<string, Dict> = {
   "Spring Onion": { en: "Spring Onion", hi: "हरा प्याज़", te: "ఉల్లికాడలు", mr: "हिरवा कांदा" },
 };
 
-const KEY = "green-basket.lang.v1";
+/** No client storage — before sign-in (or while the profile is still
+ *  loading) the browser's own language decides; the account's saved
+ *  preference (if any) takes over once signed in. */
+function browserLang(): Lang {
+  if (typeof navigator === "undefined") return "en";
+  const code = navigator.language?.slice(0, 2).toLowerCase();
+  return (LANGS.some((l) => l.code === code) ? code : "en") as Lang;
+}
 
 interface LangValue {
   lang: Lang;
@@ -131,25 +139,23 @@ interface LangValue {
 const LangContext = createContext<LangValue | null>(null);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const { user, updateProfile } = useAuth();
   const [lang, setLangState] = useState<Lang>("en");
 
+  // The signed-in account's saved preference wins once known; otherwise
+  // follow the browser's language. Re-runs whenever the profile (re)loads so
+  // switching accounts on the same device picks up that account's language.
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(KEY) as Lang | null;
-      if (saved && LANGS.some((l) => l.code === saved)) setLangState(saved);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+    setLangState(user?.lang ?? browserLang());
+  }, [user?.lang]);
 
-  const setLang = useCallback((l: Lang) => {
-    setLangState(l);
-    try {
-      window.localStorage.setItem(KEY, l);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  const setLang = useCallback(
+    (l: Lang) => {
+      setLangState(l);
+      if (user) updateProfile({ lang: l }).catch(() => {});
+    },
+    [user, updateProfile]
+  );
 
   const t = useCallback((key: string) => STRINGS[key]?.[lang] ?? STRINGS[key]?.en ?? key, [lang]);
   const tCategory = useCallback(

@@ -24,6 +24,8 @@ import {
 } from "@/lib/returns";
 import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
+import type { Coupon } from "@/lib/coupons";
+import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
 import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
@@ -683,6 +685,118 @@ export class MockDataSource implements DataSource {
   async getUser(id: string): Promise<User | null> {
     const u = store.get().users.find((x) => x.id === id) ?? null;
     return delay(u ? structuredClone(u) : null);
+  }
+
+  // --- Coupons ----------------------------------------------------------------
+  async listCoupons(): Promise<Coupon[]> {
+    return delay(structuredClone(store.get().coupons));
+  }
+
+  async createCoupon(
+    input: Omit<Coupon, "id" | "usageCount" | "createdAt" | "updatedAt">
+  ): Promise<Coupon> {
+    let created: Coupon | null = null;
+    store.mutate((s) => {
+      const now = new Date().toISOString();
+      const coupon: Coupon = { ...input, id: `coupon-${Date.now()}`, usageCount: 0, createdAt: now, updatedAt: now };
+      s.coupons.push(coupon);
+      created = coupon;
+    });
+    return delay(structuredClone(created!), 200);
+  }
+
+  async updateCoupon(id: string, patch: Partial<Coupon>): Promise<Coupon> {
+    let updated: Coupon | null = null;
+    store.mutate((s) => {
+      const c = s.coupons.find((x) => x.id === id);
+      if (!c) return;
+      Object.assign(c, patch, { id: c.id, updatedAt: new Date().toISOString() });
+      updated = c;
+    });
+    if (!updated) throw new ApiError("Coupon not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async deleteCoupon(id: string): Promise<void> {
+    store.mutate((s) => {
+      s.coupons = s.coupons.filter((c) => c.id !== id);
+    });
+    return delay(undefined);
+  }
+
+  // --- In-app notifications ----------------------------------------------------
+  private sortedNotifs(userId: string): InAppNotification[] {
+    return store
+      .get()
+      .notifications.filter((n) => n.userId === userId)
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+      .slice(0, 100);
+  }
+
+  async listInAppNotifications(userId: string): Promise<InAppNotification[]> {
+    return delay(structuredClone(this.sortedNotifs(userId)));
+  }
+
+  subscribeInAppNotifications(userId: string, cb: (notifs: InAppNotification[]) => void): () => void {
+    const deliver = () => cb(structuredClone(this.sortedNotifs(userId)));
+    deliver();
+    return store.subscribe(deliver);
+  }
+
+  async addInAppNotification(
+    userId: string,
+    type: InAppNotificationType,
+    title: string,
+    message: string,
+    options?: { actionUrl?: string; orderId?: string }
+  ): Promise<InAppNotification> {
+    let created: InAppNotification | null = null;
+    store.mutate((s) => {
+      const notification: InAppNotification = {
+        id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        userId,
+        type,
+        title,
+        message,
+        read: false,
+        ...options,
+        createdAt: new Date().toISOString(),
+      };
+      s.notifications.unshift(notification);
+      created = notification;
+    });
+    return delay(structuredClone(created!));
+  }
+
+  async markInAppNotificationRead(userId: string, id: string): Promise<void> {
+    store.mutate((s) => {
+      const n = s.notifications.find((x) => x.id === id && x.userId === userId);
+      if (n) n.read = true;
+    });
+    return delay(undefined);
+  }
+
+  async markAllInAppNotificationsRead(userId: string): Promise<void> {
+    store.mutate((s) => {
+      s.notifications.forEach((n) => {
+        if (n.userId === userId) n.read = true;
+      });
+    });
+    return delay(undefined);
+  }
+
+  async deleteInAppNotification(userId: string, id: string): Promise<void> {
+    store.mutate((s) => {
+      s.notifications = s.notifications.filter((n) => !(n.id === id && n.userId === userId));
+    });
+    return delay(undefined);
+  }
+
+  async clearAllInAppNotifications(userId: string): Promise<void> {
+    store.mutate((s) => {
+      s.notifications = s.notifications.filter((n) => n.userId !== userId);
+    });
+    return delay(undefined);
   }
 
   // --- Settings -------------------------------------------------------------

@@ -18,9 +18,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <AuthProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <LanguageProvider>
           <CartProvider>
             <OrderTrackerProvider>
               <NotificationProvider>
@@ -31,8 +31,8 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
               </NotificationProvider>
             </OrderTrackerProvider>
           </CartProvider>
-        </AuthProvider>
-      </LanguageProvider>
-    </ThemeProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }

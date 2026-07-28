@@ -111,39 +111,14 @@ function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-IN")}`;
 }
 
-/** Save coupon to localStorage */
-export function saveCoupon(coupon: Coupon): void {
-  const existing = getCoupons();
-  const idx = existing.findIndex((c) => c.id === coupon.id);
-  if (idx >= 0) {
-    existing[idx] = { ...coupon, updatedAt: new Date().toISOString() };
-  } else {
-    existing.push(coupon);
-  }
-  localStorage.setItem("green_basket_coupons", JSON.stringify(existing));
+/** Find an active coupon by code (case-insensitive) in an already-fetched list. */
+export function findCouponByCode(coupons: Coupon[], code: string): Coupon | undefined {
+  return coupons.find((c) => c.code.toUpperCase() === code.toUpperCase() && c.isActive);
 }
 
-/** Get all coupons from localStorage */
-export function getCoupons(): Coupon[] {
-  try {
-    return JSON.parse(localStorage.getItem("green_basket_coupons") || "[]");
-  } catch {
-    return [];
-  }
-}
-
-/** Delete coupon */
-export function deleteCoupon(id: string): void {
-  const filtered = getCoupons().filter((c) => c.id !== id);
-  localStorage.setItem("green_basket_coupons", JSON.stringify(filtered));
-}
-
-/** Find coupon by code (case-insensitive) */
-export function findCouponByCode(code: string): Coupon | undefined {
-  return getCoupons().find((c) => c.code.toUpperCase() === code.toUpperCase() && c.isActive);
-}
-
-// Demo coupons seeded on first load
+// Seed coupons for the mock backend / first-run demo data. Persistence for
+// real use lives in Firestore (collection `coupons`) via api.listCoupons()/
+// createCoupon()/updateCoupon()/deleteCoupon() — see src/lib/api/*.
 export const DEMO_COUPONS: Coupon[] = [
   {
     id: "coupon-1",

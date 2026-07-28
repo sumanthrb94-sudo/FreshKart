@@ -279,6 +279,25 @@ service cloud.firestore {
       allow update: if isAdmin() || (isSignedIn() && onlyStockChanged() && isStockChangeValid());
     }
 
+    // --- Coupons: public promo codes, admin-managed. World-readable so any
+    //     buyer sees active codes (e.g. on the order-success screen);
+    //     writes are admin-only. ---
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // --- In-app notifications: a buyer's own history only. No admin access
+    //     needed — these are purely client-generated from data the buyer
+    //     already has read access to (their own orders/returns). ---
+    match /notifications/{notifId} {
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == resource.data.userId;
+    }
+
     // --- Users: a user reads/edits their own profile; admins read all.
     //     Self-signup may only create a BUYER and cannot self-promote. ---
     match /users/{userId} {

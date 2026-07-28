@@ -48,34 +48,26 @@ function playOrderCancelledSound() {
   ]);
 }
 
-/** "New since last time you looked" baselines, persisted across page
- *  reloads/tab closes. Without this, the in-memory previous-snapshot diff
- *  only catches orders that arrive while THIS tab stays continuously open —
- *  an admin who checks by reloading (or reopening the tab) never hears
- *  anything for orders that landed while they were away, even though the
- *  count itself is always correct (it's read fresh on every load either
- *  way). Storing the latest-seen timestamp survives exactly that gap. */
+/** "New since last time you looked" baselines. In-memory only (no client
+ *  storage) — this resets on a fresh page load/reopened tab, so an admin who
+ *  reloads while new orders arrived won't hear a chime for those specific
+ *  ones. The count itself is always correct regardless (read fresh on every
+ *  load either way); this only affects the one-time celebratory chime for a
+ *  backlog that arrived while nobody had a tab open, which is an acceptable
+ *  trade-off to avoid any client-side persistence. */
+const lastSeenTs: Record<string, number> = {};
+
 function readLastSeenTs(key: string): number {
-  if (typeof window === "undefined") return 0;
-  try {
-    return Number(window.localStorage.getItem(key)) || 0;
-  } catch {
-    return 0;
-  }
+  return lastSeenTs[key] ?? 0;
 }
 
 function writeLastSeenTs(key: string, ts: number) {
-  if (typeof window === "undefined" || !ts) return;
-  try {
-    window.localStorage.setItem(key, String(ts));
-  } catch {
-    // Storage unavailable (private browsing, quota) — falls back to
-    // in-tab-only detection for this session, same as before this existed.
-  }
+  if (!ts) return;
+  lastSeenTs[key] = ts;
 }
 
-const ORDERS_LAST_SEEN_KEY = "green_basket_admin_orders_last_seen_ts";
-const RETURNS_LAST_SEEN_KEY = "green_basket_admin_returns_last_seen_ts";
+const ORDERS_LAST_SEEN_KEY = "orders";
+const RETURNS_LAST_SEEN_KEY = "returns";
 
 /** Generic ref-counted singleton subscription: the underlying Firestore
  *  listener starts on the first subscriber and stops on the last, however

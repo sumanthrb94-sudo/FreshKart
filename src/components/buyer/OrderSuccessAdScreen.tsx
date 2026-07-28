@@ -14,69 +14,8 @@ import { formatCurrency } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { useOrderTracker } from "@/components/providers/OrderTrackerProvider";
 import type { Order } from "@/lib/types";
-
-interface Coupon {
-  id: string;
-  code: string;
-  discountType: "percentage" | "flat";
-  discountValue: number;
-  minOrderAmount: number;
-  maxDiscount: number;
-  description: string;
-  validUntil: string;
-  usageCount: number;
-  isActive: boolean;
-}
-
-const demoCoupons: Coupon[] = [
-  {
-    id: "c1",
-    code: "FRESH50",
-    discountType: "percentage",
-    discountValue: 50,
-    minOrderAmount: 500,
-    maxDiscount: 200,
-    description: "50% off on orders above Rs. 500",
-    validUntil: "2026-07-31",
-    usageCount: 128,
-    isActive: true,
-  },
-  {
-    id: "c2",
-    code: "WELCOME100",
-    discountType: "flat",
-    discountValue: 100,
-    minOrderAmount: 300,
-    maxDiscount: 100,
-    description: "Rs. 100 off on your first order above Rs. 300",
-    validUntil: "2026-12-31",
-    usageCount: 342,
-    isActive: true,
-  },
-  {
-    id: "c3",
-    code: "BULKDEAL",
-    discountType: "percentage",
-    discountValue: 20,
-    minOrderAmount: 2000,
-    maxDiscount: 500,
-    description: "20% off on bulk orders above Rs. 2000",
-    validUntil: "2026-08-15",
-    usageCount: 56,
-    isActive: true,
-  },
-];
-
-function getSavedCoupons(): Coupon[] {
-  try {
-    const stored = localStorage.getItem("green_basket_coupons");
-    if (stored) return JSON.parse(stored);
-    localStorage.setItem("green_basket_coupons", JSON.stringify(demoCoupons));
-    return demoCoupons;
-  } catch {
-    return demoCoupons;
-  }
-}
+import type { Coupon } from "@/lib/coupons";
+import { api } from "@/lib/api";
 
 export function OrderSuccessAdScreen({
   orderId,
@@ -89,13 +28,13 @@ export function OrderSuccessAdScreen({
 }) {
   const router = useRouter();
   const { startTracking } = useOrderTracker();
-  const [coupons, setCoupons] = useState<Coupon[]>(demoCoupons);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [copiedCode, setCopiedCode] = useState("");
   const [showAds] = useState(true);
 
   // Start tracking this order on mount
   useEffect(() => {
-    setCoupons(getSavedCoupons());
+    api.listCoupons().then(setCoupons).catch(() => {});
 
     // Build a mock Order object and start real-time tracking
     const mockOrder: Order = {

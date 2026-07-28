@@ -20,11 +20,13 @@ import type {
   SupportTicket,
   TicketSender,
 } from "@/lib/support-tickets";
+import type { Coupon } from "@/lib/coupons";
+import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
 
 /**
  * The contract every backend must satisfy. The UI depends ONLY on this
  * interface — never on a concrete implementation. Today it is fulfilled by
- * `MockDataSource` (in-memory + localStorage); pointing `NEXT_PUBLIC_API_BASE_URL`
+ * `MockDataSource` (pure in-memory, dev/demo only); pointing `NEXT_PUBLIC_API_BASE_URL`
  * at a GCP service swaps in `HttpDataSource` with zero UI changes.
  *
  * The REST endpoints in `docs/BACKEND.md` map 1:1 onto these methods.
@@ -187,6 +189,33 @@ export interface DataSource {
    * setReturnTyping — never let a failure here interrupt messaging.
    */
   setSupportTicketTyping?(id: string, sender: "buyer" | "admin"): Promise<void>;
+
+  // --- Coupons ----------------------------------------------------------------
+  /** World-readable — buyers see active promo codes; admin manages them. */
+  listCoupons(): Promise<Coupon[]>;
+  /** Admin: create a new coupon. */
+  createCoupon(input: Omit<Coupon, "id" | "usageCount" | "createdAt" | "updatedAt">): Promise<Coupon>;
+  /** Admin: edit any coupon field (discount, validity, active flag, etc). */
+  updateCoupon(id: string, patch: Partial<Coupon>): Promise<Coupon>;
+  /** Admin: remove a coupon. */
+  deleteCoupon(id: string): Promise<void>;
+
+  // --- In-app notifications ----------------------------------------------------
+  /** This buyer's notification history, newest first. */
+  listInAppNotifications(userId: string): Promise<InAppNotification[]>;
+  /** Real-time subscription, same shape as subscribeOrders/subscribeReturns. */
+  subscribeInAppNotifications?(userId: string, cb: (notifs: InAppNotification[]) => void): () => void;
+  addInAppNotification(
+    userId: string,
+    type: InAppNotificationType,
+    title: string,
+    message: string,
+    options?: { actionUrl?: string; orderId?: string }
+  ): Promise<InAppNotification>;
+  markInAppNotificationRead(userId: string, id: string): Promise<void>;
+  markAllInAppNotificationsRead(userId: string): Promise<void>;
+  deleteInAppNotification(userId: string, id: string): Promise<void>;
+  clearAllInAppNotifications(userId: string): Promise<void>;
 
   // --- Settings -------------------------------------------------------------
   /** Read the daily price-update gate status (world-readable). */

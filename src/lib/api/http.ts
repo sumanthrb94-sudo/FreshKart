@@ -11,6 +11,8 @@ import type {
 } from "@/lib/types";
 import type { CreateReturnInput, ReturnRequest, ReturnStatus } from "@/lib/returns";
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
+import type { Coupon } from "@/lib/coupons";
+import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
 import { DataSource, ApiError } from "./datasource";
 
 /**
@@ -150,6 +152,71 @@ export class HttpDataSource implements DataSource {
 
   getUser(id: string) {
     return this.request<User | null>(`/users/${id}`);
+  }
+
+  listCoupons() {
+    return this.request<Coupon[]>("/coupons");
+  }
+
+  createCoupon(input: Omit<Coupon, "id" | "usageCount" | "createdAt" | "updatedAt">) {
+    return this.request<Coupon>("/coupons", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  updateCoupon(id: string, patch: Partial<Coupon>) {
+    return this.request<Coupon>(`/coupons/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  }
+
+  deleteCoupon(id: string) {
+    return this.request<void>(`/coupons/${id}`, { method: "DELETE" });
+  }
+
+  listInAppNotifications(userId: string) {
+    return this.request<InAppNotification[]>(`/notifications?userId=${encodeURIComponent(userId)}`);
+  }
+
+  addInAppNotification(
+    userId: string,
+    type: InAppNotificationType,
+    title: string,
+    message: string,
+    options?: { actionUrl?: string; orderId?: string }
+  ) {
+    return this.request<InAppNotification>("/notifications", {
+      method: "POST",
+      body: JSON.stringify({ userId, type, title, message, ...options }),
+    });
+  }
+
+  markInAppNotificationRead(userId: string, id: string) {
+    return this.request<void>(`/notifications/${id}/read`, {
+      method: "PATCH",
+      body: JSON.stringify({ userId }),
+    });
+  }
+
+  markAllInAppNotificationsRead(userId: string) {
+    return this.request<void>("/notifications/read-all", {
+      method: "PATCH",
+      body: JSON.stringify({ userId }),
+    });
+  }
+
+  deleteInAppNotification(userId: string, id: string) {
+    return this.request<void>(`/notifications/${id}?userId=${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  clearAllInAppNotifications(userId: string) {
+    return this.request<void>(`/notifications?userId=${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
   }
 
   getDailyPricesSettings() {

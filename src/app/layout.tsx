@@ -62,15 +62,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
-                  var theme = localStorage.getItem("green-basket-theme");
-                  if (theme === "light") {
+                  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
                     document.documentElement.classList.add("light");
                   }
                 } catch (e) {}

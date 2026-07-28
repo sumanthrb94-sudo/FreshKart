@@ -1,7 +1,10 @@
-/** In-App Notification System for Green Basket Customers
- *  Generates and manages notifications shown inside the app.
- *  Persists to localStorage. Separate from email/SMS (in notifications.ts).
+/** In-App Notification System for Green Basket Customers.
+ *  Generates and manages notifications shown inside the app. Backed by
+ *  Firestore (collection `notifications`, scoped by `userId`) so history and
+ *  read-state follow the account across devices — no client storage of any
+ *  kind. Separate from email/SMS (in notifications.ts).
  */
+import { api } from "@/lib/api";
 
 export type InAppNotificationType =
   | "order_confirmed"
@@ -18,6 +21,7 @@ export type InAppNotificationType =
 
 export interface InAppNotification {
   id: string;
+  userId: string;
   type: InAppNotificationType;
   title: string;
   message: string;
@@ -27,40 +31,10 @@ export interface InAppNotification {
   createdAt: string;
 }
 
-const STORAGE_KEY_BASE = "green_basket_inapp_notifications";
-
-/** Notifications carry per-user actionUrls (e.g. /returns/{id} scoped to the
- *  buyer who owns that return). A single shared, unscoped localStorage key
- *  would leak one signed-in account's notifications — and their deep links —
- *  to whoever signs in next on the same browser, so storage is namespaced by
- *  the active user id. No user signed in → nothing is loaded or persisted. */
 let activeUserId: string | null = null;
-
-function storageKeyFor(userId: string): string {
-  return `${STORAGE_KEY_BASE}:${userId}`;
-}
-
-function loadNotifications(userId: string): InAppNotification[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const stored = localStorage.getItem(storageKeyFor(userId));
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveNotifications(notifs: InAppNotification[]) {
-  if (typeof window === "undefined" || !activeUserId) return;
-  try {
-    localStorage.setItem(storageKeyFor(activeUserId), JSON.stringify(notifs.slice(0, 100)));
-  } catch {
-    // Storage full
-  }
-}
-
 let notifs: InAppNotification[] = [];
 let listeners: ((notifs: InAppNotification[]) => void)[] = [];
+let unsubscribeLive: (() => void) | null = null;
 
 function notify() {
   listeners.forEach((l) => l([...notifs]));
@@ -71,8 +45,28 @@ function notify() {
 export function setNotificationUser(userId: string | null) {
   if (userId === activeUserId) return;
   activeUserId = userId;
-  notifs = userId ? loadNotifications(userId) : [];
+  unsubscribeLive?.();
+  unsubscribeLive = null;
+  notifs = [];
   notify();
+  if (!userId) return;
+
+  if (typeof api.subscribeInAppNotifications === "function") {
+    unsubscribeLive = api.subscribeInAppNotifications(userId, (fresh) => {
+      if (userId !== activeUserId) return; // a fast account switch outran this subscription
+      notifs = fresh;
+      notify();
+    });
+  } else {
+    api
+      .listInAppNotifications(userId)
+      .then((fresh) => {
+        if (userId !== activeUserId) return;
+        notifs = fresh;
+        notify();
+      })
+      .catch(() => {});
+  }
 }
 
 export function subscribeInAppNotifications(callback: (notifs: InAppNotification[]) => void) {
@@ -87,49 +81,44 @@ export function getUnreadCount(): number {
   return notifs.filter((n) => !n.read).length;
 }
 
+/** Fire-and-forget: the live subscription (or the next poll) reflects the
+ *  new notification once the write lands, so this doesn't need to be awaited
+ *  by any caller — matches how every other notify* helper below is used. */
 export function addInAppNotification(
   type: InAppNotificationType,
   title: string,
   message: string,
   options?: { actionUrl?: string; orderId?: string }
-): InAppNotification {
-  const notification: InAppNotification = {
-    id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    type,
-    title,
-    message,
-    read: false,
-    ...options,
-    createdAt: new Date().toISOString(),
-  };
-  notifs = [notification, ...notifs].slice(0, 100);
-  saveNotifications(notifs);
-  notify();
-  return notification;
+): void {
+  if (!activeUserId) return;
+  api.addInAppNotification(activeUserId, type, title, message, options).catch(() => {});
 }
 
+// Read/delete actions update the local cache immediately (optimistic) for a
+// snappy UI, then sync to Firestore in the background; the live subscription
+// reconciles if the write fails.
 export function markInAppAsRead(id: string) {
   notifs = notifs.map((n) => (n.id === id ? { ...n, read: true } : n));
-  saveNotifications(notifs);
   notify();
+  if (activeUserId) api.markInAppNotificationRead(activeUserId, id).catch(() => {});
 }
 
 export function markAllInAppAsRead() {
   notifs = notifs.map((n) => ({ ...n, read: true }));
-  saveNotifications(notifs);
   notify();
+  if (activeUserId) api.markAllInAppNotificationsRead(activeUserId).catch(() => {});
 }
 
 export function deleteInAppNotification(id: string) {
   notifs = notifs.filter((n) => n.id !== id);
-  saveNotifications(notifs);
   notify();
+  if (activeUserId) api.deleteInAppNotification(activeUserId, id).catch(() => {});
 }
 
 export function clearAllInAppNotifications() {
   notifs = [];
-  saveNotifications(notifs);
   notify();
+  if (activeUserId) api.clearAllInAppNotifications(activeUserId).catch(() => {});
 }
 
 // ── Pre-built notification generators ────────────────────────────────────

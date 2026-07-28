@@ -69,8 +69,6 @@ const MANAGE_TILES: ManageTileDef[] = [
   { href: "/admin/customers", label: "Buyers", icon: Users, tone: "cyan" },
 ];
 
-const PINNED_TILES_KEY = "admin-pinned-tiles";
-
 type SearchResult = {
   kind: "order" | "product" | "customer";
   id: string;
@@ -127,7 +125,7 @@ function searchAll(
 }
 
 export function AdminOverviewScreen() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const router = useRouter();
   const { data: stats, loading: statsLoading, error: statsError, refetch: refetchStats } =
     useAsync(() => api.getAdminStats(), []);
@@ -201,25 +199,17 @@ export function AdminOverviewScreen() {
     else router.push(`/admin/customers?highlight=${result.id}`);
   }
 
-  // Pinned "Manage" tiles — persisted locally so admins who mostly live in
-  // 2-3 sections can float them to the front of the grid.
+  // Pinned "Manage" tiles — persisted on the admin's own profile so admins
+  // who mostly live in 2-3 sections can float them to the front of the grid,
+  // and it follows them across devices instead of resetting per browser.
   const [pinned, setPinned] = useState<string[]>([]);
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(PINNED_TILES_KEY);
-      if (raw) setPinned(JSON.parse(raw));
-    } catch {
-      // Ignore malformed/unavailable localStorage — falls back to unpinned order.
-    }
-  }, []);
+    setPinned(user?.pinnedTiles ?? []);
+  }, [user?.pinnedTiles]);
   function togglePin(href: string) {
     setPinned((prev) => {
       const next = prev.includes(href) ? prev.filter((h) => h !== href) : [...prev, href];
-      try {
-        window.localStorage.setItem(PINNED_TILES_KEY, JSON.stringify(next));
-      } catch {
-        // Ignore write failures (private browsing, storage disabled, etc).
-      }
+      updateProfile({ pinnedTiles: next }).catch(() => {});
       return next;
     });
   }

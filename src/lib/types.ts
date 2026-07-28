@@ -79,6 +79,13 @@ export interface User {
   /** Cart contents, synced to this account only — never shared across
    *  accounts on the same device (see CartProvider). */
   cart?: StoredCartLine[];
+  /** Display preferences, synced to this account instead of localStorage —
+   *  so they follow the buyer across devices/browsers instead of resetting
+   *  every time they sign in somewhere new. Unset = default (dark, English). */
+  theme?: "dark" | "light";
+  lang?: "en" | "hi" | "te" | "mr";
+  /** Admin dashboard "Manage" tiles the admin has pinned to the front. */
+  pinnedTiles?: string[];
 }
 
 /** Cart line as persisted server-side: just the productId + qty, rehydrated

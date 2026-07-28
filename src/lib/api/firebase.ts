@@ -14,6 +14,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   deleteField,
   query,
   where,
@@ -58,6 +59,8 @@ import type {
   TicketSender,
   TicketMessage,
 } from "@/lib/support-tickets";
+import type { Coupon } from "@/lib/coupons";
+import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
 import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
@@ -70,6 +73,8 @@ const COL = {
   orders: "orders",
   returns: "returns",
   supportTickets: "supportTickets",
+  coupons: "coupons",
+  notifications: "notifications",
   settings: "settings",
   emailIndex: "emailIndex",
   phoneIndex: "phoneIndex",
@@ -1260,6 +1265,117 @@ export class FirebaseDataSource implements DataSource {
       lowStockCount: products.filter((p) => p.active && p.stock <= p.minOrderQty * 2).length,
       ordersByStatus,
     };
+  }
+
+  // --- Coupons ----------------------------------------------------------------
+  async listCoupons(): Promise<Coupon[]> {
+    await this.ready();
+    const snap = await getDocs(collection(getDb(), COL.coupons));
+    return snap.docs.map((d) => ({ ...(d.data() as Omit<Coupon, "id">), id: d.id }));
+  }
+
+  async createCoupon(
+    input: Omit<Coupon, "id" | "usageCount" | "createdAt" | "updatedAt">
+  ): Promise<Coupon> {
+    await this.ready();
+    const db = getDb();
+    const ref = doc(collection(db, COL.coupons));
+    const now = new Date().toISOString();
+    const coupon: Coupon = { ...input, id: ref.id, usageCount: 0, createdAt: now, updatedAt: now };
+    const { id: _id, ...data } = coupon;
+    await setDoc(ref, data as DocumentData);
+    return coupon;
+  }
+
+  async updateCoupon(id: string, patch: Partial<Coupon>): Promise<Coupon> {
+    await this.ready();
+    const db = getDb();
+    const { id: _id, ...safe } = patch;
+    await updateDoc(doc(db, COL.coupons, id), { ...safe, updatedAt: new Date().toISOString() } as DocumentData);
+    const snap = await getDoc(doc(db, COL.coupons, id));
+    if (!snap.exists()) throw new ApiError("Coupon not found.", 404);
+    return { ...(snap.data() as Omit<Coupon, "id">), id: snap.id };
+  }
+
+  async deleteCoupon(id: string): Promise<void> {
+    await this.ready();
+    await deleteDoc(doc(getDb(), COL.coupons, id));
+  }
+
+  // --- In-app notifications ----------------------------------------------------
+  async listInAppNotifications(userId: string): Promise<InAppNotification[]> {
+    await this.ready();
+    const snap = await getDocs(query(collection(getDb(), COL.notifications), where("userId", "==", userId)));
+    const notifs = snap.docs.map((d) => ({ ...(d.data() as Omit<InAppNotification, "id">), id: d.id }));
+    return notifs.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, 100);
+  }
+
+  subscribeInAppNotifications(userId: string, cb: (notifs: InAppNotification[]) => void): () => void {
+    const db = getDb();
+    const q = query(collection(db, COL.notifications), where("userId", "==", userId));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const notifs = snap.docs.map((d) => ({ ...(d.data() as Omit<InAppNotification, "id">), id: d.id }));
+        cb(notifs.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, 100));
+      },
+      (err) => console.warn("Notification subscription error:", err.message)
+    );
+  }
+
+  async addInAppNotification(
+    userId: string,
+    type: InAppNotificationType,
+    title: string,
+    message: string,
+    options?: { actionUrl?: string; orderId?: string }
+  ): Promise<InAppNotification> {
+    await this.ready();
+    const db = getDb();
+    const ref = doc(collection(db, COL.notifications));
+    const notification: InAppNotification = {
+      id: ref.id,
+      userId,
+      type,
+      title,
+      message,
+      read: false,
+      ...options,
+      createdAt: new Date().toISOString(),
+    };
+    const { id: _id, ...data } = notification;
+    await setDoc(ref, data as DocumentData);
+    return notification;
+  }
+
+  async markInAppNotificationRead(_userId: string, id: string): Promise<void> {
+    await this.ready();
+    await updateDoc(doc(getDb(), COL.notifications, id), { read: true });
+  }
+
+  async markAllInAppNotificationsRead(userId: string): Promise<void> {
+    await this.ready();
+    const db = getDb();
+    const snap = await getDocs(
+      query(collection(db, COL.notifications), where("userId", "==", userId), where("read", "==", false))
+    );
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.update(d.ref, { read: true }));
+    await batch.commit();
+  }
+
+  async deleteInAppNotification(_userId: string, id: string): Promise<void> {
+    await this.ready();
+    await deleteDoc(doc(getDb(), COL.notifications, id));
+  }
+
+  async clearAllInAppNotifications(userId: string): Promise<void> {
+    await this.ready();
+    const db = getDb();
+    const snap = await getDocs(query(collection(db, COL.notifications), where("userId", "==", userId)));
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
   }
 
   // --- Settings -------------------------------------------------------------
