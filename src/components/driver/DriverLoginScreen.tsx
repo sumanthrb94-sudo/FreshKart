@@ -105,6 +105,12 @@ export function DriverLoginScreen() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
+            // Revealing the password makes this a text field, and an Android
+            // keyboard will then capitalise and autocorrect it — silently
+            // turning a correct password into a wrong one.
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder="••••••••"
             className="h-12 flex-1 bg-transparent px-3.5 text-base font-semibold text-fg outline-none"
           />
