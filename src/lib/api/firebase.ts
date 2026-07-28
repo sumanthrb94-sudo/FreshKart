@@ -55,7 +55,7 @@ import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-noti
 import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
-import { nextStoreClose } from "@/lib/store-hours";
+import { effectiveOverride, getStoreStatus, nextStoreClose } from "@/lib/store-hours";
 import { isWithinDriverAuthority, totalRefundOf } from "@/lib/delivery-adjustment";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
 // Shared with the sign-in UI, which routes allowlisted numbers straight to
@@ -427,12 +427,11 @@ export class FirebaseDataSource implements DataSource {
     // instead of one get() per line item, which is what let the item cap be
     // lifted. Must stay in lockstep or orders start failing with
     // "Missing or insufficient permissions" again.
-    if (patch.price !== undefined) {
-      await setDoc(
-        doc(db, COL.settings, "priceSheet"),
-        { prices: { [id]: patch.price } },
-        { merge: true }
-      );
+    if (patch.price !== undefined || patch.minOrderQty !== undefined) {
+      const mirror: DocumentData = {};
+      if (patch.price !== undefined) mirror.prices = { [id]: patch.price };
+      if (patch.minOrderQty !== undefined) mirror.minQty = { [id]: patch.minOrderQty };
+      await setDoc(doc(db, COL.settings, "priceSheet"), mirror, { merge: true });
     }
     const snap = await getDoc(doc(db, COL.products, id));
     if (!snap.exists()) throw new ApiError("Product not found.", 404);
@@ -454,7 +453,7 @@ export class FirebaseDataSource implements DataSource {
     await setDoc(ref, data);
     await setDoc(
       doc(db, COL.settings, "priceSheet"),
-      { prices: { [ref.id]: normalised.price } },
+      { prices: { [ref.id]: normalised.price }, minQty: { [ref.id]: normalised.minOrderQty } },
       { merge: true }
     );
     return { ...normalised, id: ref.id };
@@ -500,6 +499,18 @@ export class FirebaseDataSource implements DataSource {
       );
     }
 
+    // The shop is shut outside 8 AM – 9 PM IST unless an admin has forced it
+    // live. The cart screen already knows this; enforcing it here as well
+    // stops a tab left open past the close from adding an order to a load
+    // that was packed hours ago.
+    const storeSnap = await readDoc(doc(db, COL.settings, "store"));
+    const storeSettings = storeSnap.exists() ? (storeSnap.data() as StoreSettings) : null;
+    if (!getStoreStatus(new Date(), effectiveOverride(storeSettings)).isOpen) {
+      throw new ApiError(
+        "The shop is closed. Orders reopen at 8 AM for the next day's delivery."
+      );
+    }
+
     const buyerSnap = await getDoc(doc(db, COL.users, buyerId));
     if (!buyerSnap.exists()) throw new ApiError("Buyer not found.", 404);
     const buyer = buyerSnap.data() as User;
@@ -524,6 +535,12 @@ export class FirebaseDataSource implements DataSource {
         const available = typeof p.stock === "number" && Number.isFinite(p.stock) ? p.stock : 0;
         if (qty > available) {
           throw new ApiError(`Only ${available} ${p.unit} of ${p.name} left in stock.`);
+        }
+        // Per-product wholesale minimum. The cart's stepper enforces this for
+        // convenience; the order is created here, so this is the control.
+        const min = typeof p.minOrderQty === "number" && p.minOrderQty > 0 ? p.minOrderQty : 1;
+        if (qty < min) {
+          throw new ApiError(`${p.name} is sold in a minimum of ${min} ${p.unit}.`);
         }
         const item: OrderItem = {
           productId: refs[idx].id,
@@ -1330,15 +1347,18 @@ export class FirebaseDataSource implements DataSource {
     // A full replace also drops stale entries for deleted products.
     const productsSnap = await getDocs(collection(db, COL.products));
     const prices: Record<string, number> = {};
+    const minQty: Record<string, number> = {};
     productsSnap.docs.forEach((d) => {
-      prices[d.id] = (d.data() as Product).price;
+      const p = d.data() as Product;
+      prices[d.id] = p.price;
+      minQty[d.id] = typeof p.minOrderQty === "number" && p.minOrderQty > 0 ? p.minOrderQty : 1;
     });
     const settings: DailyPricesSettings = {
       publishedAt: new Date().toISOString(),
       publishedBy: userId,
     };
     const batch = writeBatch(db);
-    batch.set(doc(db, COL.settings, "priceSheet"), { prices });
+    batch.set(doc(db, COL.settings, "priceSheet"), { prices, minQty });
     batch.set(doc(db, COL.settings, "dailyPrices"), settings, { merge: true });
     await batch.commit();
     return settings;

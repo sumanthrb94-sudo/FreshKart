@@ -25,26 +25,23 @@ export function getIstDateString(date: Date): string {
   return dateFormatter.format(date);
 }
 
-/** Builds the IST 07:00 cutoff timestamp for the given UTC instant's IST day. */
-function getIstCutoff(date: Date): Date {
-  const istDate = getIstDateString(date);
-  // +05:30 is the fixed IST offset; this gives the exact Unix timestamp.
-  return new Date(`${istDate}T07:00:00+05:30`);
-}
-
 /**
- * True when `publishedAt` represents a publication made today (IST) at or after
- * the 07:00 cutoff.
+ * True when today's prices have been published — i.e. the publish happened on
+ * the current IST calendar day.
+ *
+ * This deliberately does NOT require the publish to land after 07:00. The
+ * point of the rule is to stop *yesterday's* sheet counting as today's, and
+ * the calendar date alone does that. Requiring 07:00 or later punished the one
+ * habit the business actually wants: an admin back from the mandi at 06:30
+ * entering the day's rates before the shop opens at 08:00. That publish used
+ * to be silently ignored, and buyers spent the whole day looking at "Getting
+ * best live prices for you" with no indication anything was wrong.
  */
 export function isDailyPriceUpdatePublished(publishedAt: string | undefined | null): boolean {
   if (!publishedAt) return false;
-  const now = new Date();
   const updated = new Date(publishedAt);
   if (Number.isNaN(updated.getTime())) return false;
-  return (
-    getIstDateString(updated) === getIstDateString(now) &&
-    updated.getTime() >= getIstCutoff(now).getTime()
-  );
+  return getIstDateString(updated) === getIstDateString(new Date());
 }
 
 /** Human-readable last-published time in IST, e.g. "7:05 AM, 9 Jul". */
@@ -76,12 +73,13 @@ export function shiftIstDate(istDate: string, days: number): string {
 }
 
 /**
- * The business day for an IST date: [07:00 IST, next 00:00 IST).
+ * The business day for an IST date: the whole calendar day, [00:00, 24:00) IST.
  *
- * The 07:00 start mirrors the price-publish cutoff — orders cannot exist before
- * it, because `createOrder` rejects while today's prices are unpublished and
- * `isDailyPriceUpdatePublished` only accepts a publish at or after 07:00 IST.
- * The end runs to midnight so late-evening orders can't fall into a gap.
+ * This used to start at 07:00, mirroring a price-publish cutoff that no longer
+ * exists. With an early publish now valid — and with the admin able to force
+ * the shop live outside its hours — an order really can be placed before 07:00,
+ * and one that fell before the range start simply vanished from the day's
+ * report and packing list. A whole calendar day cannot lose an order.
  *
  * Returns UTC ISO strings in the same format `Order.createdAt` is written with
  * (`new Date().toISOString()`), so they compare correctly against it — both as
@@ -91,7 +89,7 @@ export function shiftIstDate(istDate: string, days: number): string {
 export function getIstBusinessDayRange(istDate: string): { startIso: string; endIso: string } {
   // +05:30 is the fixed IST offset; this pins the exact Unix timestamp.
   return {
-    startIso: new Date(`${istDate}T07:00:00+05:30`).toISOString(),
+    startIso: new Date(`${istDate}T00:00:00+05:30`).toISOString(),
     endIso: new Date(`${shiftIstDate(istDate, 1)}T00:00:00+05:30`).toISOString(),
   };
 }
