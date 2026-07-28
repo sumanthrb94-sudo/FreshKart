@@ -9,7 +9,6 @@ import { firebaseConfigured } from "@/lib/firebase/client";
 import { isPlausibleIndianMobile } from "@/lib/format";
 import { sendOtp, toE164, resetRecaptcha, renderRecaptcha } from "@/lib/firebase/phone-auth";
 import { friendlyPhoneError } from "@/lib/firebase/friendly-phone-error";
-import { isAdminPhone } from "@/lib/admin-phones";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
@@ -163,19 +162,13 @@ export function OnboardingScreen() {
     setError(null);
     try {
       await confirmation.current.confirm(code);
-      // Allowlisted admin numbers get the console straight from this screen —
-      // no separate admin URL needed. completeAdminLogin promotes/creates the
-      // profile as ADMIN (enforced by the matching allowlist in the deployed
-      // Firestore rules).
-      if (isAdminPhone(toE164(phone)) && api.completeAdminLogin) {
-        await api.completeAdminLogin();
-        await refreshUser();
-        router.replace("/admin");
-        return;
-      }
+      // This is the customer-facing entry point: it never grants or routes to
+      // the admin console, even for an allowlisted number. Admin sign-in is
+      // exclusive to /admin-login, which is the only screen that calls
+      // completeAdminLogin(). Everyone who signs in here lands in the shop.
       const existing = await refreshUser();
       if (existing) {
-        router.replace(existing.role === "ADMIN" ? "/admin" : "/");
+        router.replace("/");
       } else {
         setStep("shop"); // phone is verified — just need the delivery address
       }

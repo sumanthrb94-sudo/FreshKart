@@ -12,6 +12,7 @@ import { friendlyPhoneError } from "@/lib/firebase/friendly-phone-error";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/Alert";
+import { BrandSplash } from "@/components/ui/BrandSplash";
 
 type Step = "mobile" | "verify";
 const RECAPTCHA_ID = "admin-recaptcha-container";
@@ -24,7 +25,7 @@ const RECAPTCHA_ID = "admin-recaptcha-container";
  */
 export function AdminLoginScreen() {
   const router = useRouter();
-  const { login, refreshUser } = useAuth();
+  const { user, loading: authLoading, login, refreshUser } = useAuth();
 
   const [step, setStep] = useState<Step>("mobile");
   const [phone, setPhone] = useState("");
@@ -39,6 +40,13 @@ export function AdminLoginScreen() {
   const confirmation = useRef<ConfirmationResult | null>(null);
 
   useEffect(() => () => resetRecaptcha(), []);
+
+  // Already signed in as an admin (e.g. opening the bookmarked link on a
+  // device with a live session) — go straight through rather than demanding
+  // another OTP for an identity we've already established.
+  useEffect(() => {
+    if (user?.role === "ADMIN") router.replace("/admin");
+  }, [user, router]);
 
   useEffect(() => {
     let mounted = true;
@@ -158,6 +166,12 @@ export function AdminLoginScreen() {
       setBusy(false);
     }
   }
+
+  // Hold the form back until auth has settled, and while the redirect above
+  // is in flight — otherwise an admin opening their bookmarked link sees the
+  // sign-in card flash before being let through, which reads as "it logged
+  // me out again".
+  if (authLoading || user?.role === "ADMIN") return <BrandSplash />;
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-canvas p-6">
