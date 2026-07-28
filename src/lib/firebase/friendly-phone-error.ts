@@ -33,7 +33,9 @@ export function friendlyPhoneError(e: unknown): string {
     return "Network error. Check your internet connection and try again.";
   }
   if (code.includes("too-many-requests")) {
-    return "Too many attempts. Please wait a few minutes before trying again.";
+    // Firebase extends this block on every further attempt, so tell the user
+    // to stop rather than implying a quick retry will work.
+    return "Too many sign-in attempts from this device. Stop trying for about an hour — retrying now makes the block last longer.";
   }
   if (code.includes("argument-error")) {
     return "Authentication setup error. The security verifier may not be configured correctly.";

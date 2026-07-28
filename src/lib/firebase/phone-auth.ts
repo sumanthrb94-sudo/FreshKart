@@ -50,7 +50,7 @@ function normalizeFirebaseError(e: unknown): PhoneAuthError {
     case code.includes("too-many-requests"):
       return new PhoneAuthError(
         code,
-        "Too many attempts from this device. Please wait a few minutes and try again."
+        "Too many sign-in attempts from this device. Stop trying for about an hour — retrying now makes the block last longer."
       );
     case code.includes("quota-exceeded"):
       return new PhoneAuthError(
