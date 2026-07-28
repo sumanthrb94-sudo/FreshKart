@@ -247,6 +247,21 @@ export interface DataSource {
   /** Optional — admin: replace the hub and served-pincode list. */
   saveServiceArea?(userId: string, area: ServiceArea): Promise<ServiceArea>;
 
+  // --- Staff accounts ---------------------------------------------------------
+  /**
+   * Optional — admin: create a delivery executive's login. Creating another
+   * person's account is something the browser is deliberately not allowed to
+   * do, so this goes through a server route holding the service-account key.
+   */
+  createDriverAccount?(input: {
+    name: string;
+    username: string;
+    phone?: string;
+    password: string;
+  }): Promise<User>;
+  /** Optional — admin: revoke or restore an executive's access. */
+  setDriverActive?(driverId: string, active: boolean): Promise<void>;
+
   // --- Danger zone ------------------------------------------------------------
   /**
    * Optional: admin-only reset for test/demo data. Deletes every buyer

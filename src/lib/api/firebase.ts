@@ -1406,6 +1406,51 @@ export class FirebaseDataSource implements DataSource {
     return next;
   }
 
+  /**
+   * Create a delivery executive. The heavy lifting happens in /api/staff —
+   * see the note there on why this cannot be done from the browser — and the
+   * caller's Firebase ID token is what proves to that route we are an admin.
+   */
+  async createDriverAccount(input: {
+    name: string;
+    username: string;
+    phone?: string;
+    password: string;
+  }): Promise<User> {
+    await this.ready();
+    const me = getFirebaseAuth().currentUser;
+    if (!me) throw new ApiError("Not signed in.", 401);
+    const idToken = await me.getIdToken();
+
+    const res = await fetch("/api/staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken, ...input }),
+    });
+    const json = (await res.json()) as { user?: User; error?: string };
+    if (!res.ok || !json.user) {
+      throw new ApiError(json.error ?? "Could not create the executive.", res.status);
+    }
+    return json.user;
+  }
+
+  async setDriverActive(driverId: string, active: boolean): Promise<void> {
+    await this.ready();
+    const me = getFirebaseAuth().currentUser;
+    if (!me) throw new ApiError("Not signed in.", 401);
+    const idToken = await me.getIdToken();
+
+    const res = await fetch("/api/staff", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken, driverId, active }),
+    });
+    if (!res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new ApiError(json.error ?? "Could not change that account.", res.status);
+    }
+  }
+
   // --- Danger zone ------------------------------------------------------------
   /**
    * Deletes every buyer account plus their orders, returns, support tickets,

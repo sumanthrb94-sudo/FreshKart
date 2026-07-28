@@ -19,6 +19,7 @@ import {
   Settings,
   ShoppingCart,
   Truck,
+  Undo2,
   Sparkles,
   Tag,
   Users,
@@ -64,6 +65,7 @@ const MANAGE_TILES: ManageTileDef[] = [
   { href: "/admin/orders", label: "Orders", icon: ClipboardList, tone: "blue" },
   { href: "/admin/pos", label: "POS Sale", icon: ScanLine, tone: "violet" },
   { href: "/admin/deliveries", label: "Deliveries", icon: Truck, tone: "rose" },
+  { href: "/admin/returns", label: "Returns", icon: Undo2, tone: "amber" },
   { href: "/admin/support", label: "Support", icon: MessageCircle, tone: "indigo" },
   { href: "/admin/reports", label: "Reports", icon: FileText, tone: "teal" },
   { href: "/admin/coupons", label: "Coupons", icon: BadgePercent, tone: "pink" },
@@ -282,7 +284,7 @@ export function AdminOverviewScreen() {
         return { attention: !publishedToday };
       case "/admin/orders":
         return { count: newOrdersCount };
-      case "/admin/deliveries":
+      case "/admin/returns":
         // A driver is standing at a customer's door waiting on this, so it
         // flashes rather than sitting quietly as a number.
         return { count: pendingAdjustments.length, attention: pendingAdjustments.length > 0 };

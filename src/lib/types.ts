@@ -109,6 +109,8 @@ export interface User {
   lang?: "en" | "hi" | "te" | "mr";
   /** Admin dashboard "Manage" tiles the admin has pinned to the front. */
   pinnedTiles?: string[];
+  /** Staff only: access revoked without deleting the person's history. */
+  disabled?: boolean;
 }
 
 /** Cart line as persisted server-side: just the productId + qty, rehydrated

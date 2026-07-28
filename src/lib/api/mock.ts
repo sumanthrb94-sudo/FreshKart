@@ -790,6 +790,40 @@ export class MockDataSource implements DataSource {
     return delay(structuredClone(next));
   }
 
+  async createDriverAccount(input: {
+    name: string;
+    username: string;
+    phone?: string;
+    password: string;
+  }): Promise<User> {
+    const email = `${input.username.trim().toLowerCase()}@green-basket.in`;
+    if (store.get().users.some((u) => u.email === email)) {
+      throw new ApiError(`The username "${input.username}" is already taken.`, 409);
+    }
+    const user: User = {
+      id: `user-driver-${Date.now()}`,
+      name: input.name,
+      email,
+      phone: input.phone ?? "",
+      role: "DRIVER",
+      businessName: "Green Basket Delivery",
+      createdAt: new Date().toISOString(),
+    };
+    store.mutate((s) => {
+      s.users.push(user);
+      s.credentials[email] = input.password;
+    });
+    return delay(structuredClone(user));
+  }
+
+  async setDriverActive(driverId: string, active: boolean): Promise<void> {
+    store.mutate((s) => {
+      const u = s.users.find((x) => x.id === driverId);
+      if (u) u.disabled = !active;
+    });
+    return delay(undefined);
+  }
+
   // --- Danger zone ------------------------------------------------------------
   async wipeDatabase(): Promise<WipeResult> {
     let deletedUsers = 0;
