@@ -73,7 +73,7 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // --- Settings: delivery service area ({ hub, pincodes: [...] }).
+    // --- Settings: delivery service area ({ hub, radiusKm, pincodes }).
     //     World-readable — the driver app sequences a run from it, and
     //     where we deliver is not a secret. Admin-writable only. ---
     match /settings/serviceArea {
@@ -82,7 +82,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // --- Settings: live price mirror ({ prices: { productId: price } }),
+    // --- Settings: live price mirror ({ prices: {...}, minQty: {...} }),
     //     kept in sync by updateProduct/createProduct/updateProductPrices in
     //     src/lib/api/firebase.ts on every price-changing admin write. The
     //     order-create rule reads this ONE document instead of doing a
@@ -90,6 +90,8 @@ service cloud.firestore {
     //     distinct products instead of being capped by Firestore's
     //     get()-call budget per rule evaluation. World-readable (prices are
     //     already public via the products catalog); admin-writable only.
+    //     `minQty` carries each product's wholesale minimum, so the
+    //     order-create rule can enforce it from this same single get().
     match /settings/priceSheet {
       allow read: if true;
       allow create, update: if isAdmin();
@@ -291,11 +293,11 @@ service cloud.firestore {
 
     // There is no whole-cart minimum any more — each product carries its own
     // minimum order quantity (1kg leafy, 20kg onion/potato, 6pc cauliflower,
-    // …), enforced by the cart's quantity stepper, so a single 1kg bunch of
-    // coriander is a legitimate order. Rules can't check per-product minimums
-    // without a get() per line item, so they keep the gross sanity bounds:
-    // a cart must carry something, and can't exceed the 500-unit ceiling
-    // (MAX_ORDER_TOTAL_QTY in src/lib/format.ts).
+    // …), so a single 1kg bunch of coriander is a legitimate order. Those
+    // per-product minimums are checked in validateItem() against the minQty
+    // map mirrored into settings/priceSheet; this keeps only the gross sanity
+    // bounds — a cart must carry something, and can't exceed the 500-unit
+    // ceiling (MAX_ORDER_TOTAL_QTY in src/lib/format.ts).
     function isOrderWeightValid(items) {
       return getExpectedTotalQty(items) > 0 && getExpectedTotalQty(items) <= 500;
     }

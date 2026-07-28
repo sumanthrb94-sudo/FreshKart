@@ -101,7 +101,6 @@ export const USERS: User[] = [
     // map draws these differently from a pincode-centre guess.
     lat: 17.3928,
     lng: 78.4361,
-    gstin: "36BUYER1234A1Z9",
     createdAt: "2026-05-01T09:00:00.000Z",
   },
   {
@@ -124,7 +123,6 @@ export const USERS: User[] = [
     city: "Hyderabad",
     address: "KGM Fresh, Yerraboda, Upperpally",
     pincode: "500048",
-    gstin: "36FRESH9876B1Z2",
     createdAt: "2026-04-01T09:00:00.000Z",
   },
   {
@@ -137,7 +135,6 @@ export const USERS: User[] = [
     city: "Hyderabad",
     address: "45, Jubilee Hills Road No. 10",
     pincode: "500033",
-    gstin: "36BUYER5678C1Z3",
     createdAt: "2026-05-12T09:00:00.000Z",
   },
   {

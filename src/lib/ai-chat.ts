@@ -46,7 +46,7 @@ const FAQ_RESPONSES: Record<string, string> = {
   "register": "New users can register by providing business name, email, phone, and city. Approval is instant for B2B buyers.",
   "sign up": "New users can register by providing business name, email, phone, and city. Approval is instant for B2B buyers.",
   "privacy": "We take your privacy seriously. Your data is encrypted and never shared with third parties. Read our full Privacy Policy at fresh-kart-six.vercel.app/privacy",
-  "gst": "GST invoices are auto-generated for all orders. Your GSTIN can be added in your profile settings.",
+  "gst": "We are not registered under GST at present, so your bill carries no GST and no input tax credit is available on it. An invoice is generated for every order and can be downloaded from the order screen.",
   "bulk": "For bulk orders above 500 kg, please contact our sales team via Call Now for special wholesale pricing.",
   "price": "Prices are updated daily at 7:00 AM based on market rates. All prices shown are current and include any applicable taxes.",
   "cost": "Prices are updated daily at 7:00 AM based on market rates. All prices shown are current and include any applicable taxes.",
