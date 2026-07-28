@@ -1302,11 +1302,25 @@ export class FirebaseDataSource implements DataSource {
   async publishDailyPrices(userId: string): Promise<DailyPricesSettings> {
     await this.ready();
     const db = getDb();
+    // Rebuild the ENTIRE settings/priceSheet mirror from the catalog on every
+    // publish — not just the rows edited today. Per-edit mirroring alone left
+    // products whose price never changed since the mirror shipped absent from
+    // the sheet, and the order-create rule rejects any cart containing an
+    // unlisted product ("Missing or insufficient permissions" for buyers).
+    // A full replace also drops stale entries for deleted products.
+    const productsSnap = await getDocs(collection(db, COL.products));
+    const prices: Record<string, number> = {};
+    productsSnap.docs.forEach((d) => {
+      prices[d.id] = (d.data() as Product).price;
+    });
     const settings: DailyPricesSettings = {
       publishedAt: new Date().toISOString(),
       publishedBy: userId,
     };
-    await setDoc(doc(db, COL.settings, "dailyPrices"), settings, { merge: true });
+    const batch = writeBatch(db);
+    batch.set(doc(db, COL.settings, "priceSheet"), { prices });
+    batch.set(doc(db, COL.settings, "dailyPrices"), settings, { merge: true });
+    await batch.commit();
     return settings;
   }
 
