@@ -15,11 +15,15 @@
 // After deploying, verify three flows: Google login, the address map, and
 // product images — if any break, the blocked origin shows in the console.
 // ---------------------------------------------------------------------------
+// Next.js dev-mode webpack HMR needs 'unsafe-eval' to run at all; production
+// builds never need it, so it's only added outside production.
+const isDev = process.env.NODE_ENV !== "production";
+
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://apis.google.com https://*.gstatic.com https://*.googletagmanager.com https://va.vercel-scripts.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
+  `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval' " : ""}https://apis.google.com https://*.gstatic.com https://*.googletagmanager.com https://va.vercel-scripts.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://images.unsplash.com https://*.googleusercontent.com https://*.tile.openstreetmap.org https://*.gstatic.com https://*.google-analytics.com https://www.gstatic.com/recaptcha/ https://www.google.com/recaptcha/",
+  "img-src 'self' data: blob: https://images.unsplash.com https://*.googleusercontent.com https://*.tile.openstreetmap.org https://*.gstatic.com https://*.google-analytics.com https://www.gstatic.com/recaptcha/ https://www.google.com/recaptcha/ https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com",
   "font-src 'self' data:",
   "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://apis.google.com https://nominatim.openstreetmap.org https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://vitals.vercel-insights.com https://va.vercel-scripts.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
   "frame-src 'self' https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com/recaptcha/ https://recaptcha.google.com/",
@@ -57,10 +61,18 @@ const nextConfig = {
   // Don't advertise the framework/version in responses.
   poweredByHeader: false,
   images: {
-    // Allow remote produce imagery (Unsplash) used by the seed catalog.
+    // Allow remote produce imagery (Unsplash) used by the seed catalog and
+    // Firebase Storage product photos uploaded by admins.
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "**.googleusercontent.com" },
+      // Product photos uploaded to Firebase Storage. The classic
+      // firebasestorage download host, the newer *.firebasestorage.app host,
+      // and the GCS bucket host are all used depending on how the download
+      // URL is generated.
+      { protocol: "https", hostname: "firebasestorage.googleapis.com" },
+      { protocol: "https", hostname: "*.firebasestorage.app" },
+      { protocol: "https", hostname: "storage.googleapis.com" },
     ],
   },
   async headers() {

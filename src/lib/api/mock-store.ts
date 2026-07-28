@@ -1,53 +1,46 @@
-import type { DailyPricesSettings, Order, Product, User } from "@/lib/types";
+import type { DailyPricesSettings, Order, Product, StoreSettings, User } from "@/lib/types";
 import { ORDERS, PRODUCTS, USERS, DEMO_PASSWORD } from "@/lib/mock-data";
+import type { SupportTicket } from "@/lib/support-tickets";
+import type { Coupon } from "@/lib/coupons";
+import { DEMO_COUPONS } from "@/lib/coupons";
+import type { InAppNotification } from "@/lib/in-app-notifications";
+import type { ServiceArea } from "@/lib/service-area";
+import { DEFAULT_SERVICE_AREA } from "@/lib/service-area";
 
 interface MockStore {
   products: Product[];
   users: User[];
   orders: Order[];
+  supportTickets: SupportTicket[];
+  coupons: Coupon[];
+  notifications: InAppNotification[];
   dailyPrices: DailyPricesSettings | null;
+  storeSettings: StoreSettings | null;
+  serviceArea: ServiceArea | null;
   credentials: Record<string, string>;
 }
-
-const LS_KEY = "freshkart_mock_store_v1";
 
 function seed(): MockStore {
   return {
     products: structuredClone(PRODUCTS),
     users: structuredClone(USERS),
     orders: structuredClone(ORDERS),
+    supportTickets: [],
+    coupons: structuredClone(DEMO_COUPONS),
+    notifications: [],
     dailyPrices: null,
+    // The demo backend ships with the starter area so the driver map has a
+    // hub and pincodes to draw on a fresh reload.
+    serviceArea: structuredClone(DEFAULT_SERVICE_AREA),
+    storeSettings: null,
     credentials: {
-      "customer@freshkart.in": DEMO_PASSWORD,
-      "admin@freshkart.in": DEMO_PASSWORD,
+      "customer@green-basket.in": DEMO_PASSWORD,
+      "admin@green-basket.in": DEMO_PASSWORD,
+      "driver@green-basket.in": DEMO_PASSWORD,
       "anita@spiceleaf.in": DEMO_PASSWORD,
       "mohan@dailyfresh.in": DEMO_PASSWORD,
     },
   };
-}
-
-function load(): MockStore {
-  if (typeof window === "undefined") return seed();
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return seed();
-    const parsed = JSON.parse(raw) as MockStore;
-    // Ensure all required fields exist (migration from older store versions)
-    if (!parsed.orders) parsed.orders = [];
-    if (!parsed.credentials) parsed.credentials = seed().credentials;
-    if (!parsed.products || parsed.products.length === 0) parsed.products = seed().products;
-    if (!parsed.users || parsed.users.length === 0) parsed.users = seed().users;
-    if (parsed.dailyPrices === undefined) parsed.dailyPrices = null;
-    return parsed;
-  } catch {
-    return seed();
-  }
-}
-
-function persist(s: MockStore) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(LS_KEY, JSON.stringify(s));
-  }
 }
 
 /** Simple pub/sub for real-time mock subscriptions */
@@ -64,7 +57,12 @@ function notify() {
   });
 }
 
-let _state = load();
+// Pure in-memory — no client storage of any kind. This is the local-dev/demo
+// backend only (production always talks to real Firestore via
+// FirebaseDataSource); state resets on every full page reload, and two tabs
+// no longer see each other's mutations, both fine trade-offs for a dev-only
+// data source.
+let _state: MockStore = seed();
 
 export const store = {
   get(): MockStore {
@@ -72,7 +70,6 @@ export const store = {
   },
   mutate(fn: (s: MockStore) => void) {
     fn(_state);
-    persist(_state);
     notify();
   },
   /** Subscribe to any store mutation. Used by mock real-time subscriptions. */
@@ -83,7 +80,6 @@ export const store = {
   /** Reset everything (useful for testing). */
   reset() {
     _state = seed();
-    persist(_state);
     notify();
   },
 };

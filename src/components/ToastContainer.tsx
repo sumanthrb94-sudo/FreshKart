@@ -13,11 +13,14 @@ const ICONS = {
   info: Info,
 };
 
+// Solid surface + a colored left border for the status accent — toasts float
+// over arbitrary page content, so (unlike an in-card badge) their background
+// must be fully opaque or whatever's behind them shows/blurs through.
 const STYLES = {
-  success: "bg-emerald-500/10 border-emerald-500/30 text-emerald-700",
-  error: "bg-red-500/10 border-red-500/30 text-red-700",
-  warning: "bg-amber-500/10 border-amber-500/30 text-amber-700",
-  info: "bg-blue-500/10 border-blue-500/30 text-blue-700",
+  success: "bg-surface border-l-4 border-emerald-500 text-emerald-700",
+  error: "bg-surface border-l-4 border-red-500 text-red-700",
+  warning: "bg-surface border-l-4 border-amber-500 text-amber-700",
+  info: "bg-surface border-l-4 border-blue-500 text-blue-700",
 };
 
 const ICON_COLORS = {
@@ -32,7 +35,7 @@ function ToastItem({ toast: t }: { toast: Toast }) {
   return (
     <div
       className={cn(
-        "flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 shadow-lg backdrop-blur-sm transition-all",
+        "flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 shadow-lg transition-all",
         STYLES[t.type]
       )}
       role="alert"

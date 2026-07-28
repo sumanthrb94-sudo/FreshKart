@@ -1,12 +1,12 @@
 /**
- * FreshKart domain model.
+ * Green Basket domain model.
  *
  * These types are the single source of truth shared by the UI, the mock data
  * layer, and the (future) GCP backend. The REST contract in `docs/BACKEND.md`
  * is expressed in terms of exactly these shapes — keep them in sync.
  */
 
-export type Role = "BUYER" | "ADMIN" | "SELLER";
+export type Role = "BUYER" | "ADMIN" | "SELLER" | "DRIVER";
 
 export type Unit = "kg" | "pc";
 
@@ -18,7 +18,7 @@ export type OrderStatus =
   | "DELIVERED"
   | "CANCELLED";
 
-export type PaymentMethod = "COD" | "CREDIT" | "ONLINE";
+export type PaymentMethod = "COD" | "ONLINE";
 
 export type PaymentStatus = "UNPAID" | "PAID";
 
@@ -27,6 +27,29 @@ export interface DailyPricesSettings {
   publishedAt: string;
   /** User id of the admin who published the update. */
   publishedBy?: string;
+}
+
+/**
+ * Admin override for the 8 AM – 9 PM IST schedule.
+ * - AUTO   — follow the clock (the normal case)
+ * - OPEN   — force the shop live regardless of the hour (demos, late runs)
+ * - CLOSED — force it shut regardless of the hour (holiday, no stock)
+ */
+export type StoreOverride = "AUTO" | "OPEN" | "CLOSED";
+
+export interface StoreSettings {
+  override: StoreOverride;
+  /**
+   * When the override stops applying and the shop reverts to the schedule —
+   * the next 9 PM IST after it was set. An override that never expired would
+   * silently leave the shop open (or shut) indefinitely the moment someone
+   * forgot to undo a test. Unset/absent = no expiry (AUTO).
+   */
+  expiresAt?: string;
+  /** ISO 8601 timestamp of the last override change. */
+  updatedAt?: string;
+  /** User id of the admin who set it. */
+  updatedBy?: string;
 }
 
 export interface Category {
@@ -76,6 +99,23 @@ export interface User {
   addressLabel?: string;
   gstin?: string;
   createdAt: string;
+  /** Cart contents, synced to this account only — never shared across
+   *  accounts on the same device (see CartProvider). */
+  cart?: StoredCartLine[];
+  /** Display preferences, synced to this account instead of localStorage —
+   *  so they follow the buyer across devices/browsers instead of resetting
+   *  every time they sign in somewhere new. Unset = default (dark, English). */
+  theme?: "dark" | "light";
+  lang?: "en" | "hi" | "te" | "mr";
+  /** Admin dashboard "Manage" tiles the admin has pinned to the front. */
+  pinnedTiles?: string[];
+}
+
+/** Cart line as persisted server-side: just the productId + qty, rehydrated
+ *  against the live catalog on load so price/stock are never stale. */
+export interface StoredCartLine {
+  productId: string;
+  qty: number;
 }
 
 /** Address payload captured during onboarding / address edit (map picker). */
@@ -134,6 +174,65 @@ export interface Order {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  /** Set when the order is marked DELIVERED; used for the return window. */
+  deliveredAt?: string;
+  /** Refund amount (in rupees) after a return is marked REFUNDED. */
+  refundAmount?: number;
+  /** ISO timestamp when the refund was processed. */
+  refundedAt?: string;
+  /** Adjusted invoice number generated for the refund. */
+  adjustedInvoiceNumber?: string;
+  /** Delivery executive assigned to run this order. */
+  driverId?: string;
+  /** Denormalised for the admin order list. */
+  driverName?: string;
+  assignedAt?: string;
+  /** Door-side rejection raised by the driver at handover, if any. */
+  adjustment?: DeliveryAdjustment;
+}
+
+/** One rejected line, captured at the door before money changes hands. */
+export interface AdjustmentLine {
+  productId: string;
+  name: string;
+  unit: Unit;
+  /** How much of the delivered quantity the buyer refused. */
+  rejectedQty: number;
+  unitPrice: number;
+  /** rejectedQty * unitPrice */
+  lineRefund: number;
+}
+
+export type AdjustmentStatus = "AUTO_APPROVED" | "PENDING" | "APPROVED" | "REJECTED";
+
+/**
+ * A door-side quantity adjustment: the buyer inspects the goods at handover
+ * and refuses part of the delivery, the driver photographs it, and the
+ * payable amount drops BEFORE cash changes hands. There is no post-delivery
+ * return path — this is the only way an order's value can be reduced.
+ *
+ * Either outcome bills the buyer only for what they kept. The difference is
+ * internal: APPROVED means our produce was genuinely bad, so the refused
+ * stock is a write-off; REJECTED means it was saleable, so it returns to
+ * inventory and no loss is recorded.
+ */
+export interface DeliveryAdjustment {
+  lines: AdjustmentLine[];
+  /** Sum of lineRefund — the amount taken off the bill. */
+  totalRefund: number;
+  reason: string;
+  /** Photo evidence captured at the door (data URLs or storage URLs). */
+  photos: string[];
+  status: AdjustmentStatus;
+  /** Driver user id. */
+  raisedBy: string;
+  raisedByName?: string;
+  raisedAt: string;
+  /** Admin who approved/rejected — absent when auto-approved under the limit. */
+  decidedBy?: string;
+  decidedAt?: string;
+  /** Admin's note when rejecting. */
+  decisionNote?: string;
 }
 
 /** Aggregated buyer view for the admin "Customers" screen. */

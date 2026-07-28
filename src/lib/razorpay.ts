@@ -1,4 +1,4 @@
-/** Razorpay Payment Integration for FreshKart.
+/** Razorpay Payment Integration for Green Basket.
  *  Handles order creation, payment verification, and callbacks.
  */
 
@@ -131,7 +131,7 @@ function openCheckout(options: Parameters<typeof initRazorpayCheckout>[0]): void
     amount: options.amount,
     currency: options.currency,
     order_id: options.orderId,
-    name: "FreshKart",
+    name: "Green Basket",
     description: options.description,
     prefill: options.prefill,
     theme: { color: "#dc2626" },

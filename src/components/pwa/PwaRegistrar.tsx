@@ -9,7 +9,10 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-const DISMISS_KEY = "freshkart.pwa.dismissed.v1";
+// In-memory only — resets on a full reload, but persists across client-side
+// navigation for the rest of this visit. Not worth a server round-trip for
+// "don't nag again this session".
+let dismissedThisSession = false;
 
 /**
  * Registers the service worker and surfaces a Chrome-style "Install app"
@@ -31,11 +34,7 @@ export function PwaRegistrar() {
   useEffect(() => {
     const onPrompt = (e: Event) => {
       e.preventDefault();
-      try {
-        if (window.localStorage.getItem(DISMISS_KEY)) return;
-      } catch {
-        /* ignore */
-      }
+      if (dismissedThisSession) return;
       setDeferred(e as BeforeInstallPromptEvent);
       setVisible(true);
     };
@@ -61,24 +60,20 @@ export function PwaRegistrar() {
 
   function dismiss() {
     setVisible(false);
-    try {
-      window.localStorage.setItem(DISMISS_KEY, "1");
-    } catch {
-      /* ignore */
-    }
+    dismissedThisSession = true;
   }
 
   if (!visible) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] mx-auto w-full max-w-app p-3 lg:left-[var(--sidebar-width)] lg:mx-0 lg:max-w-none">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-app p-3 lg:left-[var(--sidebar-width)] lg:mx-0 lg:max-w-none">
       <div className="animate-rise pointer-events-none flex items-center justify-center gap-3">
         <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-brand-500/30 bg-surface p-3 shadow-cart-bar">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white">
           <Download className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-fg">Install FreshKart</p>
+          <p className="text-sm font-bold text-fg">Install Green Basket</p>
           <p className="truncate text-xs text-fg-subtle">
             Add to your home screen — opens like an app.
           </p>

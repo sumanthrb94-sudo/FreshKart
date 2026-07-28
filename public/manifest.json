@@ -1,6 +1,6 @@
 {
-  "name": "FreshKart - B2B Wholesale Fresh Produce",
-  "short_name": "FreshKart",
+  "name": "Green Basket - B2B Wholesale Fresh Produce",
+  "short_name": "Green Basket",
   "description": "B2B wholesale fresh produce marketplace. Order tomatoes, onions, potatoes, vegetables & fruits in bulk at live rates. 1-2 day delivery.",
   "start_url": "/",
   "display": "standalone",
@@ -8,7 +8,7 @@
   "scope": "/",
   "lang": "en",
   "dir": "ltr",
-  "theme_color": "#e23744",
+  "theme_color": "#059669",
   "background_color": "#0d0d0f",
   "categories": ["food", "shopping", "business"],
   "icons": [

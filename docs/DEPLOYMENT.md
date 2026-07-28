@@ -28,7 +28,7 @@ The app is a standard Next.js 14 project; Vercel auto-detects everything.
 4. **Environment variables** (Project → Settings → Environment Variables):
    - `NEXT_PUBLIC_FIREBASE_*` (six values) — your Firebase web config. With these
      set, the app uses the live Firebase backend. See [FIREBASE.md](./FIREBASE.md).
-   - `NEXT_PUBLIC_APP_NAME` — optional, defaults to `FreshKart`.
+   - `NEXT_PUBLIC_APP_NAME` — optional, defaults to `Green Basket`.
    - Leave all of the above empty to ship the **in-browser mock demo** (no
      backend) and wire Firebase later.
 5. **Deploy.**
@@ -68,10 +68,10 @@ implementation under `src/app/api/`. Build your service to that contract, set
 
 ### a. Database — Cloud SQL (PostgreSQL)
 ```bash
-gcloud sql instances create freshkart-db \
+gcloud sql instances create green-basket-db \
   --database-version=POSTGRES_15 --tier=db-f1-micro --region=asia-south1
-gcloud sql databases create freshkart --instance=freshkart-db
-gcloud sql users set-password postgres --instance=freshkart-db --password=…
+gcloud sql databases create freshkart --instance=green-basket-db
+gcloud sql users set-password postgres --instance=green-basket-db --password=…
 ```
 Apply the schema from [BACKEND.md §5](./BACKEND.md#5-suggested-postgres-schema-starting-point).
 
@@ -84,17 +84,17 @@ printf '%s' "$(openssl rand -hex 32)" | gcloud secrets create AUTH_SECRET --data
 ### c. API — Cloud Run
 Containerize your API and deploy:
 ```bash
-gcloud run deploy freshkart-api \
+gcloud run deploy green-basket-api \
   --source . \
   --region asia-south1 \
   --allow-unauthenticated \
-  --add-cloudsql-instances PROJECT:asia-south1:freshkart-db \
+  --add-cloudsql-instances PROJECT:asia-south1:green-basket-db \
   --set-secrets DATABASE_URL=DATABASE_URL:latest,AUTH_SECRET=AUTH_SECRET:latest
 ```
-Note the resulting URL, e.g. `https://freshkart-api-xxxx.a.run.app`.
+Note the resulting URL, e.g. `https://green-basket-api-xxxx.a.run.app`.
 
 ### d. Connect the two
-- Set `NEXT_PUBLIC_API_BASE_URL=https://freshkart-api-xxxx.a.run.app` in Vercel → redeploy.
+- Set `NEXT_PUBLIC_API_BASE_URL=https://green-basket-api-xxxx.a.run.app` in Vercel → redeploy.
 - **CORS**: allow your Vercel origin and `Access-Control-Allow-Credentials: true`
   (the client sends cookies).
 - **Cookies**: issue the session cookie with `SameSite=None; Secure` so it works

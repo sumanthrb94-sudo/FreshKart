@@ -22,7 +22,7 @@ export function FullScreenLoader({
     <div
       className={cn(
         "flex flex-1 flex-col items-center justify-center gap-3 py-24",
-        overlay && "absolute inset-0 z-50 bg-white/90 backdrop-blur-sm"
+        overlay && "absolute inset-0 z-50 bg-canvas"
       )}
     >
       <Spinner className="h-7 w-7" />

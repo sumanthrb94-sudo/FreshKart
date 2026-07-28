@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 export type Lang = "en" | "hi" | "te" | "mr";
 
@@ -48,18 +49,6 @@ const STRINGS: Record<string, Dict> = {
     te: "వేరే శోధన లేదా వర్గాన్ని ప్రయత్నించండి.",
     mr: "वेगळा शोध किंवा श्रेणी वापरून पाहा.",
   },
-  promoTitle: {
-    en: "Wholesale fruits & veggies",
-    hi: "थोक फल और सब्ज़ियाँ",
-    te: "హోల్‌సేల్ పండ్లు & కూరగాయలు",
-    mr: "घाऊक फळे आणि भाज्या",
-  },
-  promoSub: {
-    en: "Live B2B rates · order in bulk · pay COD, credit or online.",
-    hi: "लाइव B2B रेट · थोक में ऑर्डर · COD, क्रेडिट या ऑनलाइन भुगतान।",
-    te: "లైవ్ B2B రేట్లు · బల్క్‌గా ఆర్డర్ · COD, క్రెడిట్ లేదా ఆన్‌లైన్ చెల్లింపు.",
-    mr: "लाइव्ह B2B दर · घाऊक ऑर्डर · COD, क्रेडिट किंवा ऑनलाइन पेमेंट.",
-  },
   callSupport: {
     en: "Call support",
     hi: "सहायता को कॉल करें",
@@ -73,6 +62,7 @@ const STRINGS: Record<string, Dict> = {
     mr: "दुकान लोड होऊ शकले नाही",
   },
   outOfStock: { en: "Out of stock", hi: "स्टॉक ख़त्म", te: "స్టాక్ లేదు", mr: "स्टॉक संपला" },
+  onlyLeft: { en: "Only", hi: "सिर्फ़", te: "కేవలం", mr: "फक्त" },
   minOrder: { en: "Min order", hi: "न्यूनतम ऑर्डर", te: "కనీస ఆర్డర్", mr: "किमान ऑर्डर" },
   // Category labels, keyed by their English name.
   "cat.Vegetables": { en: "Vegetables", hi: "सब्ज़ियाँ", te: "కూరగాయలు", mr: "भाज्या" },
@@ -127,7 +117,14 @@ const PRODUCT_NAMES: Record<string, Dict> = {
   "Spring Onion": { en: "Spring Onion", hi: "हरा प्याज़", te: "ఉల్లికాడలు", mr: "हिरवा कांदा" },
 };
 
-const KEY = "freshkart.lang.v1";
+/** No client storage — before sign-in (or while the profile is still
+ *  loading) the browser's own language decides; the account's saved
+ *  preference (if any) takes over once signed in. */
+function browserLang(): Lang {
+  if (typeof navigator === "undefined") return "en";
+  const code = navigator.language?.slice(0, 2).toLowerCase();
+  return (LANGS.some((l) => l.code === code) ? code : "en") as Lang;
+}
 
 interface LangValue {
   lang: Lang;
@@ -143,25 +140,23 @@ interface LangValue {
 const LangContext = createContext<LangValue | null>(null);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const { user, updateProfile } = useAuth();
   const [lang, setLangState] = useState<Lang>("en");
 
+  // The signed-in account's saved preference wins once known; otherwise
+  // follow the browser's language. Re-runs whenever the profile (re)loads so
+  // switching accounts on the same device picks up that account's language.
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(KEY) as Lang | null;
-      if (saved && LANGS.some((l) => l.code === saved)) setLangState(saved);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+    setLangState(user?.lang ?? browserLang());
+  }, [user?.lang]);
 
-  const setLang = useCallback((l: Lang) => {
-    setLangState(l);
-    try {
-      window.localStorage.setItem(KEY, l);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  const setLang = useCallback(
+    (l: Lang) => {
+      setLangState(l);
+      if (user) updateProfile({ lang: l }).catch(() => {});
+    },
+    [user, updateProfile]
+  );
 
   const t = useCallback((key: string) => STRINGS[key]?.[lang] ?? STRINGS[key]?.en ?? key, [lang]);
   const tCategory = useCallback(

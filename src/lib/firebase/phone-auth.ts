@@ -8,10 +8,10 @@ import { getFirebaseAuth } from "./client";
 /**
  * Firebase Phone Authentication helpers (browser only).
  *
- * We use a **visible** reCAPTCHA v2 widget instead of invisible because invisible
- * reCAPTCHA frequently fails silently on mobile (challenge never surfaces,
- * CSP/fetch blocked, or the user never sees the image challenge). The visible
- * checkbox is one extra tap but works reliably across devices and browsers.
+ * We use an **invisible** reCAPTCHA v2 verifier so the login screen shows no
+ * visible "I'm not a robot" widget. The challenge is only presented when
+ * Firebase suspects abuse, keeping the UI clean while still satisfying
+ * Firebase's bot-protection requirement for phone OTP.
  *
  * For local/test sign-in without real SMS, add a test phone number in
  * Firebase console → Authentication → Sign-in method → Phone → "Phone numbers
@@ -40,6 +40,12 @@ export class PhoneAuthError extends Error {
   }
 }
 
+/** The hostname the browser is actually on — see the identical helper in
+ *  friendly-phone-error.ts for why every domain rejection should name it. */
+function currentHost(): string {
+  return typeof window !== "undefined" ? window.location.hostname : "this site";
+}
+
 function normalizeFirebaseError(e: unknown): PhoneAuthError {
   const code = (e as { code?: string })?.code ?? "unknown";
   const message = e instanceof Error ? e.message : "Something went wrong.";
@@ -50,39 +56,43 @@ function normalizeFirebaseError(e: unknown): PhoneAuthError {
     case code.includes("too-many-requests"):
       return new PhoneAuthError(
         code,
-        "Too many attempts from this device. Please wait a few minutes and try again."
+        "Too many sign-in attempts from this device. Stop trying for about an hour — retrying now makes the block last longer."
       );
     case code.includes("quota-exceeded"):
       return new PhoneAuthError(
         code,
-        "SMS quota exceeded for today. Try Google sign-in or contact support."
+        "SMS quota exceeded for today. Please try again later or contact support."
       );
     case code.includes("billing-not-enabled"):
       return new PhoneAuthError(
         code,
-        "Phone sign-in is temporarily unavailable. Please use Google sign-in, or contact support."
+        "Phone sign-in is temporarily unavailable. Please contact support."
       );
     case code.includes("operation-not-allowed"):
       return new PhoneAuthError(
         code,
-        "Phone sign-in is not enabled for this app. Please use Google sign-in instead."
+        "Phone sign-in is not enabled for this app. Please contact support."
       );
     case code.includes("app-not-authorized"):
     case code.includes("unauthorized-domain"):
       return new PhoneAuthError(
         code,
-        "This domain is not authorized for sign-in. Add it in Firebase Console → Authentication → Settings → Authorized domains."
+        `"${currentHost()}" isn't authorized for sign-in. Add it in Firebase Console → Authentication → Settings → Authorized domains.`
       );
+    // Firebase reports several unrelated server-side rejections as a bare
+    // `internal-error`. In practice the overwhelming cause is a hostname
+    // missing from the authorized-domains list — which it never names. Lead
+    // with the actual hostname so the fix is a copy-paste, not a hunt.
     case code.includes("internal-error"):
       return new PhoneAuthError(
         code,
-        "Sign-in failed (internal error). Common causes: Phone provider disabled in Firebase Console, an invalid App Check token, or an ad-blocker/firewall blocking Firebase. Try refreshing, disabling extensions, or using Google sign-in."
+        `Sign-in failed. Most likely "${currentHost()}" isn't in Firebase → Authentication → Settings → Authorized domains — add it there. Otherwise an ad-blocker or firewall may be blocking Firebase.`
       );
     case code.includes("captcha-check-failed"):
     case code.includes("recaptcha"):
       return new PhoneAuthError(
         code,
-        "reCAPTCHA check failed. Complete the 'I'm not a robot' box, disable ad-blockers, and try again."
+        "Security check failed. Refresh the page, disable ad-blockers, and try again."
       );
     case code.includes("network-request-failed"):
       return new PhoneAuthError(code, "Network error. Please check your connection and try again.");
@@ -111,9 +121,10 @@ export function toE164(input: string, countryCode = "+91"): string {
 }
 
 /**
- * Render a visible reCAPTCHA widget in the given container.
- * Resolves once the widget is rendered, and calls the callbacks when the user
- * checks the box or the challenge expires.
+ * Render an invisible reCAPTCHA verifier in the given container.
+ * The container can be hidden; only the inline badge (if shown) lives there.
+ * Calls `onVerified` once the verifier is ready, and `onExpired` if the token
+ * expires before the OTP is sent.
  */
 export async function renderRecaptcha(
   containerId: string,
@@ -125,7 +136,8 @@ export async function renderRecaptcha(
 
   try {
     verifier = new RecaptchaVerifier(getFirebaseAuth(), container, {
-      size: "normal",
+      size: "invisible",
+      badge: "inline",
       callback: () => {
         onVerified();
       },
@@ -134,6 +146,8 @@ export async function renderRecaptcha(
       },
     });
     await verifier.render();
+    // Invisible verifier is ready to execute when the user requests the code.
+    onVerified();
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error("[reCAPTCHA] render failed:", e);
@@ -152,7 +166,7 @@ export async function sendOtp(
     if (!verifier) {
       throw new PhoneAuthError(
         "RECAPTCHA_NOT_READY",
-        "Please complete the reCAPTCHA check before requesting the code."
+        "Security check is not ready. Please refresh the page and try again."
       );
     }
     return await signInWithPhoneNumber(auth, phoneE164, verifier);

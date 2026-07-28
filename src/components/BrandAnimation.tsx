@@ -3,7 +3,7 @@
 import { Sprout } from "lucide-react";
 import { useEffect, useState } from "react";
 
-/** Animated FreshKart brand splash for the home page.
+/** Animated Green Basket brand splash for the home page.
  *  Shows a pulsing leaf logo with the brand name.
  */
 export function BrandAnimation() {
@@ -54,7 +54,7 @@ export function BrandAnimation() {
             : "translate-y-0 opacity-100"
         }`}
       >
-        FreshKart
+        Green Basket
       </h1>
 
       {/* Tagline */}

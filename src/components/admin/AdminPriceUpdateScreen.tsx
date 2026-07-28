@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { RefreshCw, TrendingUp, TrendingDown, Save, Search } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Save, Search, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -14,6 +14,7 @@ export function AdminPriceUpdateScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handlePriceChange = useCallback((productId: string, newPrice: number) => {
     setUpdates((prev) => ({ ...prev, [productId]: newPrice }));
@@ -22,6 +23,7 @@ export function AdminPriceUpdateScreen() {
 
   const handleSave = useCallback(async () => {
     if (!products || !user) return;
+    setConfirmOpen(false);
     setSaving(true);
     setSaveError(null);
     try {
@@ -32,6 +34,7 @@ export function AdminPriceUpdateScreen() {
         }
       }
       // Publishing marks prices as live so buyers can add to cart and checkout.
+      // Runs even with zero edits — "publish today's list as-is" is valid.
       await api.publishDailyPrices(user.id);
       setSaved(true);
       setUpdates({});
@@ -69,8 +72,8 @@ export function AdminPriceUpdateScreen() {
               Refresh
             </button>
             <button
-              onClick={handleSave}
-              disabled={saving || changedCount === 0}
+              onClick={() => setConfirmOpen(true)}
+              disabled={saving || loading}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-colors disabled:opacity-40 ${
                 saved
                   ? "bg-emerald-500 text-white"
@@ -78,7 +81,13 @@ export function AdminPriceUpdateScreen() {
               }`}
             >
               <Save className="h-3.5 w-3.5" />
-              {saving ? "Saving…" : saved ? "Saved!" : `Save ${changedCount > 0 ? `(${changedCount})` : ""}`}
+              {saving
+                ? "Publishing…"
+                : saved
+                ? "Published!"
+                : changedCount > 0
+                ? `Save & publish (${changedCount})`
+                : "Publish today's prices"}
             </button>
           </div>
         </div>
@@ -156,6 +165,51 @@ export function AdminPriceUpdateScreen() {
           </div>
         )}
       </div>
+
+      {/* Confirm/disclaimer before publishing — publishing makes these prices
+          live to every buyer and opens the store for the day, so it shouldn't
+          happen on a single stray click. */}
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-6"
+          onClick={() => setConfirmOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-surface p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10">
+              <AlertTriangle className="h-6 w-6 text-amber-500" aria-hidden />
+            </div>
+            <h2 className="mt-3 text-center text-lg font-extrabold text-fg">
+              Publish today&apos;s prices?
+            </h2>
+            <p className="mt-1 text-center text-sm text-fg-subtle">
+              {changedCount > 0
+                ? `You're updating ${changedCount} ${changedCount === 1 ? "price" : "prices"} and publishing today's list.`
+                : "You're publishing today's list with no price changes."}
+            </p>
+            <p className="mt-2 rounded-lg bg-raised px-3 py-2 text-center text-xs text-fg-muted">
+              Once published, buyers see these prices and can order — the store
+              goes live for the day. This can&apos;t be un-published.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 rounded-lg border border-line bg-surface py-2.5 text-sm font-bold text-fg-muted hover:bg-raised"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex-1 rounded-lg bg-brand-500 py-2.5 text-sm font-bold text-white hover:bg-brand-600"
+              >
+                Confirm &amp; publish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

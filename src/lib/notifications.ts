@@ -1,4 +1,4 @@
-/** Notification Service for FreshKart
+/** Notification Service for Green Basket
  *  Placeholder implementations for email and SMS notifications.
  *  These will be wired to actual providers (SendGrid, Twilio) tomorrow.
  */
@@ -90,7 +90,7 @@ export class SmsNotificationService {
       console.log("[SMS PLACEHOLDER] Order SMS would be sent to:", payload.phone);
       return;
     }
-    const message = `FreshKart: Your order ${payload.orderNumber} has been placed successfully. Total: Rs. ${payload.total}. Track at fresh-kart-six.vercel.app/orders`;
+    const message = `Green Basket: Your order ${payload.orderNumber} has been placed successfully. Total: Rs. ${payload.total}. Track at fresh-kart-six.vercel.app/orders`;
     console.log("[SMS]", payload.phone, message);
     // TODO: Integrate Twilio
     // await twilioClient.messages.create({ to: payload.phone, from: TWILIO_PHONE, body: message });
@@ -107,7 +107,7 @@ export class SmsNotificationService {
       ORDER_SHIPPED: "out for delivery",
       ORDER_DELIVERED: "delivered",
     };
-    const message = `FreshKart: Your order ${payload.orderNumber} is now ${statusLabels[payload.type] || payload.status}.`;
+    const message = `Green Basket: Your order ${payload.orderNumber} is now ${statusLabels[payload.type] || payload.status}.`;
     console.log("[SMS]", payload.phone, message);
     // TODO: Integrate Twilio
   }
@@ -117,7 +117,7 @@ export class SmsNotificationService {
       console.log("[SMS PLACEHOLDER] Return SMS would be sent to:", payload.phone);
       return;
     }
-    const message = `FreshKart: Return request for order ${payload.orderNumber} has been ${payload.status}. Refund of Rs. ${payload.total} will be processed soon.`;
+    const message = `Green Basket: Return request for order ${payload.orderNumber} has been ${payload.status}. Refund of Rs. ${payload.total} will be processed soon.`;
     console.log("[SMS]", payload.phone, message);
     // TODO: Integrate Twilio
   }

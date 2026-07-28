@@ -5,43 +5,23 @@ import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Tag, Percent, IndianRupee
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { toast } from "@/lib/toast";
-import {
-  getCoupons,
-  saveCoupon,
-  deleteCoupon,
-  generateCouponCode,
-  DEMO_COUPONS,
-} from "@/lib/coupons";
+import { generateCouponCode } from "@/lib/coupons";
 import type { Coupon, DiscountType } from "@/lib/coupons";
+import { api } from "@/lib/api";
+import { AdminShell } from "./AdminShell";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
 function useCoupons() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
 
-  useEffect(() => {
-    // Safe client-side only initialization
-    try {
-      const existing = getCoupons();
-      if (existing.length === 0) {
-        DEMO_COUPONS.forEach(saveCoupon);
-        setCoupons(DEMO_COUPONS);
-      } else {
-        setCoupons(existing);
-      }
-    } catch {
-      // Fallback if localStorage is unavailable
-      setCoupons(DEMO_COUPONS);
-    }
+  const refresh = useCallback(() => {
+    api.listCoupons().then(setCoupons).catch(() => {});
   }, []);
 
-  const refresh = useCallback(() => {
-    try {
-      setCoupons(getCoupons());
-    } catch {
-      setCoupons(DEMO_COUPONS);
-    }
-  }, []);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   return { coupons, refresh };
 }
@@ -94,14 +74,13 @@ export function AdminCouponScreen() {
     setShowForm(true);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!code.trim() || !discountValue || !validUntil) {
       toast.error("Required fields missing", "Code, discount value, and expiry date are required");
       return;
     }
 
-    const coupon: Coupon = {
-      id: editing?.id || `coupon-${Date.now()}`,
+    const fields = {
       code: code.trim().toUpperCase(),
       discountType,
       discountValue: Number(discountValue),
@@ -111,32 +90,43 @@ export function AdminCouponScreen() {
       validFrom: validFrom ? new Date(validFrom).toISOString() : new Date().toISOString(),
       validUntil: new Date(validUntil).toISOString(),
       usageLimit: Number(usageLimit) || 0,
-      usageCount: editing?.usageCount || 0,
       isActive,
       createdBy: "admin",
-      createdAt: editing?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     };
 
-    saveCoupon(coupon);
-    refresh();
-    resetForm();
-    toast.success(editing ? "Coupon updated!" : "Coupon created!", `Code: ${coupon.code}`);
-  };
-
-  const handleDelete = (id: string, code: string) => {
-    if (confirm(`Delete coupon ${code}?`)) {
-      deleteCoupon(id);
+    try {
+      if (editing) {
+        await api.updateCoupon(editing.id, fields);
+      } else {
+        await api.createCoupon({ ...fields, applicableCategories: [], applicableProducts: [] });
+      }
       refresh();
-      toast.success("Coupon deleted", code);
+      resetForm();
+      toast.success(editing ? "Coupon updated!" : "Coupon created!", `Code: ${fields.code}`);
+    } catch (e) {
+      toast.error("Couldn't save coupon", e instanceof Error ? e.message : "Unknown error");
     }
   };
 
-  const handleToggleActive = (coupon: Coupon) => {
-    const updated = { ...coupon, isActive: !coupon.isActive, updatedAt: new Date().toISOString() };
-    saveCoupon(updated);
-    refresh();
-    toast.success(updated.isActive ? "Coupon activated" : "Coupon deactivated", coupon.code);
+  const handleDelete = async (id: string, code: string) => {
+    if (!confirm(`Delete coupon ${code}?`)) return;
+    try {
+      await api.deleteCoupon(id);
+      refresh();
+      toast.success("Coupon deleted", code);
+    } catch (e) {
+      toast.error("Couldn't delete coupon", e instanceof Error ? e.message : "Unknown error");
+    }
+  };
+
+  const handleToggleActive = async (coupon: Coupon) => {
+    try {
+      await api.updateCoupon(coupon.id, { isActive: !coupon.isActive });
+      refresh();
+      toast.success(!coupon.isActive ? "Coupon activated" : "Coupon deactivated", coupon.code);
+    } catch (e) {
+      toast.error("Couldn't update coupon", e instanceof Error ? e.message : "Unknown error");
+    }
   };
 
   const filtered = coupons.filter(
@@ -146,6 +136,7 @@ export function AdminCouponScreen() {
   );
 
   return (
+    <AdminShell>
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
         <div className="flex items-center justify-between">
@@ -411,5 +402,6 @@ export function AdminCouponScreen() {
         )}
       </div>
     </div>
+    </AdminShell>
   );
 }

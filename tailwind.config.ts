@@ -1,8 +1,8 @@
 import type { Config } from "tailwindcss";
 
 /**
- * FreshKart design tokens — mirrors Section 3 of the Figma design brief.
- * Brand red (#e23744, Zomato-style) primary, orange accent, Tailwind grays.
+ * Green Basket design tokens.
+ * Royal/emerald green primary, lime-green accent, Tailwind grays.
  * Semantic colors use CSS variables for light/dark mode support.
  */
 const config: Config = {
@@ -16,28 +16,28 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: "#fff1f2",
-          100: "#ffe1e3",
-          200: "#ffc8cd",
-          300: "#fba1a9",
-          400: "#f56b78",
-          500: "#e23744", // PRIMARY — Zomato red
-          600: "#c81e2c",
-          700: "#a81824",
-          800: "#8a1620",
-          900: "#73171f",
+          50: "#ecfdf5",
+          100: "#d1fae5",
+          200: "#a7f3d0",
+          300: "#6ee7b7",
+          400: "#34d399",
+          500: "#059669", // PRIMARY — royal emerald green
+          600: "#047857",
+          700: "#065f46",
+          800: "#064e3b",
+          900: "#022c22",
         },
         accent: {
-          50: "#fff8ed",
-          100: "#ffefd4",
-          200: "#ffdca8",
-          300: "#ffc170",
-          400: "#ff9d37",
-          500: "#ff8014", // secondary buttons, revenue stat
-          600: "#f0640a",
-          700: "#c74c0b",
-          800: "#9e3d10",
-          900: "#7f3411",
+          50: "#f7fee7",
+          100: "#ecfccb",
+          200: "#d9f99d",
+          300: "#bef264",
+          400: "#a3e635",
+          500: "#84cc16", // secondary buttons, revenue stat
+          600: "#65a30d",
+          700: "#4d7c0f",
+          800: "#3f6212",
+          900: "#365314",
         },
         // Zomato-style near-black "ink" surfaces (dark splash / loaders).
         ink: {
@@ -50,6 +50,7 @@ const config: Config = {
         canvas: "var(--color-canvas)",
         surface: "var(--color-surface)",
         raised: "var(--color-raised)",
+        header: "var(--color-header)",
         line: "var(--color-line)",
         fg: {
           DEFAULT: "var(--color-fg)",

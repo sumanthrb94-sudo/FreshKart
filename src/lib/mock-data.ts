@@ -25,54 +25,63 @@ function slug(name: string): string {
 
 const RAW: SeedProduct[] = [
   // Vegetables — name, unit, price, minOrderQty, stock, origin
-  { name: "Onion (New Red)", category: "vegetables", unit: "kg", price: 24, minOrderQty: 25, stock: 600, origin: "Kurnool, Andhra Pradesh" },
-  { name: "Onion (Big)", category: "vegetables", unit: "kg", price: 25, minOrderQty: 25, stock: 480, origin: "Lasalgaon, Maharashtra" },
-  { name: "Potato", category: "vegetables", unit: "kg", price: 22, minOrderQty: 25, stock: 750, origin: "Agra, Uttar Pradesh" },
-  { name: "Tomato", category: "vegetables", unit: "kg", price: 44, minOrderQty: 20, stock: 320, origin: "Madanapalle, Andhra Pradesh" },
-  { name: "Green Chilli", category: "vegetables", unit: "kg", price: 60, minOrderQty: 10, stock: 140, origin: "Guntur, Andhra Pradesh" },
-  { name: "Chilli Bajji (Bhajji)", category: "vegetables", unit: "kg", price: 55, minOrderQty: 10, stock: 95, origin: "Guntur, Andhra Pradesh" },
-  { name: "Ginger", category: "vegetables", unit: "kg", price: 135, minOrderQty: 10, stock: 80, origin: "Wayanad, Kerala" },
-  { name: "Garlic", category: "vegetables", unit: "kg", price: 180, minOrderQty: 10, stock: 18, origin: "Madhya Pradesh" },
-  { name: "Cabbage", category: "vegetables", unit: "kg", price: 28, minOrderQty: 20, stock: 260, origin: "Ooty, Tamil Nadu" },
-  { name: "Cauliflower", category: "vegetables", unit: "pc", price: 30, minOrderQty: 10, stock: 200, origin: "Karnal, Haryana" },
-  { name: "Bottle Gourd", category: "vegetables", unit: "kg", price: 28, minOrderQty: 20, stock: 150, origin: "Kolar, Karnataka" },
-  { name: "Ladies Finger (Okra)", category: "vegetables", unit: "kg", price: 38, minOrderQty: 10, stock: 120, origin: "Anand, Gujarat" },
-  { name: "Donda (Tindora)", category: "vegetables", unit: "kg", price: 40, minOrderQty: 10, stock: 90, origin: "Kolar, Karnataka" },
-  { name: "Ridge Gourd", category: "vegetables", unit: "kg", price: 48, minOrderQty: 10, stock: 110, origin: "Kolar, Karnataka" },
-  { name: "Carrot", category: "vegetables", unit: "kg", price: 48, minOrderQty: 10, stock: 220, origin: "Ooty, Tamil Nadu" },
-  { name: "Capsicum", category: "vegetables", unit: "kg", price: 55, minOrderQty: 10, stock: 130, origin: "Pune, Maharashtra" },
-  { name: "Brinjal (Black)", category: "vegetables", unit: "kg", price: 30, minOrderQty: 10, stock: 160, origin: "Kolar, Karnataka" },
-  { name: "Brinjal (Green / White)", category: "vegetables", unit: "kg", price: 40, minOrderQty: 10, stock: 100, origin: "Kolar, Karnataka" },
-  { name: "Brinjal (Purple Long)", category: "vegetables", unit: "kg", price: 40, minOrderQty: 10, stock: 105, origin: "Kolar, Karnataka" },
-  { name: "Dosakai (Yellow Cucumber)", category: "vegetables", unit: "kg", price: 35, minOrderQty: 10, stock: 70, origin: "Andhra Pradesh" },
-  { name: "Keera (Cucumber)", category: "vegetables", unit: "kg", price: 30, minOrderQty: 20, stock: 240, origin: "Bengaluru Rural, Karnataka" },
-  { name: "Beans (French)", category: "vegetables", unit: "kg", price: 90, minOrderQty: 10, stock: 60, origin: "Kodaikanal, Tamil Nadu" },
-  { name: "Broad Beans (Chikkudu)", category: "vegetables", unit: "kg", price: 90, minOrderQty: 10, stock: 16, origin: "Chittoor, Andhra Pradesh" },
-  { name: "Cluster Beans (Gokar)", category: "vegetables", unit: "kg", price: 48, minOrderQty: 10, stock: 75, origin: "Kolar, Karnataka" },
-  { name: "Bitter Gourd", category: "vegetables", unit: "kg", price: 45, minOrderQty: 10, stock: 85, origin: "Kolar, Karnataka" },
-  { name: "Raw Banana", category: "vegetables", unit: "pc", price: 9, minOrderQty: 12, stock: 480, origin: "Theni, Tamil Nadu" },
-  { name: "Raw Mango", category: "vegetables", unit: "kg", price: 50, minOrderQty: 10, stock: 90, origin: "Krishnagiri, Tamil Nadu" },
-  { name: "Lemon", category: "vegetables", unit: "kg", price: 150, minOrderQty: 10, stock: 55, origin: "Vijayawada, Andhra Pradesh" },
-  { name: "Beetroot", category: "vegetables", unit: "pc", price: 35, minOrderQty: 10, stock: 180, origin: "Ooty, Tamil Nadu" },
-  { name: "Drumstick", category: "vegetables", unit: "kg", price: 60, minOrderQty: 10, stock: 40, origin: "Theni, Tamil Nadu" },
-  { name: "Radish", category: "vegetables", unit: "kg", price: 50, minOrderQty: 10, stock: 95, origin: "Pune, Maharashtra" },
+  { name: "Onion (New Red)", category: "vegetables", unit: "kg", price: 34, minOrderQty: 20, stock: 600, origin: "Kurnool, Andhra Pradesh" },
+  { name: "Onion (Big)", category: "vegetables", unit: "kg", price: 37, minOrderQty: 20, stock: 480, origin: "Lasalgaon, Maharashtra" },
+  { name: "Potato", category: "vegetables", unit: "kg", price: 22, minOrderQty: 20, stock: 750, origin: "Agra, Uttar Pradesh" },
+  { name: "Tomato", category: "vegetables", unit: "kg", price: 19, minOrderQty: 20, stock: 320, origin: "Madanapalle, Andhra Pradesh" },
+  { name: "Green Chilli", category: "vegetables", unit: "kg", price: 45, minOrderQty: 3, stock: 140, origin: "Guntur, Andhra Pradesh" },
+  { name: "Chilli Lite", category: "vegetables", unit: "kg", price: 55, minOrderQty: 3, stock: 60, origin: "Guntur, Andhra Pradesh" },
+  { name: "Chilli Bajji (Bhajji)", category: "vegetables", unit: "kg", price: 45, minOrderQty: 3, stock: 95, origin: "Guntur, Andhra Pradesh" },
+  { name: "Ginger", category: "vegetables", unit: "kg", price: 210, minOrderQty: 3, stock: 80, origin: "Wayanad, Kerala" },
+  { name: "Garlic", category: "vegetables", unit: "kg", price: 210, minOrderQty: 3, stock: 18, origin: "Madhya Pradesh" },
+  { name: "Cabbage", category: "vegetables", unit: "kg", price: 35, minOrderQty: 5, stock: 260, origin: "Ooty, Tamil Nadu" },
+  { name: "Cauliflower", category: "vegetables", unit: "pc", price: 28, minOrderQty: 6, stock: 200, origin: "Karnal, Haryana" },
+  { name: "Bottle Gourd", category: "vegetables", unit: "kg", price: 24, minOrderQty: 3, stock: 150, origin: "Kolar, Karnataka" },
+  { name: "Ladies Finger (Okra)", category: "vegetables", unit: "kg", price: 42, minOrderQty: 3, stock: 120, origin: "Anand, Gujarat" },
+  { name: "Donda (Tindora)", category: "vegetables", unit: "kg", price: 28, minOrderQty: 3, stock: 90, origin: "Kolar, Karnataka" },
+  { name: "Ridge Gourd", category: "vegetables", unit: "kg", price: 40, minOrderQty: 3, stock: 110, origin: "Kolar, Karnataka" },
+  { name: "Carrot", category: "vegetables", unit: "kg", price: 50, minOrderQty: 3, stock: 220, origin: "Ooty, Tamil Nadu" },
+  { name: "Capsicum", category: "vegetables", unit: "kg", price: 68, minOrderQty: 3, stock: 130, origin: "Pune, Maharashtra" },
+  { name: "Brinjal (Black)", category: "vegetables", unit: "kg", price: 35, minOrderQty: 3, stock: 160, origin: "Kolar, Karnataka" },
+  { name: "Brinjal (Green / White)", category: "vegetables", unit: "kg", price: 40, minOrderQty: 3, stock: 100, origin: "Kolar, Karnataka" },
+  { name: "Brinjal (Purple Long)", category: "vegetables", unit: "kg", price: 40, minOrderQty: 3, stock: 105, origin: "Kolar, Karnataka" },
+  { name: "Dosakai (Yellow Cucumber)", category: "vegetables", unit: "kg", price: 28, minOrderQty: 3, stock: 70, origin: "Andhra Pradesh" },
+  { name: "Keera (Cucumber)", category: "vegetables", unit: "kg", price: 28, minOrderQty: 5, stock: 240, origin: "Bengaluru Rural, Karnataka" },
+  { name: "Beans (French)", category: "vegetables", unit: "kg", price: 100, minOrderQty: 3, stock: 60, origin: "Kodaikanal, Tamil Nadu" },
+  { name: "Broad Beans (Chikkudu)", category: "vegetables", unit: "kg", price: 80, minOrderQty: 3, stock: 16, origin: "Chittoor, Andhra Pradesh" },
+  { name: "Cluster Beans (Gokar)", category: "vegetables", unit: "kg", price: 38, minOrderQty: 3, stock: 75, origin: "Kolar, Karnataka" },
+  { name: "Bitter Gourd", category: "vegetables", unit: "kg", price: 55, minOrderQty: 3, stock: 85, origin: "Kolar, Karnataka" },
+  { name: "Raw Banana", category: "vegetables", unit: "pc", price: 9, minOrderQty: 3, stock: 480, origin: "Theni, Tamil Nadu" },
+  { name: "Banana", category: "vegetables", unit: "kg", price: 45, minOrderQty: 20, stock: 200, origin: "Anantapur, Andhra Pradesh" },
+  { name: "Raw Mango", category: "vegetables", unit: "kg", price: 50, minOrderQty: 3, stock: 90, origin: "Krishnagiri, Tamil Nadu" },
+  { name: "Lemon", category: "vegetables", unit: "kg", price: 70, minOrderQty: 2, stock: 55, origin: "Vijayawada, Andhra Pradesh" },
+  { name: "Beetroot", category: "vegetables", unit: "pc", price: 35, minOrderQty: 3, stock: 180, origin: "Ooty, Tamil Nadu" },
+  { name: "Drumstick", category: "vegetables", unit: "kg", price: 80, minOrderQty: 2, stock: 40, origin: "Theni, Tamil Nadu" },
+  { name: "Radish", category: "vegetables", unit: "kg", price: 50, minOrderQty: 3, stock: 95, origin: "Pune, Maharashtra" },
+  { name: "Coconut", category: "vegetables", unit: "pc", price: 30, minOrderQty: 10, stock: 300, origin: "East Godavari, Andhra Pradesh" },
 
   // Leafy Greens
-  { name: "Curry Leaves", category: "leafy-greens", unit: "kg", price: 60, minOrderQty: 5, stock: 40, origin: "Tamil Nadu" },
-  { name: "Kothimeer (Coriander)", category: "leafy-greens", unit: "kg", price: 90, minOrderQty: 5, stock: 50, origin: "Pune, Maharashtra" },
-  { name: "Pudina (Mint)", category: "leafy-greens", unit: "kg", price: 50, minOrderQty: 5, stock: 35, origin: "Pune, Maharashtra" },
-  { name: "Palak (Spinach)", category: "leafy-greens", unit: "kg", price: 60, minOrderQty: 5, stock: 8, origin: "Pune, Maharashtra" },
-  { name: "Gongura", category: "leafy-greens", unit: "kg", price: 50, minOrderQty: 5, stock: 30, origin: "Telangana" },
-  { name: "Thotakura (Amaranth)", category: "leafy-greens", unit: "kg", price: 50, minOrderQty: 5, stock: 28, origin: "Andhra Pradesh" },
-  { name: "Methi (Fenugreek)", category: "leafy-greens", unit: "kg", price: 80, minOrderQty: 5, stock: 22, origin: "Nashik, Maharashtra" },
-  { name: "Spring Onion", category: "leafy-greens", unit: "kg", price: 60, minOrderQty: 5, stock: 26, origin: "Pune, Maharashtra" },
+  { name: "Curry Leaves", category: "leafy-greens", unit: "kg", price: 70, minOrderQty: 1, stock: 40, origin: "Tamil Nadu" },
+  { name: "Kothimeer (Coriander)", category: "leafy-greens", unit: "kg", price: 80, minOrderQty: 1, stock: 50, origin: "Pune, Maharashtra" },
+  { name: "Pudina (Mint)", category: "leafy-greens", unit: "kg", price: 60, minOrderQty: 1, stock: 35, origin: "Pune, Maharashtra" },
+  { name: "Palak (Spinach)", category: "leafy-greens", unit: "kg", price: 60, minOrderQty: 1, stock: 8, origin: "Pune, Maharashtra" },
+  { name: "Gongura", category: "leafy-greens", unit: "kg", price: 50, minOrderQty: 1, stock: 30, origin: "Telangana" },
+  { name: "Thotakura (Amaranth)", category: "leafy-greens", unit: "kg", price: 50, minOrderQty: 1, stock: 28, origin: "Andhra Pradesh" },
+  { name: "Methi (Fenugreek)", category: "leafy-greens", unit: "kg", price: 80, minOrderQty: 1, stock: 22, origin: "Nashik, Maharashtra" },
+  { name: "Spring Onion", category: "leafy-greens", unit: "kg", price: 120, minOrderQty: 1, stock: 26, origin: "Pune, Maharashtra" },
 ];
 
-export const PRODUCTS: Product[] = RAW.map((p) => ({
-  ...p,
-  id: p.id ?? slug(p.name),
-  active: p.active ?? true,
-}));
+export const PRODUCTS: Product[] = RAW.map((p) => {
+  const id = p.id ?? slug(p.name);
+  return {
+    ...p,
+    id,
+    active: p.active ?? true,
+    // Every seed product has a matching cropped photo in public/produce/,
+    // named by its own slug (see git history for the extraction script).
+    imageUrl: p.imageUrl ?? `/produce/${id}.jpg`,
+  };
+});
 
 
 export const DEMO_PASSWORD = "password123";
@@ -80,28 +89,42 @@ export const DEMO_PASSWORD = "password123";
 export const USERS: User[] = [
   {
     id: "user-buyer-1",
-    name: "FreshKart Customer",
-    email: "customer@freshkart.in",
+    name: "Green Basket Customer",
+    email: "customer@green-basket.in",
     phone: "9812345678",
     role: "BUYER",
     businessName: "Suresh Kirana Store",
-    city: "Bengaluru",
-    address: "12, Gandhi Bazaar, Basavanagudi",
-    pincode: "560004",
-    gstin: "29BUYER1234A1Z9",
+    city: "Hyderabad",
+    address: "12, Sarojini Devi Road, Mehdipatnam",
+    pincode: "500028",
+    // An exact pin, as if this buyer had used the map picker — the driver
+    // map draws these differently from a pincode-centre guess.
+    lat: 17.3928,
+    lng: 78.4361,
+    gstin: "36BUYER1234A1Z9",
     createdAt: "2026-05-01T09:00:00.000Z",
   },
   {
+    id: "user-driver-1",
+    name: "Ravi (Delivery)",
+    email: "driver@green-basket.in",
+    phone: "9800000001",
+    role: "DRIVER",
+    businessName: "Green Basket Delivery",
+    city: "Hyderabad",
+    createdAt: "2026-04-01T09:00:00.000Z",
+  },
+  {
     id: "user-admin-1",
-    name: "FreshKart Admin",
-    email: "admin@freshkart.in",
+    name: "Green Basket Admin",
+    email: "admin@green-basket.in",
     phone: "9800000000",
     role: "ADMIN",
-    businessName: "FreshKart",
-    city: "Bengaluru",
-    address: "FreshKart Ops, Whitefield",
-    pincode: "560066",
-    gstin: "29FRESH9876B1Z2",
+    businessName: "Green Basket",
+    city: "Hyderabad",
+    address: "KGM Fresh, Yerraboda, Upperpally",
+    pincode: "500048",
+    gstin: "36FRESH9876B1Z2",
     createdAt: "2026-04-01T09:00:00.000Z",
   },
   {
@@ -124,9 +147,12 @@ export const USERS: User[] = [
     phone: "9700223344",
     role: "BUYER",
     businessName: "Daily Fresh Mart",
-    city: "Chennai",
-    address: "8, T. Nagar, Usman Road",
-    pincode: "600017",
+    city: "Hyderabad",
+    // Deliberately past the 15 km radius — the driver app flags this stop.
+    address: "8, KPHB Colony Phase 3",
+    pincode: "500072",
+    lat: 17.4861,
+    lng: 78.4123,
     createdAt: "2026-05-20T09:00:00.000Z",
   },
 ];
@@ -148,6 +174,8 @@ function buildOrder(
     items: { productId: string; qty: number }[];
     paid?: boolean;
     notes?: string;
+    driverId?: string;
+    driverName?: string;
   }
 ): Order {
   const buyer = USERS.find((u) => u.id === o.buyerId)!;
@@ -171,8 +199,12 @@ function buildOrder(
       city: buyer.city ?? "",
       address: buyer.address ?? "",
       pincode: buyer.pincode ?? "",
+      ...(typeof buyer.lat === "number" && typeof buyer.lng === "number"
+        ? { lat: buyer.lat, lng: buyer.lng }
+        : {}),
     },
     notes: o.notes,
+    ...(o.driverId ? { driverId: o.driverId, driverName: o.driverName, assignedAt: o.createdAt } : {}),
     createdAt: o.createdAt,
     updatedAt: o.createdAt,
   };
@@ -198,6 +230,8 @@ export const ORDERS: Order[] = [
     orderNumber: "ORD-20260622-AB12CD",
     buyerId: "user-buyer-1",
     status: "SHIPPED",
+    driverId: "user-driver-1",
+    driverName: "Ravi (Delivery)",
     paymentMethod: "COD",
     createdAt: "2026-06-22T06:10:00.000Z",
     items: [
@@ -212,7 +246,7 @@ export const ORDERS: Order[] = [
     orderNumber: "ORD-20260623-MN44Xy",
     buyerId: "user-buyer-2",
     status: "PENDING",
-    paymentMethod: "CREDIT",
+    paymentMethod: "COD",
     createdAt: "2026-06-23T05:45:00.000Z",
     items: [
       { productId: "carrot", qty: 20 },
@@ -222,6 +256,8 @@ export const ORDERS: Order[] = [
   }),
   buildOrder({
     id: "order-4",
+    driverId: "user-driver-1",
+    driverName: "Ravi (Delivery)",
     orderNumber: "ORD-20260623-PP90ZZ",
     buyerId: "user-buyer-3",
     status: "CONFIRMED",
@@ -242,5 +278,22 @@ export const ORDERS: Order[] = [
     createdAt: "2026-06-19T10:05:00.000Z",
     notes: "Cancelled by buyer — stock was released.",
     items: [{ productId: "lemon", qty: 10 }],
+  }),
+  // Third stop on the demo run, and the only one without an exact pin — the
+  // driver map places it at the centre of 500033 and says so.
+  buildOrder({
+    id: "order-6",
+    orderNumber: "ORD-20260624-JH55TT",
+    buyerId: "user-buyer-2",
+    status: "SHIPPED",
+    driverId: "user-driver-1",
+    driverName: "Ravi (Delivery)",
+    paymentMethod: "COD",
+    createdAt: "2026-06-24T05:30:00.000Z",
+    items: [
+      { productId: "tomato", qty: 20 },
+      { productId: "carrot", qty: 20 },
+      { productId: "lemon", qty: 2 },
+    ],
   }),
 ];

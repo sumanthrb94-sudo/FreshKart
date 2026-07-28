@@ -44,7 +44,7 @@ export function AdminReportScreen() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `freshkart-supplier-report-${report.reportDate}.csv`;
+    a.download = `green-basket-supplier-report-${report.reportDate}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -60,7 +60,7 @@ export function AdminReportScreen() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `freshkart-supplier-report-${report.reportDate}.txt`;
+    a.download = `green-basket-supplier-report-${report.reportDate}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

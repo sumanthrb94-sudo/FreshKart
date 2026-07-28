@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   Ban,
@@ -244,11 +245,14 @@ function OrderDetail({
 }) {
   const [busy, setBusy] = useState<null | "status" | "paid" | "cancel">(null);
   const [error, setError] = useState<string | null>(null);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
   const next = nextInFlow(order.status);
   const paid = order.paymentStatus === "PAID";
   const canAdvance = !isTerminal(order.status) && next !== null;
   const canCancel = !isTerminal(order.status);
+  // COD orders must have cash collected before they can be marked Delivered.
+  const needsPaymentGate = next === "DELIVERED" && order.paymentMethod === "COD" && !paid;
 
   async function run(kind: "status" | "paid" | "cancel", fn: () => Promise<Order>) {
     setBusy(kind);
@@ -362,6 +366,23 @@ function OrderDetail({
           </div>
           <PaymentBadge paid={paid} />
         </section>
+
+        {/* COD orders must be checked off as paid before delivery can be confirmed */}
+        {needsPaymentGate && (
+          <label className="flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-3 text-sm">
+            <input
+              type="checkbox"
+              checked={paymentConfirmed}
+              onChange={(e) => setPaymentConfirmed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-line accent-brand-500"
+            />
+            <span className="text-fg-muted">
+              <span className="font-semibold text-fg">Cash payment received</span> — confirm
+              you&apos;ve collected {formatCurrency(order.total)} from the customer before
+              marking this order delivered.
+            </span>
+          </label>
+        )}
       </div>
 
       {/* Sticky actions */}
@@ -373,11 +394,16 @@ function OrderDetail({
             variant="primary"
             fullWidth
             loading={busy === "status"}
-            disabled={busy !== null}
+            disabled={busy !== null || (needsPaymentGate && !paymentConfirmed)}
             leadingIcon={<ArrowRight className="h-4 w-4" aria-hidden />}
-            onClick={() => run("status", () => api.updateOrderStatus(order.id, next))}
+            onClick={() =>
+              run("status", async () => {
+                if (needsPaymentGate) await api.setOrderPaid(order.id, true);
+                return api.updateOrderStatus(order.id, next);
+              })
+            }
           >
-            Mark {ORDER_STATUS_META[next].label}
+            {needsPaymentGate ? "Confirm payment & mark Delivered" : `Mark ${ORDER_STATUS_META[next].label}`}
           </Button>
         )}
 
@@ -449,12 +475,29 @@ export function useAdminOrders() {
 }
 
 export function AdminOrdersScreen() {
+  const router = useRouter();
+  const params = useSearchParams();
   const { orders, loading, error } = useAdminOrders();
   const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+
+  // Deep-link support: /admin/orders?status=CONFIRMED&open=<id> — used by
+  // the "N new" header badge to jump straight to a specific order.
+  useEffect(() => {
+    const status = params.get("status");
+    if (status && FILTERS.includes(status as OrderStatus)) {
+      setFilter(status as OrderStatus);
+    }
+    const open = params.get("open");
+    if (open) {
+      setOpenId(open);
+      router.replace("/admin/orders");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Per-status counts for the filter chips.
   const counts = useMemo(() => {
@@ -550,18 +593,30 @@ export function AdminOrdersScreen() {
     if (selectedIds.size === 0) return;
     setBulkBusy(true);
     try {
-      const toDeliver = orders
-        .filter((o) => selectedIds.has(o.id) && o.status === "PACKED")
+      const packed = orders.filter((o) => selectedIds.has(o.id) && o.status === "PACKED");
+      // COD orders need payment collected first — confirm those individually via Order detail.
+      const unpaidCod = packed.filter(
+        (o) => o.paymentMethod === "COD" && o.paymentStatus !== "PAID"
+      );
+      const toDeliver = packed
+        .filter((o) => !(o.paymentMethod === "COD" && o.paymentStatus !== "PAID"))
         .map((o) => o.id);
       if (toDeliver.length === 0) {
-        toast.info("No packed orders", "Select orders that are Packed first.");
+        toast.info(
+          unpaidCod.length > 0 ? "Payment not confirmed" : "No packed orders",
+          unpaidCod.length > 0
+            ? "Selected orders are COD and unpaid. Confirm payment received on each order first."
+            : "Select orders that are Packed first."
+        );
         return;
       }
       const results = await api.bulkUpdateOrderStatus(toDeliver, "DELIVERED");
       toast.success(
         "Morning delivery complete",
-        `${results.length} orders marked as Delivered`,
-        3000
+        unpaidCod.length > 0
+          ? `${results.length} orders marked as Delivered. ${unpaidCod.length} COD order(s) skipped — payment not confirmed.`
+          : `${results.length} orders marked as Delivered`,
+        4000
       );
       setSelectedIds(new Set());
     } catch (e) {
@@ -742,8 +797,9 @@ export function AdminOrdersScreen() {
         open={active !== null}
         onClose={() => setOpenId(null)}
         title={active ? active.orderNumber : "Order"}
+        size="lg"
       >
-        {active && <OrderDetail order={active} onMutated={handleMutated} />}
+        {active && <OrderDetail key={active.id} order={active} onMutated={handleMutated} />}
       </Sheet>
     </AdminShell>
   );

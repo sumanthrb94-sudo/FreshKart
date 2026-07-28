@@ -1,4 +1,4 @@
-# FreshKart — B2B Mandi · End-to-End Figma Design Brief
+# Green Basket — B2B Mandi · End-to-End Figma Design Brief
 
 > **Hand this file to Claude / a design AI to build the entire product in Figma.**
 > It is self-contained: it covers the brand, the design system (tokens + components),
@@ -23,17 +23,17 @@
 
 ## 1. Product overview
 
-**FreshKart** (internal: *B2B Mandi*) is a **Ninjacart-style B2B wholesale fresh-produce marketplace**. It connects **buyers** (kirana stores, retailers, hotels/restaurants/caterers — HoReCa) with fresh fruit & vegetable supply, priced **per kg / per piece** and ordered **in bulk** with minimum-order quantities.
+**Green Basket** (internal: *B2B Mandi*) is a **Ninjacart-style B2B wholesale fresh-produce marketplace**. It connects **buyers** (kirana stores, retailers, hotels/restaurants/caterers — HoReCa) with fresh fruit & vegetable supply, priced **per kg / per piece** and ordered **in bulk** with minimum-order quantities.
 
 - **Tagline:** "Wholesale B2B · per kg"
-- **Core promise:** Live B2B rates · order in bulk · pay COD, credit or online · 1–2 day delivery.
+- **Core promise:** Live B2B rates · order in bulk · pay COD or online · 1–2 day delivery.
 - **Tone:** Fresh, trustworthy, fast, utilitarian. Think a clean grocery-commerce app (Blinkit/Zepto/Ninjacart energy) but for **wholesale business buyers**, not consumers.
 
 ### Roles
 | Role | Who | What they do |
 |------|-----|--------------|
 | **BUYER** | Kirana store owner, retailer, hotel/restaurant | Browse catalog, build a bulk cart, checkout, pay, track & reorder |
-| **ADMIN** | FreshKart operations | Dashboard, manage all orders & their status, manage inventory (price/stock/active), view customers |
+| **ADMIN** | Green Basket operations | Dashboard, manage all orders & their status, manage inventory (price/stock/active), view customers |
 | **SELLER** | Farmer/wholesaler (data model only) | Listed as the source of each product; **no dedicated UI to design** (legacy — admin manages everything) |
 
 > Design effort = **Buyer app** + **Admin console**. Seller has no screens.
@@ -171,7 +171,7 @@
 18. **Alert/Inline message** — success (brand-50/brand-200, CheckCircle2) and error (red-50/red-200, AlertCircle).
 
 ### Organisms
-19. **App header (buyer)** — brand-500 bar: logo + "FreshKart / Wholesale B2B · per kg" (left); right actions: optional **Admin** pill (if admin), **Orders** icon button, **Account** icon button, **Logout** icon button. Unauth state: just **Login** pill. All icon buttons are 32 px circles `white/15`.
+19. **App header (buyer)** — brand-500 bar: logo + "Green Basket / Wholesale B2B · per kg" (left); right actions: optional **Admin** pill (if admin), **Orders** icon button, **Account** icon button, **Logout** icon button. Unauth state: just **Login** pill. All icon buttons are 32 px circles `white/15`.
 20. **Admin header + nav** — white header with ShieldCheck mark + "Admin"; sticky sub-nav of tabs (Overview / Orders / Products / Customers), active tab = brand-500 bg white.
 21. **Sticky cart bar** — brand-600 pill button: cart icon + "N items · ₹total" (left), "Review & Order →" (right).
 22. **Checkout bottom sheet** — see 7.4.
@@ -208,10 +208,10 @@ Protected page without session ──▶ /onboarding?callbackUrl=<path>
         ──▶ Tap ──▶ Checkout bottom sheet:
                      • Items (editable qty)
                      • Delivery details (name, phone, city, address, pincode — all required)
-                     • Payment method: COD | Credit | Online
+                     • Payment method: COD | Online
                      • Bill (item total, delivery FREE, to-pay)
                      ──▶ Place order
-                          ├─ COD / Credit ──▶ create order ──▶ Success overlay
+                          ├─ COD ──▶ create order ──▶ Success overlay
                           └─ Online ──▶ Mock payment sheet (Card/UPI, TEST MODE)
                                           ──▶ pay ──▶ create order ──▶ Success overlay
         Success overlay ──▶ "Place another order" (reset → Shop)  OR  "View my orders" (/orders)
@@ -243,7 +243,6 @@ PENDING ──▶ CONFIRMED ──▶ PACKED ──▶ SHIPPED ──▶ DELIVER
 
 ### Cycle F — Payment cycle
 - **COD** — "Cash on delivery", order placed immediately, success chip amber-ish.
-- **CREDIT** — "Business credit" (pay later), placed immediately.
 - **ONLINE** — opens **Mock payment sheet** (Card or UPI tabs, pre-filled test card `4242 4242 4242 4242`, "TEST MODE" + "Simulated gateway · PCI-safe demo"); on success shows "✓ Paid online". (Real Razorpay is supported in code but design the **mock** sheet.)
 
 ---
@@ -259,7 +258,7 @@ flowchart TD
   H -->|ADMIN| AD[Admin Overview /admin]
 
   Shop --> CART[Checkout bottom sheet]
-  CART -->|COD/Credit| OK[Success overlay]
+  CART -->|COD| OK[Success overlay]
   CART -->|Online| PAY[Mock payment sheet] --> OK
   OK -->|Place another| Shop
   OK -->|View my orders| OL[Orders /orders]
@@ -289,7 +288,7 @@ flowchart TD
 > Frame width 480 px. Header is present on buyer screens (brand bar); admin screens use the admin header+nav.
 
 ### 7.1 Onboarding — `/onboarding`
-- **Header copy:** H1 "Welcome to FreshKart" (24/bold), subtitle "Wholesale fresh produce for your business." (14/gray-500).
+- **Header copy:** H1 "Welcome to Green Basket" (24/bold), subtitle "Wholesale fresh produce for your business." (14/gray-500).
 - **Step 1 — Mobile:** Phone number input (10-digit India mobile), reCAPTCHA verifier, **Send OTP** button.
 - **Step 2 — Verify:** 6-digit OTP input with auto-focus, resend countdown, **Verify** button.
 - **Alternative method:** **Continue with Google** button (brand-accurate "G" icon). Google sign-in is gated by `api.signInWithGoogle` availability.
@@ -299,7 +298,7 @@ flowchart TD
 
 ### 7.3 Shop / Home — `/` (UnifiedOrderScreen) — **primary screen**
 - **Sticky sub-header (white):** search input (gray-50 field, Search icon) placeholder "Search produce…"; below it a horizontal **chip rail** — "All" + one chip per category (Vegetables, Leafy Greens). Active chip brand-500.
-- **Promo banner:** gradient brand card — "Wholesale fruits & veggies 🥦" + "Live B2B rates · order in bulk · pay COD, credit or online."
+- **Promo banner:** gradient brand card — "Wholesale fruits & veggies 🥦" + "Live B2B rates · order in bulk · pay COD or online."
 - **Product list (single column, cards):** each row =
   - 96×96 image (rounded-xl, gray-100 fallback),
   - name (14/bold), origin line (MapPin + city, 11/gray-400),
@@ -315,11 +314,11 @@ flowchart TD
 - **Sections (white cards on gray-50):**
   1. **Items** — cart line rows (48 thumb, name, unit price, stepper, line total).
   2. **Delivery details** (MapPin title) — fields: Business / shop name (full), Phone, City (row), Full address (full), Pincode. All required.
-  3. **Payment** — 3 radio rows: "Cash on delivery", "Business credit", "Pay online". Selected = brand-50/brand-500 border.
+  3. **Payment** — 2 radio rows: "Cash on delivery", "Pay online". Selected = brand-50/brand-500 border.
   4. **Bill** — Item total, Delivery **FREE** (brand-600), dashed divider, **To pay** (bold).
   - Trust line: "🛡️ Quality checked · easy returns on bad stock".
   - Error message (red) if fields missing / order fails.
-  - **CTA:** "Place B2B order · ₹total" (COD/Credit) or "Pay ₹total" (Online); shows "Placing order…" spinner while busy.
+  - **CTA:** "Place B2B order · ₹total" (COD) or "Pay ₹total" (Online); shows "Placing order…" spinner while busy.
 
 ### 7.5 Mock payment sheet (overlay, Online only)
 - Scrim `black/50`; `rounded-t-2xl` white sheet. Header: Lock icon + "Pay securely" + amber **TEST MODE** chip + X.
@@ -331,7 +330,7 @@ flowchart TD
 - Validation errors inline (invalid card/expiry/CVV/UPI).
 
 ### 7.6 Order-placed success overlay (in-app, after placing)
-- Full-screen white, centered: big CheckCircle2 in brand-50 circle, "Order placed!", "Your B2B order is confirmed.", order-number chip, "Total ₹X", payment chip ("✓ Paid online" / "Business credit" / "Cash on delivery").
+- Full-screen white, centered: big CheckCircle2 in brand-50 circle, "Order placed!", "Your B2B order is confirmed.", order-number chip, "Total ₹X", payment chip ("✓ Paid online" / "Cash on delivery").
 - **CTAs:** "Place another order" (primary) + "📦 View my orders" (outline).
 
 ### 7.7 Order success page — `/order-success/[id]`
@@ -352,7 +351,7 @@ flowchart TD
 - **Tracking card:** 5-stage vertical timeline (Order placed → Confirmed → Packed & ready → Out for delivery → Delivered) with per-stage note; done = brand dot, current = brand dot with glow ring, pending = gray. **Cancelled variant:** single red XCircle row "Order cancelled / stock was released."
 - **Items card:** "Items (N)" with rows (thumb, name, `₹price/unit × qty`, line total) + Total.
 - **Delivery address card** (MapPin): name, address line, phone.
-- **Payment card** (Wallet): "Cash on delivery" / "Credit (pay later)" / "Online payment".
+- **Payment card** (Wallet): "Cash on delivery" / "Online payment".
 - **Notes card** (if any).
 - **Cancel order** button (danger/outline) — only when PENDING or CONFIRMED.
 
@@ -463,22 +462,22 @@ flowchart TD
 **Tracking stage labels & notes:** Order placed ("We've received your order.") → Confirmed ("Seller accepted your order.") → Packed & ready ("Your produce is packed fresh.") → Out for delivery ("On the way to you.") → Delivered ("Order delivered. Enjoy!").
 
 ### 9.4 Payment methods
-COD = "Cash on delivery" · CREDIT = "Business credit" / "Credit (pay later)" · ONLINE = "Pay online" / "Online payment".
+COD = "Cash on delivery" · ONLINE = "Pay online" / "Online payment".
 
 ### 9.5 Order number format
 `ORD-YYYYMMDD-XXXXXX` (e.g. `ORD-20260622-AB12CD`).
 
 ### 9.6 Demo accounts
-- Customer (BUYER): `customer@freshkart.in` — *Suresh Kirana Store*, Bengaluru.
-- Admin: `admin@freshkart.in` — *FreshKart*, Bengaluru.
+- Customer (BUYER): `customer@green-basket.in` — *Suresh Kirana Store*, Bengaluru.
+- Admin: `admin@green-basket.in` — *Green Basket*, Bengaluru.
 - **No password-based demo sign-in.** Use a Firebase test phone number or a Google account with the admin allowlist for local testing.
 
 ### 9.7 Sample buyer profile (for Account screen mock)
-Name *FreshKart Customer*, Business *Suresh Kirana Store*, Phone *9812345678*, City *Bengaluru*, Address *12, Gandhi Bazaar, Basavanagudi*, Pincode *560004*, GSTIN *29BUYER1234A1Z9*.
+Name *Green Basket Customer*, Business *Suresh Kirana Store*, Phone *9812345678*, City *Bengaluru*, Address *12, Gandhi Bazaar, Basavanagudi*, Pincode *560004*, GSTIN *29BUYER1234A1Z9*.
 
 ### 9.8 Key copy strings (reuse verbatim)
-- Header: "FreshKart" / "Wholesale B2B · per kg".
-- Banner: "Wholesale fruits & veggies 🥦" / "Live B2B rates · order in bulk · pay COD, credit or online."
+- Header: "Green Basket" / "Wholesale B2B · per kg".
+- Banner: "Wholesale fruits & veggies 🥦" / "Live B2B rates · order in bulk · pay COD or online."
 - Trust: "Quality checked · easy returns on bad stock", "Simulated gateway · PCI-safe demo", "Test card pre-filled — no real charge is made."
 - ETA: "Arriving in 1–2 days", "We'll notify you when it's out for delivery."
 - Delivery is **FREE**.
@@ -513,4 +512,4 @@ Name *FreshKart Customer*, Business *Suresh Kirana Store*, Phone *9812345678*, C
 
 ---
 
-*Built from the live FreshKart / B2B Mandi codebase (Next.js 14 · Tailwind · brand green `#16bd5f`). Mobile-first, 480 px column.*
+*Built from the live Green Basket / B2B Mandi codebase (Next.js 14 · Tailwind · brand green `#16bd5f`). Mobile-first, 480 px column.*

@@ -1,4 +1,4 @@
-# FreshKart — Backend Integration Contract
+# Green Basket — Backend Integration Contract
 
 This front end is **backend-agnostic**. It talks to whatever you point
 `NEXT_PUBLIC_API_BASE_URL` at, through the typed
@@ -34,7 +34,7 @@ All shapes are defined in [`src/lib/types.ts`](../src/lib/types.ts). Summary:
 
 **Enums**
 - `OrderStatus`: `PENDING → CONFIRMED → PACKED → SHIPPED → DELIVERED`, plus `CANCELLED`
-- `PaymentMethod`: `COD | CREDIT | ONLINE` (`CREDIT` is kept for legacy orders but new orders must use `COD` or `ONLINE`)
+- `PaymentMethod`: `COD | ONLINE`
 - `PaymentStatus`: `UNPAID | PAID`
 
 **Conventions**
@@ -70,6 +70,7 @@ Base URL = `NEXT_PUBLIC_API_BASE_URL`. All bodies are JSON. Errors return
 |--------|------|------|---------|
 | POST | `/orders` | `{ buyerId, items: [{productId, qty}], delivery, paymentMethod, paid }` | `Order` (validates stock and daily price-update gate) |
 | GET | `/orders?buyerId=…` | — | `Order[]` (omit `buyerId` ⇒ all, for admin) |
+| GET | `/orders?from=…&to=…` | — | `Order[]` where `from <= createdAt < to` (admin daily reports; both bounds UTC ISO-8601) |
 | GET | `/orders/:id` | — | `Order \| null` |
 | PATCH | `/orders/:id/status` | `{ status }` | `Order` |
 | POST | `/orders/:id/cancel` | — | `Order` (releases stock) |
@@ -116,7 +117,7 @@ If you build a custom server-side backend instead of Firebase:
 
 ```
             ┌──────────────────────┐         ┌───────────────────────────┐
-  Browser ─▶│  Vercel (Next.js FE)  │ ──────▶ │  Cloud Run (FreshKart API) │
+  Browser ─▶│  Vercel (Next.js FE)  │ ──────▶ │  Cloud Run (Green Basket API) │
             └──────────────────────┘  HTTPS   └───────────┬───────────────┘
                 NEXT_PUBLIC_API_BASE_URL                   │
                 = https://…run.app              ┌──────────┴───────────┐
@@ -154,9 +155,7 @@ message (e.g. `"Getting best live prices for you. Orders open after today's pric
 create type role as enum ('BUYER','ADMIN','SELLER');
 create type unit as enum ('kg','pc');
 create type order_status as enum ('PENDING','CONFIRMED','PACKED','SHIPPED','DELIVERED','CANCELLED');
-create type payment_method as enum ('COD','CREDIT','ONLINE');
--- Note: application code rejects new orders using 'CREDIT'; keep the enum value
--- so existing legacy orders still load correctly.
+create type payment_method as enum ('COD','ONLINE');
 create type payment_status as enum ('UNPAID','PAID');
 
 create table daily_prices_settings (

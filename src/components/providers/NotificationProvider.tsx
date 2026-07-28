@@ -1,15 +1,23 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import {
   subscribeInAppNotifications,
+  setNotificationUser,
   getUnreadCount,
   markInAppAsRead,
   markAllInAppAsRead,
   deleteInAppNotification,
   clearAllInAppNotifications,
+  notifyOrderPacked,
+  notifyOrderShipped,
+  notifyOrderDelivered,
 } from "@/lib/in-app-notifications";
 import type { InAppNotification } from "@/lib/in-app-notifications";
+import type { Order, OrderStatus } from "@/lib/types";
+import { api } from "@/lib/api";
+import { useAuth } from "@/components/providers/AuthProvider";
+import { playOrderUpdateChime } from "@/lib/buyer-alert-sounds";
 
 interface NotificationContextValue {
   notifications: InAppNotification[];
@@ -29,12 +37,65 @@ const NotificationContext = createContext<NotificationContextValue>({
   clearAll: () => {},
 });
 
+/** Real-time order status alerts for buyers: watches their own orders
+ *  for admin-driven progress (packed/shipped/delivered,
+ *  approved/rejected/refunded) and raises an in-app notification + chime the
+ *  moment it happens — these transitions never originate from the buyer's
+ *  own client, so there's no risk of double-firing against the immediate,
+ *  self-triggered notifications already sent right after checkout/cancel/
+ *  return-request actions elsewhere. Skips CONFIRMED/CANCELLED and REQUESTED
+ *  for the same reason. */
+function useBuyerStatusAlerts() {
+  const { user, isAuthenticated, isAdmin } = useAuth();
+  const orderStatusRef = useRef<Map<string, OrderStatus> | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated || isAdmin || !user) return;
+    if (typeof api.subscribeOrders !== "function") return;
+
+    orderStatusRef.current = null;
+    const unsubscribe = api.subscribeOrders(user.id, (orders: Order[]) => {
+      const prev = orderStatusRef.current;
+      if (!prev) {
+        orderStatusRef.current = new Map(orders.map((o) => [o.id, o.status]));
+        return;
+      }
+      for (const order of orders) {
+        const prevStatus = prev.get(order.id);
+        if (prevStatus === order.status) continue;
+        if (order.status === "PACKED") {
+          notifyOrderPacked(order.orderNumber, order.id);
+          playOrderUpdateChime();
+        } else if (order.status === "SHIPPED") {
+          notifyOrderShipped(order.orderNumber, order.id);
+          playOrderUpdateChime();
+        } else if (order.status === "DELIVERED") {
+          notifyOrderDelivered(order.orderNumber, order.id);
+          playOrderUpdateChime();
+        }
+      }
+      orderStatusRef.current = new Map(orders.map((o) => [o.id, o.status]));
+    });
+
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, isAdmin, user?.id]);
+
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const { user } = useAuth();
 
   useEffect(() => {
     return subscribeInAppNotifications(setNotifications);
   }, []);
+
+  useEffect(() => {
+    setNotificationUser(user?.id ?? null);
+  }, [user?.id]);
+
+  useBuyerStatusAlerts();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 

@@ -1,11 +1,11 @@
-# 🥦 FreshKart — B2B Wholesale Produce Marketplace
+# 🥦 Green Basket — B2B Wholesale Produce Marketplace
 
 A Ninjacart-style **B2B wholesale fresh-produce marketplace** connecting buyers
 (kirana stores, retailers, HoReCa) with fresh fruit & vegetable supply — priced
 per kg / per piece, ordered in bulk with minimum-order quantities.
 
 This repository is a **complete, production-shaped front end** (Next.js 14) built
-to the [FreshKart design brief](./docs/DESIGN_BRIEF.md), with a clean,
+to the [Green Basket design brief](./docs/DESIGN_BRIEF.md), with a clean,
 **backend-ready** data layer so a real API (e.g. on Google Cloud) can be wired in
 without touching any UI code.
 
@@ -58,7 +58,7 @@ sign-in is not implemented.
 ## 🧱 Tech stack
 
 - **Next.js 15** (App Router) + **React 19** + **TypeScript**
-- **Tailwind CSS** with design tokens from the brief (brand red `#e23744`)
+- **Tailwind CSS** with design tokens from the brief (royal green `#059669`)
 - **lucide-react** icons · **Inter** font
 - **Firebase** (Firestore + Auth + Storage) backend, client-SDK direct
 - Zero runtime backend dependency in the default (mock) mode

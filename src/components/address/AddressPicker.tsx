@@ -87,7 +87,7 @@ export function AddressPicker({
   useEffect(() => {
     let cancelled = false;
     let ro: ResizeObserver | null = null;
-    const timers: ReturnType<typeof setTimeout>[] = [];
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     (async () => {
       const L = await import("leaflet");
       if (cancelled || !mapEl.current || mapRef.current) return;
@@ -111,24 +111,42 @@ export function AddressPicker({
       });
       mapRef.current = map;
       // Sheets animate in, so the container can be mid-resize when the map
-      // mounts — re-measure on a few ticks AND whenever it actually resizes,
-      // else Leaflet paints into a stale/zero-size box and the tiles come up
-      // gray (the "map not loading when changing address" bug).
-      [60, 250, 500, 900].forEach((t) =>
-        timers.push(setTimeout(() => map.invalidateSize(), t))
-      );
+      // mounts. Re-measure once things settle — but through a SINGLE
+      // debounced call, not a burst of independent timers/ResizeObserver
+      // firings. Each invalidateSize() re-derives Leaflet's pixel origin and
+      // (by default) animates a re-pan to keep the same center; firing it
+      // repeatedly while tiles from the previous call are still loading lets
+      // two different pan generations of tiles land and stay on screen at
+      // once — a torn, double-exposed-looking map. `animate: false` also
+      // drops the re-pan animation itself, which was the other half of that
+      // same race.
+      const scheduleInvalidate = () => {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (!cancelled) map.invalidateSize({ animate: false });
+        }, 120);
+      };
+      scheduleInvalidate();
       if (typeof ResizeObserver !== "undefined" && mapEl.current) {
-        ro = new ResizeObserver(() => map.invalidateSize());
+        ro = new ResizeObserver(scheduleInvalidate);
         ro.observe(mapEl.current);
       }
       if (!initial?.address) reverseGeocode(center.lat, center.lng);
-      // Fresh capture (no saved pin) → grab the device's GPS location now.
-      if (initial?.lat == null) captureLocation();
+      // Deliberately NOT auto-firing captureLocation() here. WebKit (Safari,
+      // and every other browser on iOS — Chrome/Brave/Firefox for iOS are all
+      // WebKit under the hood) only shows the location permission dialog for
+      // a request made directly inside a user gesture (e.g. this tap). A
+      // geolocation call fired automatically on mount gets silently denied
+      // with no dialog at all — and WebKit then treats the origin's decision
+      // as already made, so even the later "Use my location" button click
+      // silently fails too. Chrome/Android is lenient about this and will
+      // prompt regardless, which is why this only ever showed up on iOS /
+      // non-Chrome. The user must tap "Use my location" to trigger GPS.
     })();
     return () => {
       cancelled = true;
       ro?.disconnect();
-      timers.forEach(clearTimeout);
+      if (resizeTimer) clearTimeout(resizeTimer);
       if (geoTimer.current) clearTimeout(geoTimer.current);
       mapRef.current?.remove();
       mapRef.current = null;
@@ -161,9 +179,9 @@ export function AddressPicker({
         } else {
           circleRef.current = L.circle([latitude, longitude], {
             radius: acc,
-            color: "#e23744",
+            color: "#059669",
             weight: 1,
-            fillColor: "#e23744",
+            fillColor: "#059669",
             fillOpacity: 0.12,
           }).addTo(map);
         }
@@ -224,8 +242,15 @@ export function AddressPicker({
         />
       </form>
 
-      {/* Map with fixed centre pin + locate button */}
-      <div className={cn("relative overflow-hidden rounded-xl border border-line", mapClassName)}>
+      {/* Map with fixed centre pin + locate button. `isolate` forces a new
+          stacking context: Leaflet's internal panes use z-index up to 700
+          (popup pane), and without this, those values compare against
+          whatever ancestor stacking context they land in instead of staying
+          contained here — e.g. bleeding on top of a modal/sheet (z-50)
+          opened over a page that still has another Leaflet map mounted
+          behind it, like the small "Deliver to" preview under the address
+          sheet's "Change" flow. */}
+      <div className={cn("relative isolate overflow-hidden rounded-xl border border-line", mapClassName)}>
         <div ref={mapEl} className="h-full w-full" />
         {/* Fixed pin — tip sits at the exact map centre */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-full">
@@ -353,6 +378,8 @@ export function AddressMapPreview({
 
   useEffect(() => {
     let cancelled = false;
+    let ro: ResizeObserver | null = null;
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     (async () => {
       const L = await import("leaflet");
       if (cancelled || !el.current) return;
@@ -371,18 +398,29 @@ export function AddressMapPreview({
           maxZoom: 19,
         }).addTo(map);
         mapRef.current = map;
-        // Re-measure across the sheet's open animation so tiles aren't gray.
-        [80, 300, 600].forEach((t) =>
-          setTimeout(() => {
-            if (mapRef.current === map) map.invalidateSize();
-          }, t)
-        );
+        // Re-measure across the sheet's open animation, debounced to a single
+        // call (see the main AddressPicker map above) — an un-debounced
+        // burst of invalidateSize() calls can leave two different pan
+        // generations of tiles on screen at once, a torn/double-exposed map.
+        const scheduleInvalidate = () => {
+          if (resizeTimer) clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => {
+            if (!cancelled && mapRef.current === map) map.invalidateSize({ animate: false });
+          }, 120);
+        };
+        scheduleInvalidate();
+        if (typeof ResizeObserver !== "undefined" && el.current) {
+          ro = new ResizeObserver(scheduleInvalidate);
+          ro.observe(el.current);
+        }
       } else {
         mapRef.current.setView([lat, lng], 16);
       }
     })();
     return () => {
       cancelled = true;
+      ro?.disconnect();
+      if (resizeTimer) clearTimeout(resizeTimer);
     };
   }, [lat, lng]);
 
@@ -395,7 +433,10 @@ export function AddressMapPreview({
   );
 
   return (
-    <div className={cn("relative overflow-hidden rounded-xl border border-line", className)}>
+    // `isolate`: see the comment on the main picker's map wrapper above —
+    // this is exactly the map instance that was bleeding through the
+    // "Change" address sheet opened on top of it.
+    <div className={cn("relative isolate overflow-hidden rounded-xl border border-line", className)}>
       <div ref={el} className="h-full w-full" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full">
         <MapPin className="h-8 w-8 fill-brand-500 text-white drop-shadow-lg" strokeWidth={2} />

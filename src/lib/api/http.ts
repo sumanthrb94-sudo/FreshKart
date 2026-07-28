@@ -7,8 +7,13 @@ import type {
   OrderStatus,
   Product,
   ProductInput,
+  StoreOverride,
+  StoreSettings,
   User,
 } from "@/lib/types";
+import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
+import type { Coupon } from "@/lib/coupons";
+import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
 import { DataSource, ApiError } from "./datasource";
 
 /**
@@ -67,7 +72,10 @@ export class HttpDataSource implements DataSource {
     return this.request<Product | null>(`/products/${id}`);
   }
 
-  updateProduct(id: string, patch: Partial<Product>) {
+  updateProduct(
+    id: string,
+    patch: Partial<Omit<Product, "imageUrl">> & { imageUrl?: string | null }
+  ) {
     return this.request<Product>(`/products/${id}`, {
       method: "PATCH",
       body: JSON.stringify(patch),
@@ -97,6 +105,11 @@ export class HttpDataSource implements DataSource {
 
   listOrders(buyerId?: string) {
     const qs = buyerId ? `?buyerId=${encodeURIComponent(buyerId)}` : "";
+    return this.request<Order[]>(`/orders${qs}`);
+  }
+
+  listOrdersByRange(startIso: string, endIso: string) {
+    const qs = `?from=${encodeURIComponent(startIso)}&to=${encodeURIComponent(endIso)}`;
     return this.request<Order[]>(`/orders${qs}`);
   }
 
@@ -142,6 +155,71 @@ export class HttpDataSource implements DataSource {
     return this.request<User | null>(`/users/${id}`);
   }
 
+  listCoupons() {
+    return this.request<Coupon[]>("/coupons");
+  }
+
+  createCoupon(input: Omit<Coupon, "id" | "usageCount" | "createdAt" | "updatedAt">) {
+    return this.request<Coupon>("/coupons", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  updateCoupon(id: string, patch: Partial<Coupon>) {
+    return this.request<Coupon>(`/coupons/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  }
+
+  deleteCoupon(id: string) {
+    return this.request<void>(`/coupons/${id}`, { method: "DELETE" });
+  }
+
+  listInAppNotifications(userId: string) {
+    return this.request<InAppNotification[]>(`/notifications?userId=${encodeURIComponent(userId)}`);
+  }
+
+  addInAppNotification(
+    userId: string,
+    type: InAppNotificationType,
+    title: string,
+    message: string,
+    options?: { actionUrl?: string; orderId?: string }
+  ) {
+    return this.request<InAppNotification>("/notifications", {
+      method: "POST",
+      body: JSON.stringify({ userId, type, title, message, ...options }),
+    });
+  }
+
+  markInAppNotificationRead(userId: string, id: string) {
+    return this.request<void>(`/notifications/${id}/read`, {
+      method: "PATCH",
+      body: JSON.stringify({ userId }),
+    });
+  }
+
+  markAllInAppNotificationsRead(userId: string) {
+    return this.request<void>("/notifications/read-all", {
+      method: "PATCH",
+      body: JSON.stringify({ userId }),
+    });
+  }
+
+  deleteInAppNotification(userId: string, id: string) {
+    return this.request<void>(`/notifications/${id}?userId=${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  clearAllInAppNotifications(userId: string) {
+    return this.request<void>(`/notifications?userId=${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
+  }
+
   getDailyPricesSettings() {
     return this.request<DailyPricesSettings | null>("/settings/dailyPrices");
   }
@@ -151,5 +229,68 @@ export class HttpDataSource implements DataSource {
       method: "POST",
       body: JSON.stringify({ publishedBy: userId }),
     });
+  }
+
+  unpublishDailyPrices() {
+    return this.request<void>("/settings/dailyPrices/publish", { method: "DELETE" });
+  }
+
+  getStoreSettings() {
+    return this.request<StoreSettings | null>("/settings/store");
+  }
+
+  setStoreOverride(userId: string, override: StoreOverride) {
+    return this.request<StoreSettings>("/settings/store", {
+      method: "PATCH",
+      body: JSON.stringify({ override, updatedBy: userId }),
+    });
+  }
+
+  // --- Support tickets (stubbed until a REST backend implements the endpoints) --
+  listSupportTickets(buyerId?: string) {
+    const qs = buyerId ? `?buyerId=${encodeURIComponent(buyerId)}` : "";
+    return this.request<SupportTicket[]>(`/support-tickets${qs}`);
+  }
+
+  getSupportTicket(id: string) {
+    return this.request<SupportTicket | null>(`/support-tickets/${id}`);
+  }
+
+  getOrCreateSupportTicket(input: CreateSupportTicketInput) {
+    return this.request<SupportTicket>("/support-tickets", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  addSupportTicketMessage(
+    id: string,
+    sender: Extract<TicketSender, "buyer" | "admin" | "assistant">,
+    text: string,
+    suggestions?: string[]
+  ) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ sender, text, suggestions }),
+    });
+  }
+
+  escalateSupportTicket(id: string) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/escalate`, { method: "POST" });
+  }
+
+  closeSupportTicket(id: string) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/close`, { method: "POST" });
+  }
+
+  reopenSupportTicket(id: string) {
+    return this.request<SupportTicket>(`/support-tickets/${id}/reopen`, { method: "POST" });
+  }
+
+  setSupportTicketTyping(id: string, sender: "buyer" | "admin") {
+    return this.request<void>(`/support-tickets/${id}/typing`, {
+      method: "POST",
+      body: JSON.stringify({ sender }),
+    }).catch(() => undefined);
   }
 }

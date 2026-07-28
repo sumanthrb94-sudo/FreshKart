@@ -6,11 +6,14 @@
   --app-max: 480px;
   --sidebar-width: 16rem;
 
-  /* Dark mode (default) */
-  --color-canvas: #0d0d0f;
-  --color-surface: #18181b;
-  --color-raised: #222227;
-  --color-line: #2c2d33;
+  /* Dark mode (default). A deliberate green cast instead of pure grey —
+     pure neutrals were reading as sterile/empty for a produce brand whose
+     color otherwise only showed up in buttons and chips. */
+  --color-canvas: #0c1410;
+  --color-surface: #142019;
+  --color-raised: #1c2b22;
+  --color-line: #28392f;
+  --color-header: #10251b;
   --color-fg: #f5f6f8;
   --color-fg-muted: #a6abb5;
   --color-fg-subtle: #74787f;
@@ -21,13 +24,45 @@
 
 /* Light mode */
 html.light {
-  --color-canvas: #f2f2f5;
-  --color-surface: #ffffff;
-  --color-raised: #f0f0f3;
-  --color-line: #e2e2e6;
+  --color-canvas: #e6f1ea;
+  --color-surface: #f6fbf8;
+  --color-raised: #dcede2;
+  --color-line: #c3ddcb;
+  --color-header: #d7ecdf;
   --color-fg: #1a1a1e;
   --color-fg-muted: #5c5f66;
-  --color-fg-subtle: #8b8e96;
+  --color-fg-subtle: #71786f;
+}
+
+/* Desktop is light-only, regardless of the mobile dark/light toggle state —
+   the dark theme was designed for a phone-in-hand context and the toggle is
+   hidden past this breakpoint (see BuyerHeader). Overrides the dark :root
+   defaults directly so a desktop session that never touched the toggle
+   (and therefore never got the .light class) still renders light. */
+@media (min-width: 1024px) {
+  :root {
+    --color-canvas: #e6f1ea;
+    --color-surface: #f6fbf8;
+    --color-raised: #dcede2;
+    --color-line: #c3ddcb;
+    --color-header: #d7ecdf;
+    --color-fg: #1a1a1e;
+    --color-fg-muted: #5c5f66;
+    --color-fg-subtle: #71786f;
+  }
+
+  /* text-brand-300/400 (badges, chips, nav active states, "+ ADD" labels)
+     were tuned to pop against the dark theme's near-black canvas — on this
+     forced-light desktop canvas they read as washed-out, low-contrast green.
+     Darken them here rather than touching every call site (18 files use
+     these two utilities as "brand accent text on a tinted background").
+     Mobile is untouched: this block only applies past the breakpoint. */
+  .text-brand-300 {
+    color: #065f46 !important; /* brand-700 */
+  }
+  .text-brand-400 {
+    color: #047857 !important; /* brand-600 */
+  }
 }
 
 html {
@@ -82,6 +117,22 @@ a:active {
 }
 .fc-scroll {
   scrollbar-width: none;
+}
+
+/* Product grid: single column on mobile, responsive auto-fill on desktop.
+   Cards never shrink below 176 px, preventing the horizontal/card overlap
+   that happens with a fixed column count on narrower viewports. */
+.product-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 768px) {
+  .product-grid {
+    /* 176px was tight for the price + "Min order" chip + Add button stack —
+       200px gives the card's action row room without wrapping/overlapping. */
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
 }
 
 /* Numeric inputs without spinners (qty / price / stock fields) */

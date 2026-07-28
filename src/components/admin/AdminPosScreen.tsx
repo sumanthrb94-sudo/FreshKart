@@ -737,7 +737,7 @@ export function AdminPosScreen() {
               )}
 
               {/* Desktop place-order bar */}
-              <div className="sticky bottom-0 hidden border-t border-line bg-canvas/95 p-4 backdrop-blur lg:block">
+              <div className="sticky bottom-0 hidden border-t border-line bg-canvas p-4 lg:block">
                 <Button
                   size="lg"
                   fullWidth
@@ -756,7 +756,7 @@ export function AdminPosScreen() {
           </div>
 
           {/* Sticky place-order bar (mobile) */}
-          <div className="sticky bottom-0 border-t border-line bg-canvas/95 p-4 backdrop-blur lg:hidden">
+          <div className="sticky bottom-0 border-t border-line bg-canvas p-4 lg:hidden">
             <Button
               size="lg"
               fullWidth

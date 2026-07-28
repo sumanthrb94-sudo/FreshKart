@@ -10,7 +10,7 @@ interface CallNowButtonProps {
   className?: string;
 }
 
-const DEFAULT_PHONE = "9800000000";
+const DEFAULT_PHONE = "74166 20691";
 
 /** Click-to-call customer service button.
  *  Works on mobile (opens dialer) and desktop (opens calling app).
@@ -21,7 +21,7 @@ export function CallNowButton({
   variant = "fab",
   className,
 }: CallNowButtonProps) {
-  const telUrl = `tel:+91${phone}`;
+  const telUrl = `tel:+91${phone.replace(/\s/g, "")}`;
 
   if (variant === "fab") {
     return (

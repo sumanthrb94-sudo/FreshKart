@@ -1,14 +1,16 @@
 "use client";
 
-import { useRef, useCallback, useState } from "react";
-import { FileText, Loader2, CheckCircle2 } from "lucide-react";
+import { useCallback, useState } from "react";
+import { FileText, CheckCircle2, Clock, Ban } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import {
   formatCurrency,
   formatDate,
   PAYMENT_LONG,
   ORDER_STATUS_META,
+  canDownloadInvoice,
 } from "@/lib/format";
+import { describeAdjustment, payableTotal } from "@/lib/delivery-adjustment";
 import type { Order } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +58,36 @@ export function InvoiceDownloader({
     }, 400);
   }, [order]);
 
+  // No invoice for a cancelled order — there's nothing to bill.
+  if (order.status === "CANCELLED") {
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-center gap-2 rounded-lg border border-line bg-raised px-3 py-2.5 text-xs font-medium text-fg-subtle",
+          className
+        )}
+      >
+        <Ban className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        No invoice — order was cancelled
+      </div>
+    );
+  }
+
+  // Invoices are only issued once the order is actually delivered.
+  if (!canDownloadInvoice(order.status)) {
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-center gap-2 rounded-lg border border-line bg-raised px-3 py-2.5 text-xs font-medium text-fg-subtle",
+          className
+        )}
+      >
+        <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        Invoice available after delivery
+      </div>
+    );
+  }
+
   return (
     <Button
       variant={variant}
@@ -102,14 +134,22 @@ function buildInvoiceHTML(order: Order): string {
     month: "long",
     year: "numeric",
   });
-  const invoiceNumber = `INV-${order.orderNumber.replace("ORD-", "")}`;
+  // Escaped once here — invoiceNumber/orderNumber are system-generated, but
+  // they still flow into the invoice's HTML (title + header), so escape as
+  // defense-in-depth alongside the buyer-controlled delivery fields below.
+  const invoiceNumber = escapeHtml(order.adjustedInvoiceNumber || `INV-${order.orderNumber.replace("ORD-", "")}`);
+  // Only a SETTLED adjustment changes the bill. One still awaiting an admin
+  // decision must not reduce the invoice — nothing has been agreed yet.
+  const settledAdjustment =
+    order.adjustment && order.adjustment.status !== "PENDING" ? order.adjustment : null;
+  const orderNumber = escapeHtml(order.orderNumber);
   const gstin = "29FRESH9876B1Z2";
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Invoice ${invoiceNumber} — FreshKart</title>
+  <title>Invoice ${invoiceNumber} — Green Basket</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -129,7 +169,7 @@ function buildInvoiceHTML(order: Order): string {
       overflow: hidden;
     }
     .header {
-      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
       color: white;
       padding: 32px 40px;
       display: flex;
@@ -240,7 +280,7 @@ function buildInvoiceHTML(order: Order): string {
     }
     .footer .brand {
       font-weight: 700;
-      color: #dc2626;
+      color: #059669;
     }
     .print-hint {
       display: none;
@@ -274,16 +314,16 @@ function buildInvoiceHTML(order: Order): string {
     <!-- Header -->
     <div class="header">
       <div class="header-left">
-        <h1>FreshKart</h1>
+        <h1>Green Basket</h1>
         <p>Wholesale B2B — Fresh Produce, Per Kg</p>
-        <p style="margin-top:8px;font-size:11px;opacity:0.7;">FreshKart Ops, Whitefield, Bengaluru — 560066</p>
-        <p style="font-size:11px;opacity:0.7;">GSTIN: ${gstin} · Phone: 9800000000</p>
+        <p style="margin-top:8px;font-size:11px;opacity:0.7;">Green Basket Ops, Whitefield, Bengaluru — 560066</p>
+        <p style="font-size:11px;opacity:0.7;">GSTIN: ${gstin} · Phone: +91 74166 20691</p>
       </div>
       <div class="header-right">
         <div class="badge">Tax Invoice</div>
         <p style="margin-top:12px;font-size:20px;font-weight:700;">${invoiceNumber}</p>
         <p style="font-size:12px;opacity:0.85;margin-top:2px;">Date: ${invoiceDate}</p>
-        <p style="font-size:12px;opacity:0.85;">Order: ${order.orderNumber}</p>
+        <p style="font-size:12px;opacity:0.85;">Order: ${orderNumber}</p>
       </div>
     </div>
 
@@ -296,8 +336,8 @@ function buildInvoiceHTML(order: Order): string {
           <div class="info-block">
             <p><strong>${escapeHtml(order.delivery.name)}</strong></p>
             <p>${escapeHtml(order.delivery.address)}</p>
-            <p>${escapeHtml(order.delivery.city)} — ${order.delivery.pincode}</p>
-            <p>Phone: ${order.delivery.phone}</p>
+            <p>${escapeHtml(order.delivery.city)} — ${escapeHtml(order.delivery.pincode)}</p>
+            <p>Phone: ${escapeHtml(order.delivery.phone)}</p>
           </div>
         </div>
         <div>
@@ -347,12 +387,29 @@ function buildInvoiceHTML(order: Order): string {
             <span>Delivery Fee</span>
             <span>${order.deliveryFee > 0 ? `Rs. ${order.deliveryFee.toLocaleString("en-IN")}` : "FREE"}</span>
           </div>
+          ${settledAdjustment ? `
+          <div class="total-row">
+            <span>Refused at delivery</span>
+            <span style="color:#059669;font-weight:600;">-Rs. ${settledAdjustment.totalRefund.toLocaleString("en-IN")}</span>
+          </div>` : ""}
           <div class="total-row grand">
             <span>Grand Total</span>
-            <span>Rs. ${order.total.toLocaleString("en-IN")}</span>
+            <span>Rs. ${payableTotal(order).toLocaleString("en-IN")}</span>
           </div>
         </div>
       </div>
+
+      ${settledAdjustment ? `
+      <!-- Adjustment note: quality is settled at the door, before payment,
+           so this invoice is issued for the adjusted amount rather than a
+           credit note being raised against a wrong one. -->
+      <div class="section" style="margin-top:24px;padding:16px;background:#ecfdf5;border-radius:8px;">
+        <p class="section-title" style="color:#065f46;">Delivery Adjustment</p>
+        <div class="info-block">
+          <p>${escapeHtml(describeAdjustment(settledAdjustment))}</p>
+          <p style="margin-top:6px;">Rs. ${settledAdjustment.totalRefund.toLocaleString("en-IN")} was taken off this bill at handover on ${formatDate(settledAdjustment.raisedAt)}. You were charged only for the goods you accepted.</p>
+        </div>
+      </div>` : ""}
 
       <!-- Terms -->
       <div class="section" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;">
@@ -360,15 +417,14 @@ function buildInvoiceHTML(order: Order): string {
         <div class="info-block">
           <p>1. All prices are in Indian Rupees (Rs.) and are exclusive of GST unless stated.</p>
           <p>2. Goods once sold will not be taken back or exchanged.</p>
-          <p>3. Payment is due within 7 days for credit orders.</p>
-          <p>4. For disputes, contact: support@freshkart.in</p>
+          <p>3. For disputes, contact: support@green-basket.in</p>
         </div>
       </div>
     </div>
 
     <!-- Footer -->
     <div class="footer">
-      <p class="brand">FreshKart</p>
+      <p class="brand">Green Basket</p>
       <p style="margin-top:4px;">Thank you for your business!</p>
       <p style="margin-top:4px;">This is a computer-generated invoice and does not require a signature.</p>
     </div>

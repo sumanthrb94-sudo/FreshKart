@@ -1,4 +1,4 @@
-# FreshKart on Firebase (Firestore + Phone Auth + Storage)
+# Green Basket on Firebase (Firestore + Phone Auth + Storage)
 
 The production backend: the Next.js front end (on Vercel) talks to **Firebase
 directly from the browser** — **Firestore** for data, **Firebase Phone Auth**
@@ -77,6 +77,11 @@ export GOOGLE_APPLICATION_CREDENTIALS=./serviceAccount.json
 export FIREBASE_PROJECT_ID=freshkart-e0479
 npm run seed:firestore
 ```
+> `seed:firestore` fully overwrites every field (price, stock, etc.) from
+> `mock-data.ts` — don't re-run it once live prices/stock have diverged from
+> the seed defaults. To update only product photos without touching
+> anything else, use `npm run set-product-images` instead (same credentials
+> as above) — it only ever writes the `imageUrl` field.
 
 ## 4. Add a test phone number (so you can sign in without SMS)
 
