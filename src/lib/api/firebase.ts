@@ -521,8 +521,14 @@ export class FirebaseDataSource implements DataSource {
         if (!s.exists()) throw new ApiError("Product no longer available.");
         const p = s.data() as Product;
         const qty = input.items[idx].qty;
-        if (qty > p.stock) {
-          throw new ApiError(`Only ${p.stock} ${p.unit} of ${p.name} left in stock.`);
+        // Treat a missing/corrupt stock value as zero rather than letting it
+        // through: `qty > undefined` is false, which would sail past this
+        // guard and then write NaN (or a negative) into the stock field —
+        // a write the security rules reject as "Missing or insufficient
+        // permissions", giving the buyer no idea the item was out of stock.
+        const available = typeof p.stock === "number" && Number.isFinite(p.stock) ? p.stock : 0;
+        if (qty > available) {
+          throw new ApiError(`Only ${available} ${p.unit} of ${p.name} left in stock.`);
         }
         const item: OrderItem = {
           productId: refs[idx].id,
@@ -564,9 +570,66 @@ export class FirebaseDataSource implements DataSource {
       // redundant and breaks the security-rules field allow-list for buyers).
       const { id, ...orderData } = built;
       tx.set(orderRef, orderData as DocumentData);
-    }));
+    })).catch((e) => this.explainOrderRejection(e, input));
 
     return built!;
+  }
+
+  /**
+   * Turn a rules rejection on the checkout write into something a buyer can
+   * act on. Firestore reports EVERY rule failure — a stale price, a stock
+   * decrement that would go negative, a cart that outgrew the weight limits —
+   * with the single opaque string "Missing or insufficient permissions",
+   * which reads as an account/login problem and is none of those things.
+   *
+   * Rather than guess at a cause, this re-reads the catalog and reports the
+   * specific mismatch it finds, falling back to a plain "try again" only when
+   * nothing identifiable turns up. Anything that isn't a rules rejection
+   * (out of stock, cart empty, prices not published) already carries its own
+   * message and passes straight through.
+   */
+  private async explainOrderRejection(e: unknown, input: CreateOrderInput): Promise<never> {
+    const code = (e as { code?: string })?.code ?? "";
+    if (e instanceof ApiError || code !== "permission-denied") throw e;
+
+    try {
+      const db = getDb();
+      const sheetSnap = await readDoc(doc(db, COL.settings, "priceSheet"));
+      const sheet = (sheetSnap.data()?.prices ?? {}) as Record<string, number>;
+      const snaps = await Promise.all(
+        input.items.map((i) => getDoc(doc(db, COL.products, i.productId)))
+      );
+
+      for (let i = 0; i < snaps.length; i++) {
+        const s = snaps[i];
+        const qty = input.items[i].qty;
+        if (!s.exists()) throw new ApiError("An item in your cart is no longer available. Please remove it and try again.");
+        const p = s.data() as Product;
+        if (qty > p.stock) {
+          throw new ApiError(`Only ${p.stock} ${p.unit} of ${p.name} left in stock. Please reduce the quantity.`);
+        }
+        if (sheet[s.id] === undefined || sheet[s.id] !== p.price) {
+          throw new ApiError(
+            `The price of ${p.name} was just updated. Please refresh the page and place the order again.`
+          );
+        }
+      }
+
+      const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
+      if (totalQty < MIN_ORDER_TOTAL_QTY || totalQty > MAX_ORDER_TOTAL_QTY) {
+        throw new ApiError(
+          `Orders must be between ${MIN_ORDER_TOTAL_QTY} and ${MAX_ORDER_TOTAL_QTY} kgs. Your cart is ${totalQty} kgs.`
+        );
+      }
+    } catch (inner) {
+      if (inner instanceof ApiError) throw inner;
+      // Diagnosis itself failed — fall through to the generic message below.
+    }
+
+    throw new ApiError(
+      "We couldn't place your order — prices or stock may have changed while you were checking out. Please refresh and try again.",
+      403
+    );
   }
 
   /**

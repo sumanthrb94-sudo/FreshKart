@@ -62,6 +62,7 @@ const STRINGS: Record<string, Dict> = {
     mr: "दुकान लोड होऊ शकले नाही",
   },
   outOfStock: { en: "Out of stock", hi: "स्टॉक ख़त्म", te: "స్టాక్ లేదు", mr: "स्टॉक संपला" },
+  onlyLeft: { en: "Only", hi: "सिर्फ़", te: "కేవలం", mr: "फक्त" },
   minOrder: { en: "Min order", hi: "न्यूनतम ऑर्डर", te: "కనీస ఆర్డర్", mr: "किमान ऑर्डर" },
   // Category labels, keyed by their English name.
   "cat.Vegetables": { en: "Vegetables", hi: "सब्ज़ियाँ", te: "కూరగాయలు", mr: "भाज्या" },

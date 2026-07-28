@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import type { Product } from "@/lib/types";
-import { formatCurrency, unitLabel } from "@/lib/format";
+import { formatCurrency, unitLabel, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
 import { useCart } from "@/components/providers/CartProvider";
 import { useLang } from "@/lib/i18n";
 import { ProductThumb } from "@/components/ui/ProductThumb";
@@ -13,6 +13,10 @@ export function ProductListItem({ product }: { product: Product }) {
   const { t, tProduct } = useLang();
   const qty = qtyOf(product.id);
   const outOfStock = product.stock < product.minOrderQty;
+  // Still buyable, but not on its own: the cart caps at available stock, so a
+  // cart holding only this item can never reach the whole-order minimum. Say
+  // so up front rather than letting checkout be the first hint.
+  const lowStock = !outOfStock && product.stock < MIN_ORDER_TOTAL_QTY;
 
   return (
     <div
@@ -63,6 +67,11 @@ export function ProductListItem({ product }: { product: Product }) {
             <span className="mt-1 inline-flex w-fit whitespace-nowrap rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-semibold text-brand-300">
               {t("minOrder")} {product.minOrderQty} {unitLabel(product.unit)}
             </span>
+            {lowStock && (
+              <span className="mt-1 block w-fit whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-500">
+                {t("onlyLeft")} {product.stock} {unitLabel(product.unit)}
+              </span>
+            )}
           </div>
 
           <div className="shrink-0 md:w-full">
