@@ -17,7 +17,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
-import { Field, Input } from "@/components/ui/Field";
+import { Field, Input, PhoneInput } from "@/components/ui/Field";
 import { ProductThumb } from "@/components/ui/ProductThumb";
 import { QuantityStepper } from "@/components/ui/QuantityStepper";
 import { Sheet } from "@/components/ui/Sheet";
@@ -196,10 +196,9 @@ export function CheckoutSheet({
                 )}
               </div>
               <Field label="Phone for delivery updates" htmlFor="checkout-phone">
-                <Input
+                <PhoneInput
                   id="checkout-phone"
                   flavor="field"
-                  inputMode="tel"
                   value={delivery.phone}
                   onChange={(e) => set("phone", sanitizePhoneDigits(e.target.value))}
                   placeholder="98765 43210"
