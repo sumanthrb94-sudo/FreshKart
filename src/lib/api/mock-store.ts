@@ -30,6 +30,7 @@ function seed(): MockStore {
     credentials: {
       "customer@green-basket.in": DEMO_PASSWORD,
       "admin@green-basket.in": DEMO_PASSWORD,
+      "driver@green-basket.in": DEMO_PASSWORD,
       "anita@spiceleaf.in": DEMO_PASSWORD,
       "mohan@dailyfresh.in": DEMO_PASSWORD,
     },

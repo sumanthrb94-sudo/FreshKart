@@ -1,4 +1,5 @@
 import type {
+  AdjustmentLine,
   AdminStats,
   CreateOrderInput,
   Customer,
@@ -109,6 +110,38 @@ export interface DataSource {
   cancelOrder(id: string): Promise<Order>;
   /** Admin: mark an order paid / unpaid (COD settlement). */
   setOrderPaid(id: string, paid: boolean): Promise<Order>;
+
+  // --- Delivery run (driver) --------------------------------------------------
+  /**
+   * Optional: orders assigned to this driver that still need running —
+   * everything not yet DELIVERED or CANCELLED.
+   */
+  listDriverOrders?(driverId: string): Promise<Order[]>;
+  /** Optional — admin: hand an order to a delivery executive. */
+  assignDriver?(orderId: string, driverId: string, driverName: string): Promise<Order>;
+  /** Optional — admin: list accounts with the DRIVER role, for assignment. */
+  listDrivers?(): Promise<User[]>;
+  /**
+   * Optional — driver: record what the buyer refused at the door. Settles
+   * immediately (AUTO_APPROVED) when the refund is within the driver's
+   * authority; otherwise lands as PENDING for an admin to decide, and the
+   * driver must not collect until it is.
+   */
+  createDeliveryAdjustment?(
+    orderId: string,
+    input: { lines: AdjustmentLine[]; reason: string; photos: string[] }
+  ): Promise<Order>;
+  /**
+   * Optional — admin: settle an escalated adjustment. Approving treats the
+   * produce as bad (write-off); rejecting treats it as saleable and returns
+   * the refused quantity to stock. Either way the buyer is billed only for
+   * what they kept.
+   */
+  decideDeliveryAdjustment?(
+    orderId: string,
+    decision: "APPROVED" | "REJECTED",
+    note?: string
+  ): Promise<Order>;
 
   // --- Admin --------------------------------------------------------------
   listCustomers(): Promise<Customer[]>;

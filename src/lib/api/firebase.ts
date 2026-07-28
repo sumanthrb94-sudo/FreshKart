@@ -25,7 +25,9 @@ import {
   type DocumentSnapshot,
 } from "firebase/firestore";
 import type {
+  AdjustmentLine,
   AdminStats,
+  DeliveryAdjustment,
   CreateOrderInput,
   Customer,
   DailyPricesSettings,
@@ -52,6 +54,7 @@ import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { nextStoreClose } from "@/lib/store-hours";
+import { isWithinDriverAuthority, totalRefundOf } from "@/lib/delivery-adjustment";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
 // Shared with the sign-in UI, which routes allowlisted numbers straight to
 // admin; rules-side enforcement is the matching isAdminPhone() in
@@ -215,13 +218,15 @@ export class FirebaseDataSource implements DataSource {
   }
 
   /**
-   * Email + password sign-in, used ONLY by the admin console at
-   * /admin-login. Buyers never see it — they sign in with phone OTP, which
-   * remains the single source of truth for customer identity. The credential
-   * lives in Firebase Auth (hashed); nothing about it is stored in this repo.
+   * Email + password sign-in for STAFF — the admin console at /admin-login
+   * and the delivery app at /driver-login. Buyers never see it; they sign in
+   * with phone OTP, which remains the single source of truth for customer
+   * identity. The credential lives in Firebase Auth (hashed); nothing about
+   * it is stored in this repo.
    *
-   * Signs out again and throws unless the account actually carries the ADMIN
-   * role, so a stray non-admin credential can't linger as a half-session.
+   * Signs out again and throws unless the account carries a staff role, so a
+   * stray buyer credential can't linger as a half-session. Each screen then
+   * checks for the specific role it needs.
    */
   async login({ email, password }: { email: string; password: string }): Promise<User> {
     await this.ready();
@@ -250,9 +255,12 @@ export class FirebaseDataSource implements DataSource {
 
     const snap = await readDoc(doc(getDb(), COL.users, cred.user.uid));
     const profile = snap.exists() ? snapToUser(snap) : null;
-    if (!profile || profile.role !== "ADMIN") {
+    // Staff only — admins and delivery drivers. A buyer credential (or an
+    // account with no profile) is signed straight back out rather than left
+    // as a half-session the UI would have to defend against.
+    if (!profile || (profile.role !== "ADMIN" && profile.role !== "DRIVER")) {
       await signOut(auth);
-      throw new ApiError("This account doesn't have admin access.", 403);
+      throw new ApiError("This account doesn't have staff access.", 403);
     }
     return profile;
   }
@@ -791,6 +799,169 @@ export class FirebaseDataSource implements DataSource {
     const snap = await getDoc(doc(db, COL.orders, id));
     if (!snap.exists()) throw new ApiError("Order not found.", 404);
     return { ...(snap.data() as Omit<Order, "id">), id: snap.id };
+  }
+
+  // --- Delivery run ---------------------------------------------------------
+  async listDriverOrders(driverId: string): Promise<Order[]> {
+    await this.ready();
+    // Equality-only filter (no composite index needed); the "still to run"
+    // filter and sort happen in memory, same pattern as listOrders.
+    const snap = await getDocs(
+      query(collection(getDb(), COL.orders), where("driverId", "==", driverId))
+    );
+    return snap.docs
+      .map((d) => ({ ...(d.data() as Omit<Order, "id">), id: d.id }))
+      .filter((o) => o.status !== "DELIVERED" && o.status !== "CANCELLED")
+      .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+  }
+
+  async listDrivers(): Promise<User[]> {
+    await this.ready();
+    const snap = await getDocs(
+      query(collection(getDb(), COL.users), where("role", "==", "DRIVER"))
+    );
+    return snap.docs.map(snapToUser);
+  }
+
+  async assignDriver(orderId: string, driverId: string, driverName: string): Promise<Order> {
+    await this.ready();
+    const db = getDb();
+    await updateDoc(doc(db, COL.orders, orderId), {
+      driverId,
+      driverName,
+      assignedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    const snap = await getDoc(doc(db, COL.orders, orderId));
+    if (!snap.exists()) throw new ApiError("Order not found.", 404);
+    return { ...(snap.data() as Omit<Order, "id">), id: snap.id };
+  }
+
+  /**
+   * Record what the buyer refused at the door.
+   *
+   * Settles on the spot when the refund is inside the driver's authority,
+   * because a delivery run must never block on someone answering a phone.
+   * Anything larger is stored PENDING and the driver cannot collect until an
+   * admin decides — see decideDeliveryAdjustment.
+   *
+   * Stock is deliberately NOT touched here: an auto-approved rejection is a
+   * write-off (bad produce doesn't go back on the shelf), and a pending one
+   * isn't settled yet. Only an admin REJECTION restocks.
+   */
+  async createDeliveryAdjustment(
+    orderId: string,
+    input: { lines: AdjustmentLine[]; reason: string; photos: string[] }
+  ): Promise<Order> {
+    await this.ready();
+    const db = getDb();
+    const me = getFirebaseAuth().currentUser;
+    if (!me) throw new ApiError("Not signed in.", 401);
+
+    const ref = doc(db, COL.orders, orderId);
+    const snap = await readDoc(ref);
+    if (!snap.exists()) throw new ApiError("Order not found.", 404);
+    const order = { ...(snap.data() as Omit<Order, "id">), id: snap.id } as Order;
+    if (order.adjustment) {
+      throw new ApiError("An adjustment has already been recorded for this delivery.", 409);
+    }
+
+    const lines = input.lines.filter((l) => l.rejectedQty > 0);
+    if (!lines.length) throw new ApiError("Select at least one item the buyer refused.");
+    const totalRefund = totalRefundOf(lines);
+    if (totalRefund > order.total) {
+      throw new ApiError("The adjustment can't exceed the order value.");
+    }
+
+    const auto = isWithinDriverAuthority(totalRefund, order.total);
+    const now = new Date().toISOString();
+    const adjustment: DeliveryAdjustment = {
+      lines,
+      totalRefund,
+      reason: input.reason.trim(),
+      photos: input.photos,
+      status: auto ? "AUTO_APPROVED" : "PENDING",
+      raisedBy: me.uid,
+      raisedByName: me.displayName ?? undefined,
+      raisedAt: now,
+    };
+
+    await withFreshTokenRetry(() =>
+      updateDoc(ref, {
+        adjustment: Object.fromEntries(
+          Object.entries(adjustment).filter(([, v]) => v !== undefined)
+        ) as DocumentData,
+        updatedAt: now,
+      })
+    );
+    return { ...order, adjustment, updatedAt: now };
+  }
+
+  /**
+   * Settle an escalated adjustment.
+   *
+   * The buyer is billed identically either way — they never pay for produce
+   * they refused and the driver took back. The decision only determines what
+   * happens to that stock: APPROVED means it really was bad, so it is a
+   * write-off; REJECTED means it was saleable, so it goes back into
+   * inventory in the same transaction.
+   */
+  async decideDeliveryAdjustment(
+    orderId: string,
+    decision: "APPROVED" | "REJECTED",
+    note?: string
+  ): Promise<Order> {
+    await this.ready();
+    const db = getDb();
+    const me = getFirebaseAuth().currentUser;
+    let updated: Order | null = null;
+
+    await withFreshTokenRetry(() =>
+      runTransaction(db, async (tx) => {
+        const ref = doc(db, COL.orders, orderId);
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw new ApiError("Order not found.", 404);
+        const order = { ...(snap.data() as Omit<Order, "id">), id: snap.id } as Order;
+        const adj = order.adjustment;
+        if (!adj) throw new ApiError("This delivery has no adjustment to decide.", 409);
+        if (adj.status !== "PENDING") {
+          throw new ApiError("This adjustment has already been settled.", 409);
+        }
+
+        // Reads must all happen before writes inside a transaction.
+        const productRefs = adj.lines.map((l) => doc(db, COL.products, l.productId));
+        const productSnaps =
+          decision === "REJECTED" ? await Promise.all(productRefs.map((r) => tx.get(r))) : [];
+
+        const now = new Date().toISOString();
+        const settled: DeliveryAdjustment = {
+          ...adj,
+          status: decision,
+          decidedBy: me?.uid,
+          decidedAt: now,
+          ...(note?.trim() ? { decisionNote: note.trim() } : {}),
+        };
+
+        if (decision === "REJECTED") {
+          // Goods were fine — they come back on the vehicle and are resaleable.
+          productSnaps.forEach((s, i) => {
+            if (!s.exists()) return;
+            const p = s.data() as Product;
+            tx.update(productRefs[i], { stock: p.stock + adj.lines[i].rejectedQty });
+          });
+        }
+
+        tx.update(ref, {
+          adjustment: Object.fromEntries(
+            Object.entries(settled).filter(([, v]) => v !== undefined)
+          ) as DocumentData,
+          updatedAt: now,
+        });
+        updated = { ...order, adjustment: settled, updatedAt: now };
+      })
+    );
+
+    return updated!;
   }
 
   // --- Support tickets ------------------------------------------------------

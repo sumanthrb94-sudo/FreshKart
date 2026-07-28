@@ -163,7 +163,7 @@ export function AiChatAgent() {
       setTicket(afterBuyer);
 
       const lower = userText.toLowerCase();
-      if (lower.includes("return") || lower.includes("refund")) contextRef.current = "returns";
+      if (lower.includes("return") || lower.includes("refund")) contextRef.current = "doorstep";
       else if (lower.includes("order") || lower.includes("track")) contextRef.current = "order_help";
       else if (lower.includes("price") || lower.includes("cost")) contextRef.current = "pricing";
 
@@ -411,7 +411,7 @@ export function AiChatAgent() {
                     if (e.target.value.trim()) notifyTyping();
                   }}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ask about orders, returns..."
+                  placeholder="Ask about orders, delivery..."
                   disabled={!ticket}
                   className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle disabled:opacity-50"
                 />

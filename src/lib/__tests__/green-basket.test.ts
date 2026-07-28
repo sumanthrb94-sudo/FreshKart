@@ -14,7 +14,6 @@ import {
   generateAIResponse,
   createChatSession,
   processUserMessage,
-  matchFAQ,
 } from "../ai-chat";
 import {
   notifications,
@@ -62,9 +61,15 @@ describe("generateAIResponse", () => {
     expect(result.text.toLowerCase()).toContain("order");
   });
 
-  it("uses context for returns", () => {
-    const result = generateAIResponse("return item", "returns");
-    expect(result.text.toLowerCase()).toContain("return");
+  it("uses the doorstep context to explain check-at-delivery", () => {
+    // Returns no longer exist: the answer must point at the door, not at a
+    // pickup request the app cannot honour.
+    const result = generateAIResponse("return item", "doorstep");
+    const text = result.text.toLowerCase();
+    expect(text).toContain("driver");
+    // The app can no longer honour a pickup request, so nothing may offer one.
+    expect(text).not.toContain("request return");
+    expect(text).not.toContain("pickup is arranged");
   });
 });
 
@@ -95,10 +100,10 @@ describe("processUserMessage", () => {
     expect(aiResponse.role).toBe("assistant");
   });
 
-  it("detects returns context", () => {
+  it("detects the doorstep context", () => {
     const session = createChatSession();
     const { updatedSession } = processUserMessage(session, "how do I return?");
-    expect(updatedSession.context).toBe("returns");
+    expect(updatedSession.context).toBe("doorstep");
   });
 
   it("detects order_help context", () => {

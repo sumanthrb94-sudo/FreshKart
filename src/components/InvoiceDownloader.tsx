@@ -10,6 +10,7 @@ import {
   ORDER_STATUS_META,
   canDownloadInvoice,
 } from "@/lib/format";
+import { describeAdjustment, payableTotal } from "@/lib/delivery-adjustment";
 import type { Order } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -137,6 +138,10 @@ function buildInvoiceHTML(order: Order): string {
   // they still flow into the invoice's HTML (title + header), so escape as
   // defense-in-depth alongside the buyer-controlled delivery fields below.
   const invoiceNumber = escapeHtml(order.adjustedInvoiceNumber || `INV-${order.orderNumber.replace("ORD-", "")}`);
+  // Only a SETTLED adjustment changes the bill. One still awaiting an admin
+  // decision must not reduce the invoice — nothing has been agreed yet.
+  const settledAdjustment =
+    order.adjustment && order.adjustment.status !== "PENDING" ? order.adjustment : null;
   const orderNumber = escapeHtml(order.orderNumber);
   const gstin = "29FRESH9876B1Z2";
 
@@ -382,24 +387,27 @@ function buildInvoiceHTML(order: Order): string {
             <span>Delivery Fee</span>
             <span>${order.deliveryFee > 0 ? `Rs. ${order.deliveryFee.toLocaleString("en-IN")}` : "FREE"}</span>
           </div>
-          ${order.refundAmount ? `
+          ${settledAdjustment ? `
           <div class="total-row">
-            <span>Refund</span>
-            <span style="color:#059669;font-weight:600;">-Rs. ${order.refundAmount.toLocaleString("en-IN")}</span>
+            <span>Refused at delivery</span>
+            <span style="color:#059669;font-weight:600;">-Rs. ${settledAdjustment.totalRefund.toLocaleString("en-IN")}</span>
           </div>` : ""}
           <div class="total-row grand">
             <span>Grand Total</span>
-            <span>Rs. ${order.total.toLocaleString("en-IN")}</span>
+            <span>Rs. ${payableTotal(order).toLocaleString("en-IN")}</span>
           </div>
         </div>
       </div>
 
-      ${order.refundAmount ? `
-      <!-- Refund Note -->
+      ${settledAdjustment ? `
+      <!-- Adjustment note: quality is settled at the door, before payment,
+           so this invoice is issued for the adjusted amount rather than a
+           credit note being raised against a wrong one. -->
       <div class="section" style="margin-top:24px;padding:16px;background:#ecfdf5;border-radius:8px;">
-        <p class="section-title" style="color:#065f46;">Refund Note</p>
+        <p class="section-title" style="color:#065f46;">Delivery Adjustment</p>
         <div class="info-block">
-          <p>A refund of <strong>Rs. ${order.refundAmount.toLocaleString("en-IN")}</strong> was processed on ${formatDate(order.refundedAt || order.updatedAt)}. This invoice has been adjusted accordingly.</p>
+          <p>${escapeHtml(describeAdjustment(settledAdjustment))}</p>
+          <p style="margin-top:6px;">Rs. ${settledAdjustment.totalRefund.toLocaleString("en-IN")} was taken off this bill at handover on ${formatDate(settledAdjustment.raisedAt)}. You were charged only for the goods you accepted.</p>
         </div>
       </div>` : ""}
 

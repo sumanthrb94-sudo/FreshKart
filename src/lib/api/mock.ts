@@ -1,5 +1,7 @@
 import type {
+  AdjustmentLine,
   AdminStats,
+  DeliveryAdjustment,
   CreateOrderInput,
   Customer,
   DailyPricesSettings,
@@ -20,6 +22,7 @@ import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
 import { nextStoreClose } from "@/lib/store-hours";
+import { isWithinDriverAuthority, totalRefundOf } from "@/lib/delivery-adjustment";
 import { DataSource, ApiError, type WipeResult } from "./datasource";
 import { store } from "./mock-store";
 
@@ -306,6 +309,120 @@ export class MockDataSource implements DataSource {
       o.updatedAt = new Date().toISOString();
       updated = o;
     });
+    if (!updated) throw new ApiError("Order not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  // --- Delivery run ---------------------------------------------------------
+  async listDriverOrders(driverId: string): Promise<Order[]> {
+    const list = store
+      .get()
+      .orders.filter(
+        (o) => o.driverId === driverId && o.status !== "DELIVERED" && o.status !== "CANCELLED"
+      )
+      .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+    return delay(structuredClone(list));
+  }
+
+  async listDrivers(): Promise<User[]> {
+    return delay(structuredClone(store.get().users.filter((u) => u.role === "DRIVER")));
+  }
+
+  async assignDriver(orderId: string, driverId: string, driverName: string): Promise<Order> {
+    let updated: Order | null = null;
+    store.mutate((s) => {
+      const o = s.orders.find((x) => x.id === orderId);
+      if (!o) return;
+      o.driverId = driverId;
+      o.driverName = driverName;
+      o.assignedAt = new Date().toISOString();
+      o.updatedAt = o.assignedAt;
+      updated = o;
+    });
+    if (!updated) throw new ApiError("Order not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async createDeliveryAdjustment(
+    orderId: string,
+    input: { lines: AdjustmentLine[]; reason: string; photos: string[] }
+  ): Promise<Order> {
+    let updated: Order | null = null;
+    let error: string | null = null;
+    store.mutate((s) => {
+      const o = s.orders.find((x) => x.id === orderId);
+      if (!o) return;
+      if (o.adjustment) {
+        error = "An adjustment has already been recorded for this delivery.";
+        return;
+      }
+      const lines = input.lines.filter((l) => l.rejectedQty > 0);
+      if (!lines.length) {
+        error = "Select at least one item the buyer refused.";
+        return;
+      }
+      const totalRefund = totalRefundOf(lines);
+      if (totalRefund > o.total) {
+        error = "The adjustment can't exceed the order value.";
+        return;
+      }
+      const now = new Date().toISOString();
+      const adjustment: DeliveryAdjustment = {
+        lines,
+        totalRefund,
+        reason: input.reason.trim(),
+        photos: input.photos,
+        // Settle on the spot when it is within the driver's authority — a
+        // delivery run must not block on an admin answering their phone.
+        status: isWithinDriverAuthority(totalRefund, o.total) ? "AUTO_APPROVED" : "PENDING",
+        raisedBy: o.driverId ?? "driver",
+        raisedByName: o.driverName,
+        raisedAt: now,
+      };
+      o.adjustment = adjustment;
+      o.updatedAt = now;
+      updated = o;
+    });
+    if (error) throw new ApiError(error, 409);
+    if (!updated) throw new ApiError("Order not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async decideDeliveryAdjustment(
+    orderId: string,
+    decision: "APPROVED" | "REJECTED",
+    note?: string
+  ): Promise<Order> {
+    let updated: Order | null = null;
+    let error: string | null = null;
+    store.mutate((s) => {
+      const o = s.orders.find((x) => x.id === orderId);
+      if (!o) return;
+      const adj = o.adjustment;
+      if (!adj) {
+        error = "This delivery has no adjustment to decide.";
+        return;
+      }
+      if (adj.status !== "PENDING") {
+        error = "This adjustment has already been settled.";
+        return;
+      }
+      const now = new Date().toISOString();
+      adj.status = decision;
+      adj.decidedAt = now;
+      if (note?.trim()) adj.decisionNote = note.trim();
+      // Rejected means the produce was saleable after all, so it goes back
+      // into stock. Approved is a write-off and must NOT be restocked.
+      if (decision === "REJECTED") {
+        for (const line of adj.lines) {
+          const p = s.products.find((x) => x.id === line.productId);
+          if (p) p.stock += line.rejectedQty;
+        }
+      }
+      o.updatedAt = now;
+      updated = o;
+    });
+    if (error) throw new ApiError(error, 409);
     if (!updated) throw new ApiError("Order not found.", 404);
     return delay(structuredClone(updated));
   }

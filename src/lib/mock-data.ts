@@ -101,6 +101,16 @@ export const USERS: User[] = [
     createdAt: "2026-05-01T09:00:00.000Z",
   },
   {
+    id: "user-driver-1",
+    name: "Ravi (Delivery)",
+    email: "driver@green-basket.in",
+    phone: "9800000001",
+    role: "DRIVER",
+    businessName: "Green Basket Delivery",
+    city: "Bengaluru",
+    createdAt: "2026-04-01T09:00:00.000Z",
+  },
+  {
     id: "user-admin-1",
     name: "Green Basket Admin",
     email: "admin@green-basket.in",
@@ -157,6 +167,8 @@ function buildOrder(
     items: { productId: string; qty: number }[];
     paid?: boolean;
     notes?: string;
+    driverId?: string;
+    driverName?: string;
   }
 ): Order {
   const buyer = USERS.find((u) => u.id === o.buyerId)!;
@@ -182,6 +194,7 @@ function buildOrder(
       pincode: buyer.pincode ?? "",
     },
     notes: o.notes,
+    ...(o.driverId ? { driverId: o.driverId, driverName: o.driverName, assignedAt: o.createdAt } : {}),
     createdAt: o.createdAt,
     updatedAt: o.createdAt,
   };
@@ -207,6 +220,8 @@ export const ORDERS: Order[] = [
     orderNumber: "ORD-20260622-AB12CD",
     buyerId: "user-buyer-1",
     status: "SHIPPED",
+    driverId: "user-driver-1",
+    driverName: "Ravi (Delivery)",
     paymentMethod: "COD",
     createdAt: "2026-06-22T06:10:00.000Z",
     items: [
@@ -231,6 +246,8 @@ export const ORDERS: Order[] = [
   }),
   buildOrder({
     id: "order-4",
+    driverId: "user-driver-1",
+    driverName: "Ravi (Delivery)",
     orderNumber: "ORD-20260623-PP90ZZ",
     buyerId: "user-buyer-3",
     status: "CONFIRMED",

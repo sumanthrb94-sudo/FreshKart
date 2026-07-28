@@ -44,6 +44,13 @@ service cloud.firestore {
       return isAdminPhone() || (isSignedIn() && userRole() == 'ADMIN');
     }
 
+    // Delivery executives. They see and touch ONLY the orders assigned to
+    // them — never the catalog, never another driver's run, never a buyer's
+    // profile.
+    function isDriver() {
+      return isSignedIn() && userRole() == 'DRIVER';
+    }
+
     // Only the `stock` field is being changed.
     function onlyStockChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock']);
@@ -394,9 +401,31 @@ service cloud.firestore {
     }
 
     // --- Orders: a buyer creates/reads/cancels their own; admins manage all. ---
+    // The driver running this order. Scoped by assignment, so a driver can
+    // only ever see and touch their own run.
+    function isAssignedDriver() {
+      return isDriver() && resource.data.driverId == request.auth.uid;
+    }
+
+    // What a driver may change at the door: record the buyer's rejection,
+    // take the cash, and close the delivery. Deliberately narrow — items,
+    // totals and buyerId stay untouchable, so a driver can reduce what is
+    // collected only through an `adjustment` that carries photo evidence and
+    // is auditable after the fact.
+    function isDriverDoorstepUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['adjustment', 'status', 'paymentStatus', 'deliveredAt', 'updatedAt', 'notes'])
+             && request.resource.data.status in ['SHIPPED', 'DELIVERED']
+             && request.resource.data.buyerId == resource.data.buyerId
+             && request.resource.data.total == resource.data.total
+             && request.resource.data.items == resource.data.items;
+    }
+
     match /orders/{orderId} {
       allow read: if isSignedIn()
-                  && (resource.data.buyerId == request.auth.uid || isAdmin());
+                  && (resource.data.buyerId == request.auth.uid
+                      || isAdmin()
+                      || isAssignedDriver());
       // Buyers create their own auto-confirmed orders; admins (POS / phone desk) may
       // place an order on behalf of any buyer. Field whitelist prevents
       // injection of arbitrary keys (e.g. `discount`, `isAdmin`).
@@ -423,6 +452,7 @@ service cloud.firestore {
       // order is still PENDING/CONFIRMED and may ONLY change `status`,
       // `updatedAt`, and `notes` (cannot tamper with items, totals, etc.).
       allow update: if isAdmin()
+                    || (isAssignedDriver() && isDriverDoorstepUpdate())
                     || (resource.data.buyerId == request.auth.uid
                         && resource.data.status in ['PENDING', 'CONFIRMED']
                         && request.resource.data.status == 'CANCELLED'
