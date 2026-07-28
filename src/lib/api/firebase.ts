@@ -1,10 +1,6 @@
 import {
   signOut,
   onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   type User as FirebaseUser,
 } from "firebase/auth";
 import {
@@ -65,7 +61,7 @@ import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
-import { DataSource, ApiError } from "./datasource";
+import { DataSource, ApiError, type WipeResult } from "./datasource";
 
 const COL = {
   users: "users",
@@ -80,11 +76,14 @@ const COL = {
   phoneIndex: "phoneIndex",
 } as const;
 
-// Emails auto-granted ADMIN on Google sign-in. Keep this in sync with the
-// `isAdminEmail()` allowlist in firestore.rules (rules can't import from here).
-const ADMIN_EMAILS = ["sumanthbolla97@gmail.com", "sivakishore43@gmail.com"];
-function isAdminEmail(email?: string | null): boolean {
-  return !!email && ADMIN_EMAILS.includes(email.trim().toLowerCase());
+// Phone numbers (E.164, matching Firebase Auth's fb.phoneNumber exactly)
+// auto-granted ADMIN — the sole source of truth for identity is now the
+// verified OTP phone number, so this replaces the old Google-email
+// allowlist. Keep in sync with the `isAdminPhone()` allowlist in
+// firestore.rules (rules can't import from here).
+const ADMIN_PHONES = ["+919876543210"];
+function isAdminPhone(phone?: string | null): boolean {
+  return !!phone && ADMIN_PHONES.includes(phone.trim());
 }
 
 function snapToUser(snap: DocumentSnapshot<DocumentData>): User {
@@ -195,32 +194,6 @@ async function withFreshTokenRetry<T>(op: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Claim a unique value (email or phone) for this user via an index doc whose
- * ID is the normalized value itself. Firestore security rules only allow
- * `create` on a slot this user doesn't already own (see firestore.rules) —
- * writing to a slot already claimed by someone else is evaluated as an
- * `update` and denied, which is how "already taken" is detected. No read of
- * other users' data is ever needed, unlike a `list` query across `users`
- * filtered by email/phone (which rules can't safely grant to a non-admin —
- * it would let any signed-in buyer dump every other buyer's profile).
- */
-async function claimUnique(
-  fbUser: FirebaseUser,
-  ref: DocumentReference<DocumentData>,
-  label: string
-): Promise<void> {
-  try {
-    await setDoc(ref, { uid: fbUser.uid });
-  } catch (e) {
-    const code = (e as { code?: string })?.code ?? "";
-    if (code === "permission-denied") {
-      throw new ApiError(`This ${label} is already linked to another account.`);
-    }
-    throw e;
-  }
-}
-
-/**
  * Firestore + Firebase Auth implementation of the app's DataSource. The browser
  * talks to Firebase directly; integrity (ownership, admin gating) is enforced by
  * Firestore Security Rules (see firestore.rules). Stock changes use transactions
@@ -234,9 +207,12 @@ export class FirebaseDataSource implements DataSource {
   }
 
   // --- Auth ---------------------------------------------------------------
-  // Phone OTP is handled directly by firebase/auth in the onboarding screen.
-  // Google sign-in is the other supported method (see signInWithGoogle below).
-  // Email/password sign-in is intentionally not implemented.
+  // Phone OTP (handled directly by firebase/auth in the onboarding screen) is
+  // the ONLY sign-in method — the single source of truth for identity is the
+  // verified mobile number. There is no Google sign-in and no email/password
+  // sign-in for buyers; admin uses the same OTP flow on a separate route
+  // (/admin-login → completeAdminLogin below), gated by phone allowlist
+  // instead of a separate credential.
 
   async updateProfile(userId: string, patch: Partial<User>): Promise<User> {
     const db = getDb();
@@ -287,35 +263,26 @@ export class FirebaseDataSource implements DataSource {
     const fb = auth.currentUser;
     if (!fb) throw new ApiError("Not signed in.", 401);
 
-    const email = (fb.email || input.email?.trim() || "").toLowerCase();
-    const phone = fb.phoneNumber || input.phone?.trim() || "";
+    // Phone is always the OTP-verified number itself — Firebase Auth already
+    // guarantees at most one account per verified number, so no separate
+    // uniqueness claim is needed (unlike the old Google flow, where a
+    // manually-typed, unverified phone needed an index doc to enforce
+    // one-account-per-number; that whole mechanism is gone along with Google).
+    const phone = fb.phoneNumber || "";
 
-    // Force a fresh ID token before any of the writes below — right after
-    // sign-in, Firestore's client can briefly lag behind Auth (worse on
-    // browsers with slower/partitioned storage), and a stale token here would
-    // get a spurious permission-denied misread as "already taken" by the
-    // claim writes just below.
+    // Force a fresh ID token before the write below — right after sign-in,
+    // Firestore's client can briefly lag behind Auth (worse on browsers with
+    // slower/partitioned storage), and a stale token here can produce a
+    // spurious permission-denied on this very first write.
     await fb.getIdToken();
 
-    // Enforce one account per email and one account per phone via claim docs
-    // (id = the normalized value) instead of querying across `users` — a
-    // `list` query filtered by email/phone can never be granted to a
-    // non-admin without letting them dump every buyer's profile, so
-    // Firestore rejected it outright for every sign-up ("Missing or
-    // insufficient permissions" on every new Google/phone account). Claiming
-    // only ever needs `create` on a doc this user doesn't already own; the
-    // rules deny writing to a slot owned by someone else, which is how
-    // "taken" is detected — no read of other users' data required.
     const db = getDb();
-    if (email) await claimUnique(fb, doc(db, COL.emailIndex, email), "email");
-    if (phone) await claimUnique(fb, doc(db, COL.phoneIndex, phone), "phone number");
-
-    const name = input.name?.trim() || fb.displayName || fb.phoneNumber || "Customer";
+    const name = input.name?.trim() || fb.displayName || phone || "Customer";
     const profile: Omit<User, "id"> = {
       name,
-      email,
+      email: "",
       phone,
-      role: isAdminEmail(fb.email) ? "ADMIN" : "BUYER",
+      role: isAdminPhone(phone) ? "ADMIN" : "BUYER",
       businessName: input.businessName?.trim() || name,
       businessType: input.businessType,
       address: input.address,
@@ -344,98 +311,45 @@ export class FirebaseDataSource implements DataSource {
   }
 
   /**
-   * Load (or bootstrap) the Firestore profile for a Google-authenticated
-   * Firebase user, shared by both the popup and redirect sign-in paths.
-   * Configured admin email(s) are promoted to ADMIN here so they land
-   * straight in the console — no buyer onboarding.
+   * Complete admin sign-in on the separate `/admin-login` route: the phone
+   * OTP flow there already verified the currently signed-in Firebase user;
+   * this only needs to check their number against the admin allowlist and
+   * upsert/promote their profile to ADMIN. Rejects (and signs out) any
+   * number that isn't on the allowlist, so a regular buyer can't land here
+   * and end up with a stray account from the wrong entry point.
    */
-  private async resolveGoogleUser(fbUser: FirebaseUser): Promise<User | null> {
-    // Try to load the profile — but if Firestore is momentarily unreachable,
-    // DON'T dead-end the sign-in with an error. Treat it as a fresh account
-    // and let the user set up their shop; completeProfile uses { merge: true },
-    // so it's safe even if a profile already exists. This is the fix for
-    // "Google created the user but the app showed 'Connection timed out' and
-    // never let me in".
-    const ref = doc(getDb(), COL.users, fbUser.uid);
-    const wantsAdmin = isAdminEmail(fbUser.email);
-    try {
-      const snap = await readDoc(ref);
-      if (snap.exists()) {
-        const profile = snapToUser(snap);
-        if (wantsAdmin && profile.role !== "ADMIN") {
-          await setDoc(ref, { role: "ADMIN" }, { merge: true });
-          return { ...profile, role: "ADMIN" };
-        }
-        return profile;
-      }
-      if (wantsAdmin) {
-        const adminProfile: Omit<User, "id"> = {
-          name: fbUser.displayName || "Admin",
-          email: fbUser.email || "",
-          phone: fbUser.phoneNumber || "",
-          role: "ADMIN",
-          businessName: "Green Basket Admin",
-          createdAt: new Date().toISOString(),
-        };
-        await setDoc(ref, adminProfile as DocumentData);
-        return { ...adminProfile, id: fbUser.uid };
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  async signInWithGoogle(): Promise<User | null | undefined> {
+  async completeAdminLogin(): Promise<User> {
     const auth = getFirebaseAuth();
-    let cred;
-    try {
-      cred = await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (e) {
-      const code = (e as { code?: string })?.code ?? "";
-      // User dismissed the popup — surface a sentinel the UI can ignore quietly.
-      if (code.includes("popup-closed-by-user") || code.includes("cancelled-popup-request")) {
-        throw new ApiError("Sign-in cancelled.", 499);
-      }
-      // Popups are blocked or simply unsupported in this environment — the
-      // most common reason Google sign-in works on desktop Chrome but fails
-      // on iOS Safari (popups routinely blocked) and in-app browsers like
-      // Instagram/Facebook (no window.open at all). Fall back to a full-page
-      // redirect instead of dead-ending the user with a cryptic Firebase
-      // error; the result is picked up by completeGoogleRedirect() on the
-      // next page load.
-      if (
-        code.includes("popup-blocked") ||
-        code.includes("operation-not-supported-in-this-environment")
-      ) {
-        await signInWithRedirect(auth, new GoogleAuthProvider());
-        return undefined; // browser is navigating away
-      }
-      if (code.includes("operation-not-allowed")) {
-        throw new ApiError("Google sign-in isn't enabled for this project yet.");
-      }
-      if (code.includes("unauthorized-domain")) {
-        throw new ApiError("This domain isn't authorized for sign-in. Add it in Firebase Auth settings.");
-      }
-      throw new ApiError(e instanceof Error ? e.message : "Google sign-in failed.");
-    }
-    return this.resolveGoogleUser(cred.user);
-  }
+    const fb = auth.currentUser;
+    if (!fb) throw new ApiError("Not signed in.", 401);
 
-  async completeGoogleRedirect(): Promise<{ user: User | null } | null> {
-    const auth = getFirebaseAuth();
-    let cred;
-    try {
-      cred = await getRedirectResult(auth);
-    } catch (e) {
-      const code = (e as { code?: string })?.code ?? "";
-      if (code.includes("unauthorized-domain")) {
-        throw new ApiError("This domain isn't authorized for sign-in. Add it in Firebase Auth settings.");
-      }
-      throw new ApiError(e instanceof Error ? e.message : "Google sign-in failed.");
+    const phone = fb.phoneNumber || "";
+    if (!isAdminPhone(phone)) {
+      await signOut(auth);
+      throw new ApiError("This number isn't authorized for admin access.", 403);
     }
-    if (!cred) return null; // no redirect sign-in was pending
-    return { user: await this.resolveGoogleUser(cred.user) };
+
+    await fb.getIdToken();
+    const db = getDb();
+    const ref = doc(db, COL.users, fb.uid);
+    const snap = await readDoc(ref);
+    if (snap.exists()) {
+      const profile = snapToUser(snap);
+      if (profile.role === "ADMIN") return profile;
+      await writeUserDoc(fb, ref, { role: "ADMIN" }, 12000);
+      return { ...profile, role: "ADMIN" };
+    }
+
+    const adminProfile: Omit<User, "id"> = {
+      name: fb.displayName || "Admin",
+      email: "",
+      phone,
+      role: "ADMIN",
+      businessName: "Green Basket Admin",
+      createdAt: new Date().toISOString(),
+    };
+    await writeUserDoc(fb, ref, adminProfile as DocumentData, 12000);
+    return { ...adminProfile, id: fb.uid };
   }
 
   // --- Catalog ------------------------------------------------------------
@@ -1394,5 +1308,50 @@ export class FirebaseDataSource implements DataSource {
     };
     await setDoc(doc(db, COL.settings, "dailyPrices"), settings, { merge: true });
     return settings;
+  }
+
+  // --- Danger zone ------------------------------------------------------------
+  /**
+   * Deletes every buyer account plus their orders, returns, support tickets,
+   * and notifications — also sweeping any leftover emailIndex/phoneIndex
+   * claim docs from before phone became the sole auth method. Admin
+   * accounts, the product catalog, prices, and coupons are left alone.
+   * Firestore has no client-side "delete collection" call, so each
+   * collection is read in full and deleted in batches of 450 (under the
+   * 500-op batch limit).
+   */
+  async wipeDatabase(): Promise<WipeResult> {
+    await this.ready();
+    const db = getDb();
+
+    async function deleteAll(
+      colName: string,
+      filter?: (data: DocumentData) => boolean
+    ): Promise<number> {
+      const snap = await getDocs(collection(db, colName));
+      const targets = filter ? snap.docs.filter((d) => filter(d.data())) : snap.docs;
+      for (let i = 0; i < targets.length; i += 450) {
+        const chunk = targets.slice(i, i + 450);
+        const batch = writeBatch(db);
+        chunk.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+      return targets.length;
+    }
+
+    const [deletedOrders, deletedReturns, deletedTickets, deletedNotifications, deletedUsers] =
+      await Promise.all([
+        deleteAll(COL.orders),
+        deleteAll(COL.returns),
+        deleteAll(COL.supportTickets),
+        deleteAll(COL.notifications),
+        deleteAll(COL.users, (data) => (data as User).role !== "ADMIN"),
+      ]);
+    // Best-effort cleanup of the retired uniqueness-claim collections —
+    // nothing writes to these anymore, but old docs may still be lying
+    // around from before Google sign-in was removed.
+    await Promise.all([deleteAll(COL.emailIndex), deleteAll(COL.phoneIndex)]);
+
+    return { deletedUsers, deletedOrders, deletedReturns, deletedTickets, deletedNotifications };
   }
 }

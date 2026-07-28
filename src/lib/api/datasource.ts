@@ -58,26 +58,19 @@ export interface DataSource {
    */
   completeProfile?(input: ProfileSetupInput): Promise<User>;
   /**
-   * Optional: sign in with Google. Uses a popup where supported, falling back
-   * to a full-page redirect where it isn't (iOS Safari, in-app browsers that
-   * don't support `window.open`). Returns the existing profile, `null` when
-   * the Google account is new and still needs the "set up shop" step, or
-   * `undefined` when the browser navigated away for the redirect fallback
-   * (the result arrives later via `completeGoogleRedirect`).
-   */
-  signInWithGoogle?(): Promise<User | null | undefined>;
-  /**
-   * Optional: pick up the result of a Google sign-in that continued via
-   * full-page redirect. Call once on app load. Returns `null` when there is
-   * no pending redirect result, or `{ user }` when one just completed
-   * (`user` is `null` for a brand-new account still needing "set up shop").
-   */
-  completeGoogleRedirect?(): Promise<{ user: User | null } | null>;
-  /**
    * Optional: email/password sign-in (used by mock/demo mode). Returns the
    * authenticated user profile.
    */
   login?(credentials: { email: string; password: string }): Promise<User>;
+  /**
+   * Optional: complete admin sign-in on the separate `/admin-login` route.
+   * The buyer-side phone OTP flow must already have verified the currently
+   * signed-in Firebase user; this checks their phone against the admin
+   * allowlist and either promotes/creates their profile as ADMIN, or signs
+   * them out and throws if the number isn't authorized. Phone is the only
+   * source of truth for identity — there is no separate admin credential.
+   */
+  completeAdminLogin?(): Promise<User>;
 
   // --- Catalog ------------------------------------------------------------
   listProducts(): Promise<Product[]>;
@@ -222,6 +215,25 @@ export interface DataSource {
   getDailyPricesSettings(): Promise<DailyPricesSettings | null>;
   /** Admin: mark today's prices as published. */
   publishDailyPrices(userId: string): Promise<DailyPricesSettings>;
+
+  // --- Danger zone ------------------------------------------------------------
+  /**
+   * Optional: admin-only reset for test/demo data. Deletes every buyer
+   * account plus their orders, returns, support tickets, and notifications —
+   * so mobile numbers that were used for testing start fresh from onboarding
+   * next time they sign in. Admin accounts, the product catalog, prices, and
+   * coupons are left untouched so the shop keeps working right after a wipe.
+   */
+  wipeDatabase?(): Promise<WipeResult>;
+}
+
+/** Summary of what a wipeDatabase() call actually deleted. */
+export interface WipeResult {
+  deletedUsers: number;
+  deletedOrders: number;
+  deletedReturns: number;
+  deletedTickets: number;
+  deletedNotifications: number;
 }
 
 /** Thrown for expected, user-facing failures (bad creds, validation, etc.). */

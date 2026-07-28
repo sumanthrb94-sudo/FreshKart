@@ -29,7 +29,7 @@ import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-noti
 import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
-import { DataSource, ApiError } from "./datasource";
+import { DataSource, ApiError, type WipeResult } from "./datasource";
 import { store } from "./mock-store";
 
 /** Minimal delay for UI loading state realism in demo mode. */
@@ -813,5 +813,28 @@ export class MockDataSource implements DataSource {
       s.dailyPrices = settings;
     });
     return delay(structuredClone(settings));
+  }
+
+  // --- Danger zone ------------------------------------------------------------
+  async wipeDatabase(): Promise<WipeResult> {
+    let deletedUsers = 0;
+    let deletedOrders = 0;
+    let deletedReturns = 0;
+    let deletedTickets = 0;
+    let deletedNotifications = 0;
+    store.mutate((s) => {
+      const keepUsers = s.users.filter((u) => u.role === "ADMIN");
+      deletedUsers = s.users.length - keepUsers.length;
+      s.users = keepUsers;
+      deletedOrders = s.orders.length;
+      s.orders = [];
+      deletedReturns = s.returns.length;
+      s.returns = [];
+      deletedTickets = s.supportTickets.length;
+      s.supportTickets = [];
+      deletedNotifications = s.notifications.length;
+      s.notifications = [];
+    });
+    return delay({ deletedUsers, deletedOrders, deletedReturns, deletedTickets, deletedNotifications }, 300);
   }
 }

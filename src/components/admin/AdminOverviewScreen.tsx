@@ -17,6 +17,7 @@ import {
   RotateCcw,
   ScanLine,
   Search,
+  Settings,
   ShoppingCart,
   Sparkles,
   Tag,
@@ -51,7 +52,7 @@ import { FullScreenLoader, Spinner } from "@/components/ui/Spinner";
 
 const ALL_STATUSES: OrderStatus[] = [...STATUS_FLOW, "CANCELLED"];
 
-type Tone = "brand" | "amber" | "blue" | "violet" | "rose" | "indigo" | "teal" | "pink" | "cyan";
+type Tone = "brand" | "amber" | "blue" | "violet" | "rose" | "indigo" | "teal" | "pink" | "cyan" | "slate";
 
 type ManageTileDef = { href: string; label: string; icon: LucideIcon; tone: Tone };
 
@@ -67,6 +68,7 @@ const MANAGE_TILES: ManageTileDef[] = [
   { href: "/admin/reports", label: "Reports", icon: FileText, tone: "teal" },
   { href: "/admin/coupons", label: "Coupons", icon: BadgePercent, tone: "pink" },
   { href: "/admin/customers", label: "Buyers", icon: Users, tone: "cyan" },
+  { href: "/admin/settings", label: "Settings", icon: Settings, tone: "slate" },
 ];
 
 type SearchResult = {
@@ -677,6 +679,7 @@ const TONE_CLASSES: Record<Tone, string> = {
   teal: "bg-gradient-to-br from-teal-500/20 to-teal-500/5 text-teal-500",
   pink: "bg-gradient-to-br from-pink-500/20 to-pink-500/5 text-pink-500",
   cyan: "bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 text-cyan-500",
+  slate: "bg-gradient-to-br from-slate-500/20 to-slate-500/5 text-slate-500",
 };
 
 // Whole-tile wash: a very faint hint of the tone bleeding down from the top
@@ -691,6 +694,7 @@ const TONE_TILE_WASH: Record<Tone, string> = {
   teal: "from-teal-500/[0.07]",
   pink: "from-pink-500/[0.07]",
   cyan: "from-cyan-500/[0.07]",
+  slate: "from-slate-500/[0.07]",
 };
 
 /** One tappable tile in the "Manage" grid — icon, label, an optional live

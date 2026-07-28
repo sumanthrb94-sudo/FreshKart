@@ -55,17 +55,17 @@ function normalizeFirebaseError(e: unknown): PhoneAuthError {
     case code.includes("quota-exceeded"):
       return new PhoneAuthError(
         code,
-        "SMS quota exceeded for today. Try Google sign-in or contact support."
+        "SMS quota exceeded for today. Please try again later or contact support."
       );
     case code.includes("billing-not-enabled"):
       return new PhoneAuthError(
         code,
-        "Phone sign-in is temporarily unavailable. Please use Google sign-in, or contact support."
+        "Phone sign-in is temporarily unavailable. Please contact support."
       );
     case code.includes("operation-not-allowed"):
       return new PhoneAuthError(
         code,
-        "Phone sign-in is not enabled for this app. Please use Google sign-in instead."
+        "Phone sign-in is not enabled for this app. Please contact support."
       );
     case code.includes("app-not-authorized"):
     case code.includes("unauthorized-domain"):

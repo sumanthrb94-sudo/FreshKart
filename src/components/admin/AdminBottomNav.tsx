@@ -12,6 +12,7 @@ import {
   Users,
   BadgePercent,
   MessageCircle,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ export const ADMIN_TABS: AdminTab[] = [
   { href: "/admin/reports", label: "Reports", icon: FileText, isActive: (p) => p.startsWith("/admin/reports") },
   { href: "/admin/coupons", label: "Coupons", icon: BadgePercent, isActive: (p) => p.startsWith("/admin/coupons") },
   { href: "/admin/customers", label: "Buyers", icon: Users, isActive: (p) => p.startsWith("/admin/customers") },
+  { href: "/admin/settings", label: "Settings", icon: Settings, isActive: (p) => p.startsWith("/admin/settings") },
 ];
 
 // Mobile bottom bar shows only the 5 most-used sections — the full set

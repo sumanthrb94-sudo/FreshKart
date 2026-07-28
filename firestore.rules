@@ -10,22 +10,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Emails granted ADMIN regardless of their stored role. Keep in sync with
-    // ADMIN_EMAILS in src/lib/api/firebase.ts.
+    // Phone numbers (E.164) granted ADMIN regardless of their stored role.
+    // Keep in sync with ADMIN_PHONES in src/lib/api/firebase.ts. Phone is now
+    // the ONLY sign-in method app-wide (Google sign-in was removed), so this
+    // replaces the old email-based allowlist.
     //
-    // Phone-auth accounts have NO `email` claim on their token at all (not
-    // null — entirely absent), and reading a missing property throws in
-    // Firestore's rules language instead of returning false. isAdminEmail()
-    // is evaluated first in nearly every allow clause in this file (via
-    // isAdmin()), so this denied EVERY write from EVERY phone-only signed-in
-    // user — the real explanation for "some accounts, not all" (Google
-    // sign-in always carries an email claim; phone OTP never does). Guard
-    // with `'email' in request.auth.token` (safe presence check, never
-    // errors) before reading the value.
-    function isAdminEmail() {
+    // A phone-auth token always carries `phone_number`, but guard with `in`
+    // anyway (safe presence check, never errors) — the same defensive
+    // pattern as userRole() below, in case a future auth method's token ever
+    // lacks it.
+    function isAdminPhone() {
       return isSignedIn()
-             && 'email' in request.auth.token
-             && request.auth.token.email in ['sumanthbolla97@gmail.com', 'sivakishore43@gmail.com'];
+             && 'phone_number' in request.auth.token
+             && request.auth.token.phone_number in ['+919876543210'];
     }
 
     // Reading `.data` off a get() for a document that doesn't exist throws —
@@ -44,7 +41,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAdminEmail() || (isSignedIn() && userRole() == 'ADMIN');
+      return isAdminPhone() || (isSignedIn() && userRole() == 'ADMIN');
     }
 
     // Only the `stock` field is being changed.
@@ -287,11 +284,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // --- In-app notifications: a buyer's own history only. No admin access
-    //     needed — these are purely client-generated from data the buyer
-    //     already has read access to (their own orders/returns). ---
+    // --- In-app notifications: a buyer's own history, plus admin read/delete
+    //     for the "Wipe DB" reset button (bulk-deletes every buyer's
+    //     notifications, not just the admin's own). ---
     match /notifications/{notifId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn()
                     && resource.data.userId == request.auth.uid
@@ -304,34 +301,26 @@ service cloud.firestore {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn()
                     && request.auth.uid == userId
-                    && (request.resource.data.role == 'BUYER' || isAdminEmail());
+                    && (request.resource.data.role == 'BUYER' || isAdminPhone());
       allow update: if isAdmin()
                     || (request.auth.uid == userId
                         && request.resource.data.role == resource.data.role);
       allow delete: if isAdmin();
     }
 
-    // --- Email/phone uniqueness claims: id = the normalized email or phone,
-    //     value = { uid }. A signed-in user may only claim a slot nobody else
-    //     already owns (this is how onboarding enforces one account per
-    //     email/phone) — never listed or read back, so no buyer's email/phone
-    //     is ever exposed to another buyer. See src/lib/api/firebase.ts
-    //     completeProfile()/claimUnique().
-    function isOwnUidOnlyDoc() {
-      return request.resource.data.keys().hasOnly(['uid'])
-             && request.resource.data.uid == request.auth.uid;
-    }
+    // --- Legacy email/phone uniqueness-claim docs from before phone became
+    //     the sole sign-in method. Firebase phone auth already guarantees at
+    //     most one account per verified number, so nothing writes to these
+    //     collections anymore — kept admin-readable/deletable only so the
+    //     "Wipe DB" button can sweep out any docs left over from before this
+    //     change. No buyer ever needs (or gets) access to these.
     match /emailIndex/{email} {
-      allow get, list: if false;
-      allow create: if isSignedIn() && isOwnUidOnlyDoc();
-      allow update: if isSignedIn() && isOwnUidOnlyDoc() && resource.data.uid == request.auth.uid;
-      allow delete: if false;
+      allow get, list, delete: if isAdmin();
+      allow create, update: if false;
     }
     match /phoneIndex/{phone} {
-      allow get, list: if false;
-      allow create: if isSignedIn() && isOwnUidOnlyDoc();
-      allow update: if isSignedIn() && isOwnUidOnlyDoc() && resource.data.uid == request.auth.uid;
-      allow delete: if false;
+      allow get, list, delete: if isAdmin();
+      allow create, update: if false;
     }
 
     // Allowed top-level fields on a new return document.
