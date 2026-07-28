@@ -17,9 +17,11 @@ import {
   navigationUrl,
   normalizePincode,
   radiusOf,
+  planRun,
   runBounds,
   sequenceRun,
   summarizeRun,
+  visitTotal,
   type ServiceArea,
 } from "../service-area";
 
@@ -151,6 +153,96 @@ describe("sequenceRun", () => {
 
   it("handles an empty run", () => {
     expect(sequenceRun([], AREA)).toEqual([]);
+  });
+});
+
+describe("one stop per door, not per order", () => {
+  // A shop that ordered three times in a day used to become three stops:
+  // three knocks, three inspections, three payments at the same door.
+  const thrice = () => [
+    order("a", { pincode: "500002" }),
+    order("b", { pincode: "500002" }),
+    order("c", { pincode: "500001" }),
+  ];
+
+  it("groups orders going to the same address into a single visit", () => {
+    const visits = planRun(thrice(), AREA);
+    expect(visits).toHaveLength(2);
+    const doubled = visits.find((v) => v.orders.length === 2)!;
+    expect(doubled.orders.map((o) => o.id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("keeps different addresses apart even for the same buyer", () => {
+    const visits = planRun(
+      [order("home", { address: "1 Main Rd" }), order("branch", { address: "2 Market Rd" })],
+      AREA
+    );
+    expect(visits).toHaveLength(2);
+  });
+
+  it("ignores case and stray spacing in the address", () => {
+    const visits = planRun(
+      [order("a", { address: "12,  Sarojini Devi Road" }), order("b", { address: "12, sarojini devi road" })],
+      AREA
+    );
+    expect(visits).toHaveLength(1);
+  });
+
+  it("still sequences visits nearest-first", () => {
+    const visits = planRun(thrice(), AREA);
+    expect(visits[0].pincode).toBe("500001");
+    expect(visits.map((v) => v.seq)).toEqual([1, 2]);
+  });
+
+  it("collects one combined amount at the door", () => {
+    const visits = planRun(thrice(), AREA);
+    const doubled = visits.find((v) => v.orders.length === 2)!;
+    expect(visitTotal(doubled)).toBe(doubled.orders.reduce((s, o) => s + o.total, 0));
+  });
+
+  it("places a whole visit from one exact pin, even if its other orders lack one", () => {
+    // Same door: the buyer pinned it on one order and not the other. The
+    // exact pin wins for the visit rather than falling back to a locality
+    // centre the driver would have to phone about.
+    const visits = planRun(
+      [
+        order("pinned", { address: "9 Same St", lat: 17.02, lng: 78.01 }),
+        order("unpinned", { address: "9 Same St" }),
+      ],
+      AREA
+    );
+    expect(visits).toHaveLength(1);
+    expect(visits[0].precision).toBe("PIN");
+    expect(visits[0].point).toEqual({ lat: 17.02, lng: 78.01 });
+  });
+
+  it("orders a visit's own orders oldest first", () => {
+    const early = order("early", { address: "9 Same St" });
+    const late = order("late", { address: "9 Same St" });
+    (late as { createdAt: string }).createdAt = "2026-07-28T18:00:00.000Z";
+    (early as { createdAt: string }).createdAt = "2026-07-28T08:00:00.000Z";
+    expect(planRun([late, early], AREA)[0].orders.map((o) => o.id)).toEqual(["early", "late"]);
+  });
+
+  it("keeps an unmappable address in the run, at the end", () => {
+    const visits = planRun([order("nowhere", { pincode: "999999" }), order("near", { pincode: "500001" })], AREA);
+    expect(visits.map((v) => v.orders[0].id)).toEqual(["near", "nowhere"]);
+    expect(visits[1].point).toBeNull();
+  });
+
+  it("agrees with the per-order view about the route", () => {
+    // sequenceRun is derived from planRun, so the numbered list, the map and
+    // the stop screen can never disagree about where the driver goes next.
+    const orders = thrice();
+    const flat = sequenceRun(orders, AREA).map((s) => s.order.id);
+    const grouped = planRun(orders, AREA).flatMap((v) => v.orders.map((o) => o.id));
+    expect(flat).toEqual(grouped);
+  });
+
+  it("charges no distance for the second order at the same door", () => {
+    const stops = sequenceRun([order("a", { pincode: "500002" }), order("b", { pincode: "500002" })], AREA);
+    expect(stops[0].legKm).toBeGreaterThan(0);
+    expect(stops[1].legKm).toBe(0);
   });
 });
 

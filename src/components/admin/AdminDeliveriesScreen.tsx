@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Clock, Truck, X } from "lucide-react";
+import { IndianRupee, Truck } from "lucide-react";
 import type { Order, User } from "@/lib/types";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
-import { driverApprovalLimit, payableTotal } from "@/lib/delivery-adjustment";
+import { payableTotal } from "@/lib/delivery-adjustment";
+import { onIstDay, summarizeCashRun } from "@/lib/cash-run";
 import { AdminShell } from "./AdminShell";
 import { AdminServiceAreaCard } from "./AdminServiceAreaCard";
 import { AdminExecutivesCard } from "./AdminExecutivesCard";
@@ -148,6 +149,54 @@ export function AdminDeliveriesScreen() {
                   </div>
                 </div>
               ))
+            )}
+          </CardBody>
+        </Card>
+
+        {/* What each driver owes the till tonight */}
+        <Card>
+          <CardHeader className="flex items-center gap-2">
+            <IndianRupee className="h-4 w-4 text-fg-subtle" aria-hidden />
+            <h2 className="text-sm font-bold text-fg">Cash from today&apos;s runs</h2>
+          </CardHeader>
+          <CardBody className="flex flex-col gap-2.5">
+            {(drivers ?? []).length === 0 ? (
+              <p className="text-xs text-fg-subtle">No executives yet.</p>
+            ) : (
+              (drivers ?? []).map((d) => {
+                const mine = onIstDay(
+                  (orders ?? []).filter((o) => o.driverId === d.id),
+                  new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
+                );
+                const run = summarizeCashRun(mine);
+                return (
+                  <div
+                    key={d.id}
+                    className="flex items-start justify-between gap-3 border-b border-line pb-2.5 last:border-0 last:pb-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-fg">{d.name}</p>
+                      <p className="text-xs text-fg-subtle">
+                        {run.delivered} delivered
+                        {run.refunded > 0 && ` · ${formatCurrency(run.refunded)} refused`}
+                        {run.prepaid > 0 && ` · ${formatCurrency(run.prepaid)} prepaid`}
+                      </p>
+                      {run.unpaid.length > 0 && (
+                        <p className="mt-0.5 text-2xs font-bold text-red-500">
+                          {run.unpaid.length} delivered but unpaid —{" "}
+                          {run.unpaid.map((l) => l.orderNumber).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-base font-extrabold text-fg">
+                        {formatCurrency(run.cashDue)}
+                      </span>
+                      <span className="block text-2xs text-fg-subtle">expected in cash</span>
+                    </span>
+                  </div>
+                );
+              })
             )}
           </CardBody>
         </Card>

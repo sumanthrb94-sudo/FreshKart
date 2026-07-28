@@ -23,7 +23,7 @@ import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-noti
 import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
-import { nextStoreClose } from "@/lib/store-hours";
+import { effectiveOverride, getStoreStatus, nextStoreClose } from "@/lib/store-hours";
 import { isWithinDriverAuthority, totalRefundOf } from "@/lib/delivery-adjustment";
 import { DataSource, ApiError, type WipeResult } from "./datasource";
 import { store } from "./mock-store";
@@ -141,6 +141,14 @@ export class MockDataSource implements DataSource {
         error = `Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
         return;
       }
+      // The shop is shut outside 8 AM – 9 PM IST unless an admin has forced
+      // it live. The cart screen already knows this, but a tab left open past
+      // the close would otherwise still be able to place an order — and that
+      // order would join a load that was packed hours earlier.
+      if (!getStoreStatus(new Date(), effectiveOverride(s.storeSettings)).isOpen) {
+        error = "The shop is closed. Orders reopen at 8 AM for the next day's delivery.";
+        return;
+      }
       const items: OrderItem[] = [];
       for (const line of input.items) {
         const p = s.products.find((x) => x.id === line.productId);
@@ -150,6 +158,14 @@ export class MockDataSource implements DataSource {
         }
         if (line.qty > p.stock) {
           error = `Only ${p.stock} ${p.unit} of ${p.name} left in stock.`;
+          return;
+        }
+        // Per-product wholesale minimum — 20 kg of onion, 1 kg of leafy, and
+        // so on. The quantity stepper enforces this in the cart, which is a
+        // convenience, not a control: the order is created here.
+        const min = p.minOrderQty ?? 1;
+        if (line.qty < min) {
+          error = `${p.name} is sold in a minimum of ${min} ${p.unit}.`;
           return;
         }
         items.push({
@@ -320,7 +336,7 @@ export class MockDataSource implements DataSource {
     const list = store
       .get()
       .orders.filter(
-        (o) => o.driverId === driverId && o.status !== "DELIVERED" && o.status !== "CANCELLED"
+        (o) => o.driverId === driverId && o.status !== "CANCELLED"
       )
       .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
     return delay(structuredClone(list));
@@ -330,9 +346,7 @@ export class MockDataSource implements DataSource {
     const emit = () => {
       const list = store
         .get()
-        .orders.filter(
-          (o) => o.driverId === driverId && o.status !== "DELIVERED" && o.status !== "CANCELLED"
-        )
+        .orders.filter((o) => o.driverId === driverId && o.status !== "CANCELLED")
         .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
       cb(structuredClone(list));
     };

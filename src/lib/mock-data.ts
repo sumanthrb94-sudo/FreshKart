@@ -279,6 +279,22 @@ export const ORDERS: Order[] = [
     notes: "Cancelled by buyer — stock was released.",
     items: [{ productId: "lemon", qty: 10 }],
   }),
+  // Suresh Kirana's second order of the day, to the SAME door as order-2 —
+  // the driver sees one stop with two crates, not two knocks.
+  buildOrder({
+    id: "order-7",
+    orderNumber: "ORD-20260624-SK21RE",
+    buyerId: "user-buyer-1",
+    status: "SHIPPED",
+    driverId: "user-driver-1",
+    driverName: "Ravi (Delivery)",
+    paymentMethod: "COD",
+    createdAt: "2026-06-24T11:15:00.000Z",
+    items: [
+      { productId: "palak-spinach", qty: 2 },
+      { productId: "lemon", qty: 2 },
+    ],
+  }),
   // Third stop on the demo run, and the only one without an exact pin — the
   // driver map places it at the centre of 500033 and says so.
   buildOrder({

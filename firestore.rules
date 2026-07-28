@@ -120,19 +120,33 @@ service cloud.firestore {
              : {};
     }
 
+    // Per-product wholesale minimums (20 kg onion, 1 kg leafy, 6 pc
+    // cauliflower …), mirrored into the SAME document as the prices by
+    // publishDailyPrices — so checking them costs no extra get() call.
+    // A sheet published before this map existed simply has no `minQty`,
+    // and every item then falls back to "no minimum" rather than denying
+    // every order in the shop until someone republishes.
+    function priceSheetMinQty() {
+      return exists(/databases/$(database)/documents/settings/priceSheet)
+             && 'minQty' in get(/databases/$(database)/documents/settings/priceSheet).data
+             ? get(/databases/$(database)/documents/settings/priceSheet).data.minQty
+             : {};
+    }
+
     // Helper to validate a single order item's price and line total integrity.
     // `prices` is the pre-fetched settings/priceSheet map — passed in so this
     // makes ZERO get() calls of its own, unlike the old per-item
     // get(products/{id}) lookup. That's what removes the item-count ceiling
     // that used to be forced by Firestore's get()-call budget per rule
     // evaluation (10 for a single doc, 20 inside a transaction).
-    function validateItem(item, prices) {
+    function validateItem(item, prices, minQty) {
       // Indexing a map with a key it doesn't have also throws in Firestore's
       // rules language — guard with `in` first so an untracked productId
       // cleanly denies that order instead of erroring the whole request.
       return item.productId in prices
              && item.price == prices[item.productId]
-             && item.lineTotal == item.price * item.qty;
+             && item.lineTotal == item.price * item.qty
+             && (!(item.productId in minQty) || item.qty >= minQty[item.productId]);
     }
 
     // Validates every item in the cart. Firestore's rules language does
@@ -146,58 +160,58 @@ service cloud.firestore {
     // entire product catalog, so no real cart can ever hit it. The
     // client mirrors the same number via MAX_ORDER_ITEM_TYPES in
     // src/lib/format.ts.
-    function validateOrderItems(items, prices) {
+    function validateOrderItems(items, prices, minQty) {
       return items.size() > 0 && items.size() <= 50
-             && (items.size() < 1 || validateItem(items[0], prices))
-             && (items.size() < 2 || validateItem(items[1], prices))
-             && (items.size() < 3 || validateItem(items[2], prices))
-             && (items.size() < 4 || validateItem(items[3], prices))
-             && (items.size() < 5 || validateItem(items[4], prices))
-             && (items.size() < 6 || validateItem(items[5], prices))
-             && (items.size() < 7 || validateItem(items[6], prices))
-             && (items.size() < 8 || validateItem(items[7], prices))
-             && (items.size() < 9 || validateItem(items[8], prices))
-             && (items.size() < 10 || validateItem(items[9], prices))
-             && (items.size() < 11 || validateItem(items[10], prices))
-             && (items.size() < 12 || validateItem(items[11], prices))
-             && (items.size() < 13 || validateItem(items[12], prices))
-             && (items.size() < 14 || validateItem(items[13], prices))
-             && (items.size() < 15 || validateItem(items[14], prices))
-             && (items.size() < 16 || validateItem(items[15], prices))
-             && (items.size() < 17 || validateItem(items[16], prices))
-             && (items.size() < 18 || validateItem(items[17], prices))
-             && (items.size() < 19 || validateItem(items[18], prices))
-             && (items.size() < 20 || validateItem(items[19], prices))
-             && (items.size() < 21 || validateItem(items[20], prices))
-             && (items.size() < 22 || validateItem(items[21], prices))
-             && (items.size() < 23 || validateItem(items[22], prices))
-             && (items.size() < 24 || validateItem(items[23], prices))
-             && (items.size() < 25 || validateItem(items[24], prices))
-             && (items.size() < 26 || validateItem(items[25], prices))
-             && (items.size() < 27 || validateItem(items[26], prices))
-             && (items.size() < 28 || validateItem(items[27], prices))
-             && (items.size() < 29 || validateItem(items[28], prices))
-             && (items.size() < 30 || validateItem(items[29], prices))
-             && (items.size() < 31 || validateItem(items[30], prices))
-             && (items.size() < 32 || validateItem(items[31], prices))
-             && (items.size() < 33 || validateItem(items[32], prices))
-             && (items.size() < 34 || validateItem(items[33], prices))
-             && (items.size() < 35 || validateItem(items[34], prices))
-             && (items.size() < 36 || validateItem(items[35], prices))
-             && (items.size() < 37 || validateItem(items[36], prices))
-             && (items.size() < 38 || validateItem(items[37], prices))
-             && (items.size() < 39 || validateItem(items[38], prices))
-             && (items.size() < 40 || validateItem(items[39], prices))
-             && (items.size() < 41 || validateItem(items[40], prices))
-             && (items.size() < 42 || validateItem(items[41], prices))
-             && (items.size() < 43 || validateItem(items[42], prices))
-             && (items.size() < 44 || validateItem(items[43], prices))
-             && (items.size() < 45 || validateItem(items[44], prices))
-             && (items.size() < 46 || validateItem(items[45], prices))
-             && (items.size() < 47 || validateItem(items[46], prices))
-             && (items.size() < 48 || validateItem(items[47], prices))
-             && (items.size() < 49 || validateItem(items[48], prices))
-             && (items.size() < 50 || validateItem(items[49], prices));
+             && (items.size() < 1 || validateItem(items[0], prices, minQty))
+             && (items.size() < 2 || validateItem(items[1], prices, minQty))
+             && (items.size() < 3 || validateItem(items[2], prices, minQty))
+             && (items.size() < 4 || validateItem(items[3], prices, minQty))
+             && (items.size() < 5 || validateItem(items[4], prices, minQty))
+             && (items.size() < 6 || validateItem(items[5], prices, minQty))
+             && (items.size() < 7 || validateItem(items[6], prices, minQty))
+             && (items.size() < 8 || validateItem(items[7], prices, minQty))
+             && (items.size() < 9 || validateItem(items[8], prices, minQty))
+             && (items.size() < 10 || validateItem(items[9], prices, minQty))
+             && (items.size() < 11 || validateItem(items[10], prices, minQty))
+             && (items.size() < 12 || validateItem(items[11], prices, minQty))
+             && (items.size() < 13 || validateItem(items[12], prices, minQty))
+             && (items.size() < 14 || validateItem(items[13], prices, minQty))
+             && (items.size() < 15 || validateItem(items[14], prices, minQty))
+             && (items.size() < 16 || validateItem(items[15], prices, minQty))
+             && (items.size() < 17 || validateItem(items[16], prices, minQty))
+             && (items.size() < 18 || validateItem(items[17], prices, minQty))
+             && (items.size() < 19 || validateItem(items[18], prices, minQty))
+             && (items.size() < 20 || validateItem(items[19], prices, minQty))
+             && (items.size() < 21 || validateItem(items[20], prices, minQty))
+             && (items.size() < 22 || validateItem(items[21], prices, minQty))
+             && (items.size() < 23 || validateItem(items[22], prices, minQty))
+             && (items.size() < 24 || validateItem(items[23], prices, minQty))
+             && (items.size() < 25 || validateItem(items[24], prices, minQty))
+             && (items.size() < 26 || validateItem(items[25], prices, minQty))
+             && (items.size() < 27 || validateItem(items[26], prices, minQty))
+             && (items.size() < 28 || validateItem(items[27], prices, minQty))
+             && (items.size() < 29 || validateItem(items[28], prices, minQty))
+             && (items.size() < 30 || validateItem(items[29], prices, minQty))
+             && (items.size() < 31 || validateItem(items[30], prices, minQty))
+             && (items.size() < 32 || validateItem(items[31], prices, minQty))
+             && (items.size() < 33 || validateItem(items[32], prices, minQty))
+             && (items.size() < 34 || validateItem(items[33], prices, minQty))
+             && (items.size() < 35 || validateItem(items[34], prices, minQty))
+             && (items.size() < 36 || validateItem(items[35], prices, minQty))
+             && (items.size() < 37 || validateItem(items[36], prices, minQty))
+             && (items.size() < 38 || validateItem(items[37], prices, minQty))
+             && (items.size() < 39 || validateItem(items[38], prices, minQty))
+             && (items.size() < 40 || validateItem(items[39], prices, minQty))
+             && (items.size() < 41 || validateItem(items[40], prices, minQty))
+             && (items.size() < 42 || validateItem(items[41], prices, minQty))
+             && (items.size() < 43 || validateItem(items[42], prices, minQty))
+             && (items.size() < 44 || validateItem(items[43], prices, minQty))
+             && (items.size() < 45 || validateItem(items[44], prices, minQty))
+             && (items.size() < 46 || validateItem(items[45], prices, minQty))
+             && (items.size() < 47 || validateItem(items[46], prices, minQty))
+             && (items.size() < 48 || validateItem(items[47], prices, minQty))
+             && (items.size() < 49 || validateItem(items[48], prices, minQty))
+             && (items.size() < 50 || validateItem(items[49], prices, minQty));
     }
     // Delivery fee slab based on subtotal (in rupees).
     // Mirrors calculateDeliveryFee() in src/lib/delivery.ts — keep in
@@ -459,7 +473,8 @@ service cloud.firestore {
                         && request.resource.data.paymentStatus == 'UNPAID'
                         && validateOrderItems(
                              request.resource.data.items,
-                             priceSheetPrices())
+                             priceSheetPrices(),
+                             priceSheetMinQty())
                         && isOrderWeightValid(request.resource.data.items)
                         && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items)
                         && request.resource.data.deliveryFee == getExpectedDeliveryFee(request.resource.data.subtotal)

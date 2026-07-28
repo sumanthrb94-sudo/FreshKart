@@ -1,4 +1,5 @@
 import type { Order } from "@/lib/types";
+import { payableTotal } from "./delivery-adjustment";
 
 /**
  * Where we deliver, and in what order a driver should work a run.
@@ -157,6 +158,35 @@ export function locateOrder(order: Order, area: ServiceArea): StopLocation {
   return { point: null, precision: "NONE" };
 }
 
+/**
+ * One address the van actually stops at, and everything being dropped there.
+ *
+ * A shop that ordered three times during the day is ONE visit, not three.
+ * Routing per order sent the driver knocking on the same door three times,
+ * doing three inspections and taking three payments — roughly eight wasted
+ * minutes per extra order, every one of them in front of a waiting customer.
+ */
+export interface RunVisit {
+  /** buyerId + address + pincode — the same fingerprint the packing slips use. */
+  key: string;
+  businessName: string;
+  address: string;
+  city: string;
+  pincode: string;
+  phone: string;
+  /** Every order for this address on this run, oldest first. */
+  orders: Order[];
+  /** 1-based position in the run. */
+  seq: number;
+  point: GeoPoint | null;
+  precision: StopPrecision;
+  legKm: number | null;
+  cumulativeKm: number | null;
+  hubKm: number | null;
+  beyondRadius: boolean;
+  served: boolean;
+}
+
 export interface RunStop {
   order: Order;
   /** 1-based position in the run. */
@@ -175,6 +205,110 @@ export interface RunStop {
   served: boolean;
 }
 
+/** Two orders share a stop when they go to the same door. */
+export function visitKey(order: Order): string {
+  const norm = (v: string | undefined) => (v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  return `${order.buyerId}::${norm(order.delivery.address)}::${norm(order.delivery.pincode)}`;
+}
+
+/**
+ * Plan the run as a sequence of VISITS — one per address — nearest-first
+ * from the hub.
+ *
+ * The ordering is the classic greedy nearest-neighbour tour. It is not the
+ * shortest possible route, but a driver can *predict* it: the next stop is
+ * always the nearest one left. A route nobody can predict gets ignored, and
+ * an ignored route is worse than none.
+ *
+ * Addresses we cannot place on the map keep their original order and go
+ * last, so a stop with no pin never silently disappears from the run.
+ */
+export function planRun(orders: Order[], area: ServiceArea): RunVisit[] {
+  const groups = new Map<string, Order[]>();
+  for (const order of orders) {
+    const key = visitKey(order);
+    const existing = groups.get(key);
+    if (existing) existing.push(order);
+    else groups.set(key, [order]);
+  }
+
+  interface Candidate {
+    key: string;
+    orders: Order[];
+    point: GeoPoint | null;
+    precision: StopPrecision;
+  }
+  const located: Candidate[] = [];
+  const unlocated: Candidate[] = [];
+  for (const [key, group] of groups) {
+    group.sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+    // One exact pin among the group is enough to place the whole visit.
+    const best = group
+      .map((o) => locateOrder(o, area))
+      .sort((a, b) => precisionRank(a.precision) - precisionRank(b.precision))[0];
+    const candidate: Candidate = { key, orders: group, point: best.point, precision: best.precision };
+    if (best.point) located.push(candidate);
+    else unlocated.push(candidate);
+  }
+
+  const hub: GeoPoint = { lat: area.hub.lat, lng: area.hub.lng };
+  const radius = radiusOf(area);
+  const visits: RunVisit[] = [];
+  const remaining = [...located];
+  let cursor = hub;
+  let cumulative = 0;
+
+  const build = (c: Candidate, legKm: number | null): RunVisit => {
+    const head = c.orders[0];
+    const hubKm = c.point ? haversineKm(hub, c.point) : null;
+    return {
+      key: c.key,
+      businessName: head.businessName,
+      address: head.delivery.address,
+      city: head.delivery.city,
+      pincode: head.delivery.pincode,
+      phone: head.delivery.phone,
+      orders: c.orders,
+      seq: visits.length + 1,
+      point: c.point,
+      precision: c.precision,
+      legKm,
+      cumulativeKm: legKm === null ? null : cumulative,
+      hubKm,
+      beyondRadius: hubKm !== null && hubKm > radius,
+      served: isServedPincode(area, head.delivery.pincode),
+    };
+  };
+
+  while (remaining.length > 0) {
+    let bestIndex = 0;
+    let bestKm = haversineKm(cursor, remaining[0].point!);
+    for (let i = 1; i < remaining.length; i++) {
+      const km = haversineKm(cursor, remaining[i].point!);
+      if (km < bestKm) {
+        bestKm = km;
+        bestIndex = i;
+      }
+    }
+    const [next] = remaining.splice(bestIndex, 1);
+    cumulative += bestKm;
+    visits.push(build(next, bestKm));
+    cursor = next.point!;
+  }
+  for (const c of unlocated) visits.push(build(c, null));
+
+  return visits;
+}
+
+function precisionRank(p: StopPrecision): number {
+  return p === "PIN" ? 0 : p === "PINCODE" ? 1 : 2;
+}
+
+/** Total payable across a visit — what the driver collects at that door. */
+export function visitTotal(visit: RunVisit): number {
+  return visit.orders.reduce((sum, o) => sum + payableTotal(o), 0);
+}
+
 /**
  * Order the stops nearest-first: start at the hub, then repeatedly take the
  * closest stop not yet visited.
@@ -189,65 +323,25 @@ export interface RunStop {
  * so an address with no pin never silently disappears from the run.
  */
 export function sequenceRun(orders: Order[], area: ServiceArea): RunStop[] {
-  const located: { order: Order; point: GeoPoint; precision: StopPrecision }[] = [];
-  const unlocated: Order[] = [];
-
-  for (const order of orders) {
-    const { point, precision } = locateOrder(order, area);
-    if (point) located.push({ order, point, precision });
-    else unlocated.push(order);
-  }
-
+  // Derived from planRun so the numbered list, the map and the per-order view
+  // can never disagree about the route. Orders sharing a door are adjacent
+  // with a zero-length leg between them.
   const stops: RunStop[] = [];
-  const remaining = [...located];
-  const hub: GeoPoint = { lat: area.hub.lat, lng: area.hub.lng };
-  const radius = radiusOf(area);
-  let cursor: GeoPoint = hub;
-  let cumulative = 0;
-
-  while (remaining.length > 0) {
-    let bestIndex = 0;
-    let bestKm = haversineKm(cursor, remaining[0].point);
-    for (let i = 1; i < remaining.length; i++) {
-      const km = haversineKm(cursor, remaining[i].point);
-      if (km < bestKm) {
-        bestKm = km;
-        bestIndex = i;
-      }
-    }
-    const [next] = remaining.splice(bestIndex, 1);
-    cumulative += bestKm;
-    const hubKm = haversineKm(hub, next.point);
-    stops.push({
-      order: next.order,
-      seq: stops.length + 1,
-      point: next.point,
-      precision: next.precision,
-      legKm: bestKm,
-      cumulativeKm: cumulative,
-      hubKm,
-      beyondRadius: hubKm > radius,
-      served: isServedPincode(area, next.order.delivery.pincode),
-    });
-    cursor = next.point;
-  }
-
-  for (const order of unlocated) {
-    stops.push({
-      order,
-      seq: stops.length + 1,
-      point: null,
-      precision: "NONE",
-      legKm: null,
-      cumulativeKm: null,
-      // Nothing to measure, so nothing to accuse it of. An address we can't
-      // place is a data problem, not a distance problem.
-      hubKm: null,
-      beyondRadius: false,
-      served: isServedPincode(area, order.delivery.pincode),
+  for (const visit of planRun(orders, area)) {
+    visit.orders.forEach((order, i) => {
+      stops.push({
+        order,
+        seq: stops.length + 1,
+        point: visit.point,
+        precision: visit.precision,
+        legKm: visit.legKm === null ? null : i === 0 ? visit.legKm : 0,
+        cumulativeKm: visit.cumulativeKm,
+        hubKm: visit.hubKm,
+        beyondRadius: visit.beyondRadius,
+        served: visit.served,
+      });
     });
   }
-
   return stops;
 }
 
