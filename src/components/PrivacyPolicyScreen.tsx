@@ -30,8 +30,9 @@ export function PrivacyPolicyScreen() {
               <div>
                 <h2 className="text-sm font-bold text-fg">Information We Collect</h2>
                 <p className="mt-1 text-xs text-fg-muted leading-relaxed">
-                  We collect business name, contact person name, email address, phone number, delivery address,
-                  GSTIN (if provided), and order history. This information is necessary to process your orders
+                  We collect business name, contact person name, phone number, delivery address,
+                  GSTIN (only if you choose to add it — we are not GST-registered and do not need it),
+                  and order history. This information is necessary to process your orders
                   and ensure timely delivery of fresh produce to your business.
                 </p>
               </div>
@@ -49,7 +50,7 @@ export function PrivacyPolicyScreen() {
                   <li>&bull; Process and deliver your orders</li>
                   <li>&bull; Send order status updates via email and SMS</li>
                   <li>&bull; Verify your business identity</li>
-                  <li>&bull; Generate GST-compliant invoices</li>
+                  <li>&bull; Generate invoices for your orders</li>
                   <li>&bull; Improve our product quality and service</li>
                   <li>&bull; Comply with applicable laws and regulations</li>
                 </ul>
@@ -137,7 +138,10 @@ export function PrivacyPolicyScreen() {
                 <div className="mt-2 space-y-1 text-xs text-fg">
                   <p>Email: privacy@green-basket.in</p>
                   <p>Phone: +91 74166 20691</p>
-                  <p>Address: Green Basket HQ, Bengaluru, Karnataka 560001</p>
+                  <p>
+                    Address: Green Basket, near Venkateswara Temple, Yerraboda, Upperpally,
+                    Hyderabad, Telangana 500048
+                  </p>
                 </div>
               </div>
             </div>
