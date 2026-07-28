@@ -1,6 +1,7 @@
 import {
   signOut,
   onAuthStateChanged,
+  signInWithEmailAndPassword,
   type User as FirebaseUser,
 } from "firebase/auth";
 import {
@@ -221,6 +222,49 @@ export class FirebaseDataSource implements DataSource {
 
   async logout(): Promise<void> {
     await signOut(getFirebaseAuth());
+  }
+
+  /**
+   * Email + password sign-in, used ONLY by the admin console at
+   * /admin-login. Buyers never see it — they sign in with phone OTP, which
+   * remains the single source of truth for customer identity. The credential
+   * lives in Firebase Auth (hashed); nothing about it is stored in this repo.
+   *
+   * Signs out again and throws unless the account actually carries the ADMIN
+   * role, so a stray non-admin credential can't linger as a half-session.
+   */
+  async login({ email, password }: { email: string; password: string }): Promise<User> {
+    await this.ready();
+    const auth = getFirebaseAuth();
+    let cred;
+    try {
+      cred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      if (
+        code.includes("invalid-credential") ||
+        code.includes("wrong-password") ||
+        code.includes("user-not-found") ||
+        code.includes("invalid-email")
+      ) {
+        throw new ApiError("Incorrect username or password.", 401);
+      }
+      if (code.includes("too-many-requests")) {
+        throw new ApiError("Too many failed attempts. Please wait a few minutes.", 429);
+      }
+      if (code.includes("user-disabled")) {
+        throw new ApiError("This account has been disabled.", 403);
+      }
+      throw new ApiError(e instanceof Error ? e.message : "Sign-in failed.", 401);
+    }
+
+    const snap = await readDoc(doc(getDb(), COL.users, cred.user.uid));
+    const profile = snap.exists() ? snapToUser(snap) : null;
+    if (!profile || profile.role !== "ADMIN") {
+      await signOut(auth);
+      throw new ApiError("This account doesn't have admin access.", 403);
+    }
+    return profile;
   }
 
   subscribeAuth(cb: (user: User | null) => void): () => void {
