@@ -153,6 +153,12 @@ export const repository = {
   updateOrderStatus(id: string, status: OrderStatus): Order {
     const o = orders.find((x) => x.id === id);
     if (!o) throw new RepoError("Order not found.", 404);
+    if (status === "DELIVERED" && o.paymentMethod === "COD" && o.paymentStatus !== "PAID") {
+      throw new RepoError(
+        "Cash payment must be confirmed before marking a COD order as delivered.",
+        400
+      );
+    }
     if (status === "CANCELLED" && o.status !== "CANCELLED") {
       for (const i of o.items) {
         const p = products.find((x) => x.id === i.productId);

@@ -244,9 +244,14 @@ export class MockDataSource implements DataSource {
 
   async updateOrderStatus(id: string, status: OrderStatus): Promise<Order> {
     let updated: Order | null = null;
+    let blocked = false;
     store.mutate((s) => {
       const o = s.orders.find((x) => x.id === id);
       if (!o) return;
+      if (status === "DELIVERED" && o.paymentMethod === "COD" && o.paymentStatus !== "PAID") {
+        blocked = true;
+        return;
+      }
       // Cancelling releases reserved stock back to the catalog.
       if (status === "CANCELLED" && o.status !== "CANCELLED") {
         for (const i of o.items) {
@@ -262,6 +267,12 @@ export class MockDataSource implements DataSource {
       o.updatedAt = new Date().toISOString();
       updated = o;
     });
+    if (blocked) {
+      throw new ApiError(
+        "Cash payment must be confirmed before marking a COD order as delivered.",
+        400
+      );
+    }
     if (!updated) throw new ApiError("Order not found.", 404);
     return delay(structuredClone(updated));
   }
@@ -273,6 +284,9 @@ export class MockDataSource implements DataSource {
       for (const id of ids) {
         const o = s.orders.find((x) => x.id === id);
         if (!o) continue;
+        if (status === "DELIVERED" && o.paymentMethod === "COD" && o.paymentStatus !== "PAID") {
+          continue;
+        }
         if (status === "CANCELLED" && o.status !== "CANCELLED") {
           for (const i of o.items) {
             const p = s.products.find((x) => x.id === i.productId);

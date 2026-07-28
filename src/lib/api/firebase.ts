@@ -698,6 +698,10 @@ export class FirebaseDataSource implements DataSource {
       if (!oSnap.exists()) throw new ApiError("Order not found.", 404);
       const order = { ...(oSnap.data() as Omit<Order, "id">), id: oRef.id } as Order;
 
+      if (status === "DELIVERED" && order.paymentMethod === "COD" && order.paymentStatus !== "PAID") {
+        throw new ApiError("Cash payment must be confirmed before marking a COD order as delivered.", 400);
+      }
+
       const patch: DocumentData = { status, updatedAt: new Date().toISOString() };
       if (status === "DELIVERED" && order.status !== "DELIVERED") {
         patch.deliveredAt = new Date().toISOString();
@@ -734,6 +738,11 @@ export class FirebaseDataSource implements DataSource {
       const oSnap = await getDoc(oRef);
       if (!oSnap.exists()) continue;
       const order = { ...(oSnap.data() as Omit<Order, "id">), id: oRef.id } as Order;
+
+      // Skip COD orders whose cash hasn't been confirmed as received yet.
+      if (status === "DELIVERED" && order.paymentMethod === "COD" && order.paymentStatus !== "PAID") {
+        continue;
+      }
 
       if (status === "CANCELLED" && order.status !== "CANCELLED") {
         for (const i of order.items) {
