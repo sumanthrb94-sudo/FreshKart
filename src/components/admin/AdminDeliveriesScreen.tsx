@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
 import { driverApprovalLimit, payableTotal } from "@/lib/delivery-adjustment";
 import { AdminShell } from "./AdminShell";
+import { AdminServiceAreaCard } from "./AdminServiceAreaCard";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
@@ -220,6 +221,9 @@ export function AdminDeliveriesScreen() {
             )}
           </CardBody>
         </Card>
+
+        {/* Where we deliver — drives the driver's map and stop order */}
+        <AdminServiceAreaCard />
 
         {/* Settled — the audit trail for what was written off */}
         {settled.length > 0 && (

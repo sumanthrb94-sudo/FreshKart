@@ -73,6 +73,15 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // --- Settings: delivery service area ({ hub, pincodes: [...] }).
+    //     World-readable — the driver app sequences a run from it, and
+    //     where we deliver is not a secret. Admin-writable only. ---
+    match /settings/serviceArea {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
     // --- Settings: live price mirror ({ prices: { productId: price } }),
     //     kept in sync by updateProduct/createProduct/updateProductPrices in
     //     src/lib/api/firebase.ts on every price-changing admin write. The

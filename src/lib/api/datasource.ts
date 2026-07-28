@@ -19,6 +19,7 @@ import type {
   TicketSender,
 } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
+import type { ServiceArea } from "@/lib/service-area";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
 
 /**
@@ -231,6 +232,14 @@ export interface DataSource {
   /** Optional — admin: force the shop open/closed, or hand control back to
    *  the 8 AM – 9 PM schedule. */
   setStoreOverride?(userId: string, override: StoreOverride): Promise<StoreSettings>;
+  /**
+   * Optional: the hub the van leaves from and the pincodes we deliver to.
+   * Read by the driver app to sequence a run and place stops on the map.
+   * Null means never configured — callers fall back to DEFAULT_SERVICE_AREA.
+   */
+  getServiceArea?(): Promise<ServiceArea | null>;
+  /** Optional — admin: replace the hub and served-pincode list. */
+  saveServiceArea?(userId: string, area: ServiceArea): Promise<ServiceArea>;
 
   // --- Danger zone ------------------------------------------------------------
   /**

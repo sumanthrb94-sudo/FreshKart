@@ -4,6 +4,8 @@ import type { SupportTicket } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
 import { DEMO_COUPONS } from "@/lib/coupons";
 import type { InAppNotification } from "@/lib/in-app-notifications";
+import type { ServiceArea } from "@/lib/service-area";
+import { DEFAULT_SERVICE_AREA } from "@/lib/service-area";
 
 interface MockStore {
   products: Product[];
@@ -14,6 +16,7 @@ interface MockStore {
   notifications: InAppNotification[];
   dailyPrices: DailyPricesSettings | null;
   storeSettings: StoreSettings | null;
+  serviceArea: ServiceArea | null;
   credentials: Record<string, string>;
 }
 
@@ -26,6 +29,9 @@ function seed(): MockStore {
     coupons: structuredClone(DEMO_COUPONS),
     notifications: [],
     dailyPrices: null,
+    // The demo backend ships with the starter area so the driver map has a
+    // hub and pincodes to draw on a fresh reload.
+    serviceArea: structuredClone(DEFAULT_SERVICE_AREA),
     storeSettings: null,
     credentials: {
       "customer@green-basket.in": DEMO_PASSWORD,

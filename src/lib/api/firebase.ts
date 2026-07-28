@@ -49,6 +49,7 @@ import type {
   TicketMessage,
 } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
+import type { ServiceArea } from "@/lib/service-area";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
 import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
@@ -1352,6 +1353,32 @@ export class FirebaseDataSource implements DataSource {
     };
     await setDoc(doc(getDb(), COL.settings, "store"), settings, { merge: true });
     return settings;
+  }
+
+  /**
+   * The delivery hub and the pincodes we serve. World-readable — the driver
+   * app needs it to sequence a run, and it is not secret.
+   */
+  async getServiceArea(): Promise<ServiceArea | null> {
+    await this.ready();
+    const snap = await readDoc(doc(getDb(), COL.settings, "serviceArea"));
+    return snap.exists() ? (snap.data() as ServiceArea) : null;
+  }
+
+  async saveServiceArea(userId: string, area: ServiceArea): Promise<ServiceArea> {
+    await this.ready();
+    const next: ServiceArea = {
+      hub: area.hub,
+      // Stored sorted and de-duplicated so the admin list, the map legend and
+      // the driver's pincode chips all agree on one order.
+      pincodes: [...area.pincodes]
+        .filter((p, i, all) => all.findIndex((q) => q.code === p.code) === i)
+        .sort((a, b) => a.code.localeCompare(b.code)),
+      updatedAt: new Date().toISOString(),
+      updatedBy: userId,
+    };
+    await setDoc(doc(getDb(), COL.settings, "serviceArea"), next);
+    return next;
   }
 
   // --- Danger zone ------------------------------------------------------------

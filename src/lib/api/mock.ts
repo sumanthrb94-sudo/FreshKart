@@ -17,6 +17,7 @@ import type {
 import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
+import type { ServiceArea } from "@/lib/service-area";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
 import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
@@ -752,6 +753,25 @@ export class MockDataSource implements DataSource {
       s.storeSettings = settings;
     });
     return delay(structuredClone(settings));
+  }
+
+  async getServiceArea(): Promise<ServiceArea | null> {
+    return delay(structuredClone(store.get().serviceArea) ?? null);
+  }
+
+  async saveServiceArea(userId: string, area: ServiceArea): Promise<ServiceArea> {
+    const next: ServiceArea = {
+      hub: area.hub,
+      pincodes: [...area.pincodes]
+        .filter((p, i, all) => all.findIndex((q) => q.code === p.code) === i)
+        .sort((a, b) => a.code.localeCompare(b.code)),
+      updatedAt: new Date().toISOString(),
+      updatedBy: userId,
+    };
+    store.mutate((s) => {
+      s.serviceArea = next;
+    });
+    return delay(structuredClone(next));
   }
 
   // --- Danger zone ------------------------------------------------------------

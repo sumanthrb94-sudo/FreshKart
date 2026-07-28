@@ -94,10 +94,14 @@ export const USERS: User[] = [
     phone: "9812345678",
     role: "BUYER",
     businessName: "Suresh Kirana Store",
-    city: "Bengaluru",
-    address: "12, Gandhi Bazaar, Basavanagudi",
-    pincode: "560004",
-    gstin: "29BUYER1234A1Z9",
+    city: "Hyderabad",
+    address: "12, Sarojini Devi Road, Secunderabad",
+    pincode: "500003",
+    // An exact pin, as if this buyer had used the map picker — the driver
+    // map draws these differently from a pincode-centre guess.
+    lat: 17.4402,
+    lng: 78.4991,
+    gstin: "36BUYER1234A1Z9",
     createdAt: "2026-05-01T09:00:00.000Z",
   },
   {
@@ -107,7 +111,7 @@ export const USERS: User[] = [
     phone: "9800000001",
     role: "DRIVER",
     businessName: "Green Basket Delivery",
-    city: "Bengaluru",
+    city: "Hyderabad",
     createdAt: "2026-04-01T09:00:00.000Z",
   },
   {
@@ -117,10 +121,10 @@ export const USERS: User[] = [
     phone: "9800000000",
     role: "ADMIN",
     businessName: "Green Basket",
-    city: "Bengaluru",
-    address: "Green Basket Ops, Whitefield",
-    pincode: "560066",
-    gstin: "29FRESH9876B1Z2",
+    city: "Hyderabad",
+    address: "Green Basket Ops, Bowenpally",
+    pincode: "500011",
+    gstin: "36FRESH9876B1Z2",
     createdAt: "2026-04-01T09:00:00.000Z",
   },
   {
@@ -143,9 +147,11 @@ export const USERS: User[] = [
     phone: "9700223344",
     role: "BUYER",
     businessName: "Daily Fresh Mart",
-    city: "Chennai",
-    address: "8, T. Nagar, Usman Road",
-    pincode: "600017",
+    city: "Hyderabad",
+    address: "8, KPHB Colony Phase 3",
+    pincode: "500072",
+    lat: 17.4861,
+    lng: 78.4123,
     createdAt: "2026-05-20T09:00:00.000Z",
   },
 ];
@@ -192,6 +198,9 @@ function buildOrder(
       city: buyer.city ?? "",
       address: buyer.address ?? "",
       pincode: buyer.pincode ?? "",
+      ...(typeof buyer.lat === "number" && typeof buyer.lng === "number"
+        ? { lat: buyer.lat, lng: buyer.lng }
+        : {}),
     },
     notes: o.notes,
     ...(o.driverId ? { driverId: o.driverId, driverName: o.driverName, assignedAt: o.createdAt } : {}),
@@ -268,5 +277,22 @@ export const ORDERS: Order[] = [
     createdAt: "2026-06-19T10:05:00.000Z",
     notes: "Cancelled by buyer — stock was released.",
     items: [{ productId: "lemon", qty: 10 }],
+  }),
+  // Third stop on the demo run, and the only one without an exact pin — the
+  // driver map places it at the centre of 500033 and says so.
+  buildOrder({
+    id: "order-6",
+    orderNumber: "ORD-20260624-JH55TT",
+    buyerId: "user-buyer-2",
+    status: "SHIPPED",
+    driverId: "user-driver-1",
+    driverName: "Ravi (Delivery)",
+    paymentMethod: "COD",
+    createdAt: "2026-06-24T05:30:00.000Z",
+    items: [
+      { productId: "tomato", qty: 20 },
+      { productId: "carrot", qty: 20 },
+      { productId: "lemon", qty: 2 },
+    ],
   }),
 ];

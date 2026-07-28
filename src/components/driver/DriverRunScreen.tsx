@@ -9,9 +9,11 @@ import {
   ChevronLeft,
   Clock,
   IndianRupee,
+  List,
   LogOut,
+  Map as MapIcon,
   MapPin,
-  Package,
+  Navigation,
   Phone,
   Truck,
   X,
@@ -28,6 +30,16 @@ import {
   payableTotal,
   totalRefundOf,
 } from "@/lib/delivery-adjustment";
+import {
+  DEFAULT_SERVICE_AREA,
+  formatKm,
+  navigationUrl,
+  sequenceRun,
+  summarizeRun,
+  type RunStop,
+  type ServiceArea,
+} from "@/lib/service-area";
+import { DriverRouteMap } from "./DriverRouteMap";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -53,6 +65,8 @@ export function DriverRunScreen() {
   const router = useRouter();
   const { user, loading: authLoading, logout } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);
+  const [view, setView] = useState<"list" | "map">("list");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
@@ -66,9 +80,22 @@ export function DriverRunScreen() {
     [user?.id, tick]
   );
 
+  const { data: savedArea } = useAsync(
+    () => (api.getServiceArea ? api.getServiceArea() : Promise.resolve(null)),
+    []
+  );
+  // Until an admin has saved a real area we still need a hub to measure from,
+  // so the starter area stands in rather than leaving the run unsequenced.
+  const area: ServiceArea = savedArea ?? DEFAULT_SERVICE_AREA;
+
+  const stops = useMemo(() => sequenceRun(orders ?? [], area), [orders, area]);
+  const summary = useMemo(() => summarizeRun(stops), [stops]);
+
   if (authLoading || !user) return <FullScreenLoader label="Loading your run…" />;
 
   const open = (orders ?? []).find((o) => o.id === openId) ?? null;
+  const openStop = open ? stops.find((s) => s.order.id === open.id) ?? null : null;
+  const selected = stops.find((s) => s.order.id === selectedId) ?? null;
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-canvas">
@@ -92,7 +119,9 @@ export function DriverRunScreen() {
             {open ? open.businessName : "My run"}
           </p>
           <p className="truncate text-2xs text-fg-subtle">
-            {open ? open.orderNumber : `${user.name} · ${(orders ?? []).length} stops left`}
+            {open
+              ? `${openStop ? `Stop ${openStop.seq} · ` : ""}${open.orderNumber}`
+              : `${user.name} · ${summary.stops} stops · ${formatKm(summary.totalKm)}`}
           </p>
         </div>
         {!open && (
@@ -118,6 +147,7 @@ export function DriverRunScreen() {
         ) : open ? (
           <DeliveryStop
             order={open}
+            stop={openStop}
             onDone={() => {
               setOpenId(null);
               refresh();
@@ -131,38 +161,187 @@ export function DriverRunScreen() {
             subtitle="Every stop on your run is done. Nice work!"
           />
         ) : (
-          <ul className="flex flex-col gap-2.5">
-            {(orders ?? []).map((o) => (
-              <li key={o.id}>
-                <button
-                  type="button"
-                  onClick={() => setOpenId(o.id)}
-                  className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface p-3 text-left shadow-card transition-shadow hover:shadow-card-hover"
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500">
-                    <Package className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold text-fg">{o.businessName}</span>
-                    <span className="block truncate text-xs text-fg-subtle">
-                      {o.delivery.address}, {o.delivery.city}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <span className="block text-sm font-extrabold text-fg">
-                      {formatCurrency(payableTotal(o))}
-                    </span>
-                    <span className="block text-2xs font-semibold text-fg-subtle">
-                      {o.items.length} item{o.items.length === 1 ? "" : "s"}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="flex flex-col gap-3">
+            {/* The run is sequenced nearest-first from the hub, so working
+                straight down this list is the shortest sensible route. */}
+            <div className="flex items-center justify-between gap-2">
+              <p className="min-w-0 truncate text-xs text-fg-subtle">
+                From {area.hub.name}
+                {summary.unmapped > 0 && ` · ${summary.unmapped} not on the map`}
+              </p>
+              <div className="flex shrink-0 rounded-lg border border-line bg-surface p-0.5">
+                <TabButton active={view === "list"} onClick={() => setView("list")} icon={List}>
+                  Route
+                </TabButton>
+                <TabButton active={view === "map"} onClick={() => setView("map")} icon={MapIcon}>
+                  Map
+                </TabButton>
+              </div>
+            </div>
+
+            {view === "map" ? (
+              <>
+                <DriverRouteMap
+                  area={area}
+                  stops={stops}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  className="h-[52vh]"
+                />
+                {selected ? (
+                  <div className="rounded-xl border border-line bg-surface p-3">
+                    <p className="text-sm font-bold text-fg">
+                      {selected.seq}. {selected.order.businessName}
+                    </p>
+                    <p className="mt-0.5 text-xs text-fg-subtle">
+                      {selected.order.delivery.address}, {selected.order.delivery.city}
+                    </p>
+                    <div className="mt-2.5 flex gap-2">
+                      <Button size="sm" onClick={() => setOpenId(selected.order.id)}>
+                        Open stop
+                      </Button>
+                      <NavigateButton stop={selected} />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-fg-subtle">
+                    Tap a numbered pin to see that stop. Blue pins are exact addresses, light blue
+                    are pincode centres, amber is outside our delivery pincodes.
+                  </p>
+                )}
+              </>
+            ) : (
+              <ul className="flex flex-col gap-2.5">
+                {stops.map((stop) => (
+                  <li key={stop.order.id}>
+                    <div className="flex items-stretch gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setOpenId(stop.order.id)}
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface p-3 text-left shadow-card transition-shadow hover:shadow-card-hover"
+                      >
+                        <span
+                          className={cn(
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white",
+                            !stop.served
+                              ? "bg-amber-500"
+                              : stop.precision === "PINCODE"
+                                ? "bg-sky-500"
+                                : "bg-blue-600"
+                          )}
+                        >
+                          {stop.seq}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-bold text-fg">
+                            {stop.order.businessName}
+                          </span>
+                          <span className="block truncate text-xs text-fg-subtle">
+                            {stop.order.delivery.address}, {stop.order.delivery.city}
+                          </span>
+                          <span className="mt-0.5 block truncate text-2xs font-semibold text-fg-subtle">
+                            {stop.order.delivery.pincode || "no pincode"}
+                            {stop.legKm !== null &&
+                              ` · ${formatKm(stop.legKm)} ${stop.seq === 1 ? "from the hub" : "from previous"}`}
+                          </span>
+                          {/* Warnings get their own line — on a narrow phone
+                              they were the first thing an ellipsis ate. */}
+                          {(!stop.served || stop.precision !== "PIN") && (
+                            <span className="mt-1 flex flex-wrap gap-1">
+                              {!stop.served && <StopFlag tone="amber">outside our area</StopFlag>}
+                              {stop.precision === "PINCODE" && (
+                                <StopFlag tone="sky">approx. location</StopFlag>
+                              )}
+                              {stop.precision === "NONE" && (
+                                <StopFlag tone="amber">not on the map</StopFlag>
+                              )}
+                            </span>
+                          )}
+                        </span>
+                        <span className="shrink-0 text-right">
+                          <span className="block text-sm font-extrabold text-fg">
+                            {formatCurrency(payableTotal(stop.order))}
+                          </span>
+                          <span className="block text-2xs font-semibold text-fg-subtle">
+                            {stop.order.items.length} item
+                            {stop.order.items.length === 1 ? "" : "s"}
+                          </span>
+                        </span>
+                      </button>
+                      <a
+                        href={navigationUrl(stop)}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`Navigate to ${stop.order.businessName}`}
+                        className="flex w-12 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-brand-500 shadow-card"
+                      >
+                        <Navigation className="h-4 w-4" />
+                      </a>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </main>
     </div>
+  );
+}
+
+function StopFlag({ tone, children }: { tone: "amber" | "sky"; children: React.ReactNode }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-1.5 py-0.5 text-2xs font-bold",
+        tone === "amber" ? "bg-amber-500/15 text-amber-600" : "bg-sky-500/15 text-sky-600"
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Hand the stop to the phone's maps app — drivers already trust it for
+ *  traffic and one-ways, and it keeps working with the screen locked. */
+function NavigateButton({ stop }: { stop: RunStop }) {
+  return (
+    <a
+      href={navigationUrl(stop)}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-raised px-3 text-sm font-bold text-brand-500"
+    >
+      <Navigation className="h-4 w-4" aria-hidden />
+      Navigate
+    </a>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon: Icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: typeof List;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold transition-colors",
+        active ? "bg-brand-500 text-white" : "text-fg-muted hover:bg-raised"
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden />
+      {children}
+    </button>
   );
 }
 
@@ -170,10 +349,12 @@ export function DriverRunScreen() {
  *  collect the adjusted amount and close the delivery. */
 function DeliveryStop({
   order,
+  stop,
   onDone,
   onChanged,
 }: {
   order: Order;
+  stop: RunStop | null;
   onDone: () => void;
   onChanged: () => void;
 }) {
@@ -252,13 +433,26 @@ function DeliveryStop({
             {order.delivery.address}, {order.delivery.city} — {order.delivery.pincode}
           </span>
         </p>
-        <a
-          href={`tel:${order.delivery.phone}`}
-          className="mt-2 flex items-center gap-2 text-sm font-semibold text-brand-500"
-        >
-          <Phone className="h-4 w-4" aria-hidden />
-          {order.delivery.phone}
-        </a>
+        {stop?.precision === "PINCODE" && (
+          <p className="mt-1.5 text-2xs font-semibold text-sky-600">
+            Map pin is the pincode centre — call before the last turn.
+          </p>
+        )}
+        {stop && !stop.served && (
+          <p className="mt-1.5 text-2xs font-semibold text-amber-600">
+            This pincode isn&apos;t in our delivery area — flag it to the office.
+          </p>
+        )}
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <a
+            href={`tel:${order.delivery.phone}`}
+            className="flex items-center gap-2 text-sm font-semibold text-brand-500"
+          >
+            <Phone className="h-4 w-4" aria-hidden />
+            {order.delivery.phone}
+          </a>
+          {stop && <NavigateButton stop={stop} />}
+        </div>
       </div>
 
       {/* Goods */}
