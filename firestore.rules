@@ -22,7 +22,7 @@ service cloud.firestore {
     function isAdminPhone() {
       return isSignedIn()
              && 'phone_number' in request.auth.token
-             && request.auth.token.phone_number in ['+919876543210'];
+             && request.auth.token.phone_number in ['+919700144003'];
     }
 
     // Reading `.data` off a get() for a document that doesn't exist throws —

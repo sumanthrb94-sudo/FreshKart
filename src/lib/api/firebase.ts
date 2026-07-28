@@ -81,7 +81,7 @@ const COL = {
 // verified OTP phone number, so this replaces the old Google-email
 // allowlist. Keep in sync with the `isAdminPhone()` allowlist in
 // firestore.rules (rules can't import from here).
-const ADMIN_PHONES = ["+919876543210"];
+const ADMIN_PHONES = ["+919700144003"];
 function isAdminPhone(phone?: string | null): boolean {
   return !!phone && ADMIN_PHONES.includes(phone.trim());
 }
