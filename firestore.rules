@@ -424,7 +424,14 @@ service cloud.firestore {
     function isDriverDoorstepUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['adjustment', 'status', 'paymentStatus', 'deliveredAt', 'updatedAt', 'notes'])
-             && request.resource.data.status in ['SHIPPED', 'DELIVERED']
+             // Assigning a driver does NOT move the order to SHIPPED, so a run
+             // routinely goes out with orders still CONFIRMED or PACKED. If
+             // this only accepted SHIPPED/DELIVERED, the very first write at
+             // the door — recording a rejection, which leaves status alone —
+             // would be denied as "missing permissions" with the customer
+             // standing there. PENDING and CANCELLED stay out: a driver must
+             // not be able to push an order backwards or revive a dead one.
+             && request.resource.data.status in ['CONFIRMED', 'PACKED', 'SHIPPED', 'DELIVERED']
              && request.resource.data.buyerId == resource.data.buyerId
              && request.resource.data.total == resource.data.total
              && request.resource.data.items == resource.data.items;
