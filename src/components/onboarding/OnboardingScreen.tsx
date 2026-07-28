@@ -134,6 +134,24 @@ export function OnboardingScreen() {
     }
   }
 
+  /** Resend the OTP without leaving the code-entry screen. The first send's
+   *  invisible-reCAPTCHA token was consumed, so re-arm a fresh verifier in
+   *  this step's own hidden container, then fire the SMS again. */
+  async function handleResend() {
+    setBusy(true);
+    setError(null);
+    try {
+      await renderRecaptcha(RECAPTCHA_ID, () => {}, () => {});
+      confirmation.current = await sendOtp(toE164(phone), RECAPTCHA_ID);
+      setOtp(["", "", "", "", "", ""]);
+      setResendIn(30);
+    } catch (e) {
+      setError(friendlyPhoneError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleVerify() {
     const code = otp.join("");
     if (code.length < 6 || !confirmation.current) {
@@ -429,7 +447,10 @@ export function OnboardingScreen() {
               ))}
             </div>
 
-            {/* Resend + delivery hint */}
+            {/* Resend + delivery hint. Resending stays HERE on the code screen —
+                it re-arms a fresh verifier in the hidden container below and
+                fires the SMS again, no bounce back to the sign-in screen. */}
+            <div id={RECAPTCHA_ID} className="hidden" />
             <div className="mt-5 text-center text-sm text-fg-subtle">
               Didn&apos;t get the code?{" "}
               {resendIn > 0 ? (
@@ -437,11 +458,7 @@ export function OnboardingScreen() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    resetRecaptcha();
-                    setRecaptchaReady(false);
-                    setStep("mobile");
-                  }}
+                  onClick={handleResend}
                   disabled={busy}
                   className="font-semibold text-brand-400 disabled:opacity-50"
                 >
@@ -450,7 +467,7 @@ export function OnboardingScreen() {
               )}
             </div>
             <p className="mt-1 text-center text-xs text-fg-subtle">
-              SMS can take a moment. Check the number is right, or try again in a minute.
+              SMS can take a moment — and check your spam / blocked messages folder.
             </p>
 
             {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}

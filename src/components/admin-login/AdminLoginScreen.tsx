@@ -114,6 +114,23 @@ export function AdminLoginScreen() {
     }
   }
 
+  /** Resend the OTP without leaving the code-entry screen — same in-place
+   *  re-arm + re-send as the buyer onboarding flow. */
+  async function handleResend() {
+    setBusy(true);
+    setError(null);
+    try {
+      await renderRecaptcha(RECAPTCHA_ID, () => {}, () => {});
+      confirmation.current = await sendOtp(toE164(phone), RECAPTCHA_ID);
+      setOtp(["", "", "", "", "", ""]);
+      setResendIn(30);
+    } catch (e) {
+      setError(friendlyPhoneError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleVerify() {
     const code = otp.join("");
     if (code.length < 6 || !confirmation.current) {
@@ -257,6 +274,7 @@ export function AdminLoginScreen() {
               ))}
             </div>
 
+            <div id={RECAPTCHA_ID} className="hidden" />
             <div className="mt-4 text-sm text-fg-subtle">
               Didn&apos;t get the code?{" "}
               {resendIn > 0 ? (
@@ -264,11 +282,7 @@ export function AdminLoginScreen() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    resetRecaptcha();
-                    setRecaptchaReady(false);
-                    setStep("mobile");
-                  }}
+                  onClick={handleResend}
                   disabled={busy}
                   className="font-semibold text-brand-400 disabled:opacity-50"
                 >
