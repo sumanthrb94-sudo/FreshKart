@@ -8,6 +8,8 @@ import type {
   ProfileSetupInput,
   Product,
   ProductInput,
+  StoreOverride,
+  StoreSettings,
   User,
 } from "@/lib/types";
 import type {
@@ -215,6 +217,22 @@ export interface DataSource {
   getDailyPricesSettings(): Promise<DailyPricesSettings | null>;
   /** Admin: mark today's prices as published. */
   publishDailyPrices(userId: string): Promise<DailyPricesSettings>;
+  /**
+   * Optional — admin: take today's prices back down, returning the shop to
+   * "waiting for tomorrow's prices". The counterpart to publishDailyPrices,
+   * for when a price sheet goes out wrong and ordering must stop until it's
+   * corrected.
+   */
+  unpublishDailyPrices?(): Promise<void>;
+  /**
+   * Optional: read the admin store-open override (world-readable — buyers
+   * need it to know whether the shop is live). Null means never set, which
+   * is treated as AUTO.
+   */
+  getStoreSettings?(): Promise<StoreSettings | null>;
+  /** Optional — admin: force the shop open/closed, or hand control back to
+   *  the 8 AM – 9 PM schedule. */
+  setStoreOverride?(userId: string, override: StoreOverride): Promise<StoreSettings>;
 
   // --- Danger zone ------------------------------------------------------------
   /**

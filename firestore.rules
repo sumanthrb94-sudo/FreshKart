@@ -56,6 +56,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // --- Settings: admin store-open override ({ override, expiresAt, ... }).
+    //     World-readable because every buyer's shop screen needs it to decide
+    //     whether the store is live; admin-writable only. Deliberately allows
+    //     delete so an admin can clear the override entirely, which the app
+    //     reads as AUTO. ---
+    match /settings/store {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     // --- Settings: live price mirror ({ prices: { productId: price } }),
     //     kept in sync by updateProduct/createProduct/updateProductPrices in
     //     src/lib/api/firebase.ts on every price-changing admin write. The

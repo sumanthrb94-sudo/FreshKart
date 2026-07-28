@@ -35,6 +35,8 @@ import type {
   ProfileSetupInput,
   Product,
   ProductInput,
+  StoreOverride,
+  StoreSettings,
   User,
 } from "@/lib/types";
 import {
@@ -61,6 +63,7 @@ import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-noti
 import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
+import { nextStoreClose } from "@/lib/store-hours";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
 // Shared with the sign-in UI, which routes allowlisted numbers straight to
 // admin; rules-side enforcement is the matching isAdminPhone() in
@@ -1418,6 +1421,41 @@ export class FirebaseDataSource implements DataSource {
     batch.set(doc(db, COL.settings, "priceSheet"), { prices });
     batch.set(doc(db, COL.settings, "dailyPrices"), settings, { merge: true });
     await batch.commit();
+    return settings;
+  }
+
+  /**
+   * Take today's prices back down — the shop returns to "waiting for the
+   * next price update" and stops accepting orders. Deletes the field rather
+   * than blanking it, so isDailyPriceUpdatePublished() sees no timestamp at
+   * all (a blank string would be a truthy-looking but invalid date).
+   */
+  async unpublishDailyPrices(): Promise<void> {
+    await this.ready();
+    await setDoc(
+      doc(getDb(), COL.settings, "dailyPrices"),
+      { publishedAt: deleteField(), publishedBy: deleteField() },
+      { merge: true }
+    );
+  }
+
+  async getStoreSettings(): Promise<StoreSettings | null> {
+    await this.ready();
+    const snap = await readDoc(doc(getDb(), COL.settings, "store"));
+    return snap.exists() ? (snap.data() as StoreSettings) : null;
+  }
+
+  async setStoreOverride(userId: string, override: StoreOverride): Promise<StoreSettings> {
+    await this.ready();
+    // A forced state lapses at the next 9 PM IST, so the shop returns to its
+    // schedule on its own even if nobody remembers to undo a test.
+    const settings: StoreSettings = {
+      override,
+      updatedAt: new Date().toISOString(),
+      updatedBy: userId,
+      ...(override === "AUTO" ? {} : { expiresAt: nextStoreClose().toISOString() }),
+    };
+    await setDoc(doc(getDb(), COL.settings, "store"), settings, { merge: true });
     return settings;
   }
 

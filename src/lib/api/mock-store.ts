@@ -1,4 +1,4 @@
-import type { DailyPricesSettings, Order, Product, User } from "@/lib/types";
+import type { DailyPricesSettings, Order, Product, StoreSettings, User } from "@/lib/types";
 import { ORDERS, PRODUCTS, USERS, DEMO_PASSWORD } from "@/lib/mock-data";
 import type { ReturnRequest } from "@/lib/returns";
 import { demoReturnRequests } from "@/lib/returns";
@@ -16,6 +16,7 @@ interface MockStore {
   coupons: Coupon[];
   notifications: InAppNotification[];
   dailyPrices: DailyPricesSettings | null;
+  storeSettings: StoreSettings | null;
   credentials: Record<string, string>;
 }
 
@@ -29,6 +30,7 @@ function seed(): MockStore {
     coupons: structuredClone(DEMO_COUPONS),
     notifications: [],
     dailyPrices: null,
+    storeSettings: null,
     credentials: {
       "customer@green-basket.in": DEMO_PASSWORD,
       "admin@green-basket.in": DEMO_PASSWORD,

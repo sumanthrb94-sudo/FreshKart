@@ -7,7 +7,7 @@ import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
 import { formatLastPublished, isDailyPriceUpdatePublished } from "@/lib/time";
-import { getStoreStatus } from "@/lib/store-hours";
+import { getStoreStatus, effectiveOverride } from "@/lib/store-hours";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
@@ -62,7 +62,16 @@ export function ShopScreen() {
     const timer = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(timer);
   }, []);
-  const storeStatus = useMemo(() => getStoreStatus(now), [now]);
+  // An admin can force the shop live (or shut) outside the 8 AM - 9 PM
+  // window; the override lapses at the next 9 PM on its own.
+  const { data: storeSettings } = useAsync(
+    () => (api.getStoreSettings ? api.getStoreSettings() : Promise.resolve(null)),
+    []
+  );
+  const storeStatus = useMemo(
+    () => getStoreStatus(now, effectiveOverride(storeSettings, now)),
+    [now, storeSettings]
+  );
   const canOrder = pricesPublished && storeStatus.isOpen;
 
   const visible = useMemo(() => {

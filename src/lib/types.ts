@@ -29,6 +29,29 @@ export interface DailyPricesSettings {
   publishedBy?: string;
 }
 
+/**
+ * Admin override for the 8 AM – 9 PM IST schedule.
+ * - AUTO   — follow the clock (the normal case)
+ * - OPEN   — force the shop live regardless of the hour (demos, late runs)
+ * - CLOSED — force it shut regardless of the hour (holiday, no stock)
+ */
+export type StoreOverride = "AUTO" | "OPEN" | "CLOSED";
+
+export interface StoreSettings {
+  override: StoreOverride;
+  /**
+   * When the override stops applying and the shop reverts to the schedule —
+   * the next 9 PM IST after it was set. An override that never expired would
+   * silently leave the shop open (or shut) indefinitely the moment someone
+   * forgot to undo a test. Unset/absent = no expiry (AUTO).
+   */
+  expiresAt?: string;
+  /** ISO 8601 timestamp of the last override change. */
+  updatedAt?: string;
+  /** User id of the admin who set it. */
+  updatedBy?: string;
+}
+
 export interface Category {
   /** slug, e.g. "vegetables" */
   id: string;

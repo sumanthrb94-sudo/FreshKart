@@ -8,6 +8,8 @@ import type {
   OrderItem,
   Product,
   ProductInput,
+  StoreOverride,
+  StoreSettings,
   User,
 } from "@/lib/types";
 import type {
@@ -29,6 +31,7 @@ import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-noti
 import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
+import { nextStoreClose } from "@/lib/store-hours";
 import { DataSource, ApiError, type WipeResult } from "./datasource";
 import { store } from "./mock-store";
 
@@ -807,6 +810,32 @@ export class MockDataSource implements DataSource {
     };
     store.mutate((s) => {
       s.dailyPrices = settings;
+    });
+    return delay(structuredClone(settings));
+  }
+
+  async unpublishDailyPrices(): Promise<void> {
+    store.mutate((s) => {
+      s.dailyPrices = null;
+    });
+    return delay(undefined);
+  }
+
+  async getStoreSettings(): Promise<StoreSettings | null> {
+    return delay(structuredClone(store.get().storeSettings) ?? null);
+  }
+
+  async setStoreOverride(userId: string, override: StoreOverride): Promise<StoreSettings> {
+    // A forced state lapses at the next 9 PM IST, so the shop returns to its
+    // schedule on its own even if nobody remembers to undo a test.
+    const settings: StoreSettings = {
+      override,
+      updatedAt: new Date().toISOString(),
+      updatedBy: userId,
+      ...(override === "AUTO" ? {} : { expiresAt: nextStoreClose().toISOString() }),
+    };
+    store.mutate((s) => {
+      s.storeSettings = settings;
     });
     return delay(structuredClone(settings));
   }

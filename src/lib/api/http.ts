@@ -7,6 +7,8 @@ import type {
   OrderStatus,
   Product,
   ProductInput,
+  StoreOverride,
+  StoreSettings,
   User,
 } from "@/lib/types";
 import type { CreateReturnInput, ReturnRequest, ReturnStatus } from "@/lib/returns";
@@ -227,6 +229,21 @@ export class HttpDataSource implements DataSource {
     return this.request<DailyPricesSettings>("/settings/dailyPrices/publish", {
       method: "POST",
       body: JSON.stringify({ publishedBy: userId }),
+    });
+  }
+
+  unpublishDailyPrices() {
+    return this.request<void>("/settings/dailyPrices/publish", { method: "DELETE" });
+  }
+
+  getStoreSettings() {
+    return this.request<StoreSettings | null>("/settings/store");
+  }
+
+  setStoreOverride(userId: string, override: StoreOverride) {
+    return this.request<StoreSettings>("/settings/store", {
+      method: "PATCH",
+      body: JSON.stringify({ override, updatedBy: userId }),
     });
   }
 
