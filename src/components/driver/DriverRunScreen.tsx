@@ -34,6 +34,7 @@ import {
   DEFAULT_SERVICE_AREA,
   formatKm,
   navigationUrl,
+  radiusOf,
   sequenceRun,
   summarizeRun,
   type RunStop,
@@ -166,7 +167,8 @@ export function DriverRunScreen() {
                 straight down this list is the shortest sensible route. */}
             <div className="flex items-center justify-between gap-2">
               <p className="min-w-0 truncate text-xs text-fg-subtle">
-                From {area.hub.name}
+                From {area.hub.name} · {radiusOf(area)} km
+                {summary.beyondRadius > 0 && ` · ${summary.beyondRadius} past it`}
                 {summary.unmapped > 0 && ` · ${summary.unmapped} not on the map`}
               </p>
               <div className="flex shrink-0 rounded-lg border border-line bg-surface p-0.5">
@@ -206,7 +208,8 @@ export function DriverRunScreen() {
                 ) : (
                   <p className="text-xs text-fg-subtle">
                     Tap a numbered pin to see that stop. Blue pins are exact addresses, light blue
-                    are pincode centres, amber is outside our delivery pincodes.
+                    are pincode centres, and amber means outside our pincodes or past the{" "}
+                    {radiusOf(area)} km ring.
                   </p>
                 )}
               </>
@@ -223,7 +226,7 @@ export function DriverRunScreen() {
                         <span
                           className={cn(
                             "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white",
-                            !stop.served
+                            !stop.served || stop.beyondRadius
                               ? "bg-amber-500"
                               : stop.precision === "PINCODE"
                                 ? "bg-sky-500"
@@ -246,9 +249,14 @@ export function DriverRunScreen() {
                           </span>
                           {/* Warnings get their own line — on a narrow phone
                               they were the first thing an ellipsis ate. */}
-                          {(!stop.served || stop.precision !== "PIN") && (
+                          {(!stop.served || stop.beyondRadius || stop.precision !== "PIN") && (
                             <span className="mt-1 flex flex-wrap gap-1">
                               {!stop.served && <StopFlag tone="amber">outside our area</StopFlag>}
+                              {stop.beyondRadius && (
+                                <StopFlag tone="amber">
+                                  {formatKm(stop.hubKm)} out · past {radiusOf(area)} km
+                                </StopFlag>
+                              )}
                               {stop.precision === "PINCODE" && (
                                 <StopFlag tone="sky">approx. location</StopFlag>
                               )}
@@ -441,6 +449,11 @@ function DeliveryStop({
         {stop && !stop.served && (
           <p className="mt-1.5 text-2xs font-semibold text-amber-600">
             This pincode isn&apos;t in our delivery area — flag it to the office.
+          </p>
+        )}
+        {stop?.beyondRadius && (
+          <p className="mt-1.5 text-2xs font-semibold text-amber-600">
+            {formatKm(stop.hubKm)} from the hub — past the delivery radius.
           </p>
         )}
         <div className="mt-2 flex items-center justify-between gap-2">

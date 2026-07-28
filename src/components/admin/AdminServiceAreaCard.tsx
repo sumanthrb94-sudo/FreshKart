@@ -9,6 +9,7 @@ import {
   formatKm,
   haversineKm,
   normalizePincode,
+  radiusOf,
   type ServiceArea,
   type ServicePincode,
 } from "@/lib/service-area";
@@ -174,7 +175,7 @@ export function AdminServiceAreaCard() {
                 id="hub-name"
                 value={area.hub.name}
                 onChange={(e) => edit({ ...area, hub: { ...area.hub, name: e.target.value } })}
-                placeholder="e.g. Bowenpally Market"
+                placeholder="e.g. KGM Fresh, Upperpally"
                 className="h-10 rounded-lg border border-line bg-surface px-3 text-sm text-fg outline-none focus:border-brand-500"
               />
               <div className="flex items-center justify-between gap-2">
@@ -191,6 +192,28 @@ export function AdminServiceAreaCard() {
                   Set to my location
                 </Button>
               </div>
+              <label
+                className="mt-1 text-2xs font-bold uppercase tracking-wide text-fg-subtle"
+                htmlFor="hub-radius"
+              >
+                Delivery radius (km)
+              </label>
+              <input
+                id="hub-radius"
+                type="number"
+                min={1}
+                max={100}
+                inputMode="numeric"
+                value={area.radiusKm ?? radiusOf(area)}
+                onChange={(e) =>
+                  edit({ ...area, radiusKm: Math.max(1, Number(e.target.value) || 1) })
+                }
+                className="h-10 rounded-lg border border-line bg-surface px-3 text-sm text-fg outline-none focus:border-brand-500"
+              />
+              <p className="text-2xs text-fg-subtle">
+                Drawn as a ring on the driver&apos;s map. Stops past it are still routed, but
+                flagged.
+              </p>
             </div>
 
             {/* Add a pincode */}
@@ -228,6 +251,11 @@ export function AdminServiceAreaCard() {
                       </p>
                       <p className="text-2xs text-fg-subtle">
                         {formatKm(haversineKm(area.hub, p))} from the hub
+                        {haversineKm(area.hub, p) > radiusOf(area) && (
+                          <span className="ml-1 font-bold text-amber-600">
+                            · past the {radiusOf(area)} km radius
+                          </span>
+                        )}
                       </p>
                     </div>
                     <button

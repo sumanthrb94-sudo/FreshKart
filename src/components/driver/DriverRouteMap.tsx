@@ -6,7 +6,7 @@ import type { LayerGroup, Map as LeafletMap, Marker } from "leaflet";
 import { Crosshair, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { payableTotal } from "@/lib/delivery-adjustment";
-import { formatKm, type RunStop, type ServiceArea } from "@/lib/service-area";
+import { formatKm, radiusOf, type RunStop, type ServiceArea } from "@/lib/service-area";
 import { cn } from "@/lib/utils";
 
 /** Roughly how far a pincode's deliveries spread from its centre. Only used
@@ -112,6 +112,18 @@ export function DriverRouteMap({
       layer.clearLayers();
       markersById.current = {};
 
+      // The radius we committed to, so a stop sitting outside it is obvious
+      // at a glance rather than something you work out from the odometer.
+      L.circle([area.hub.lat, area.hub.lng], {
+        radius: radiusOf(area) * 1000,
+        color: "#64748b",
+        weight: 1,
+        dashArray: "5 7",
+        fill: false,
+      })
+        .bindTooltip(`${radiusOf(area)} km from ${area.hub.name}`, { direction: "top" })
+        .addTo(layer);
+
       // Served pincodes, shaded underneath everything else.
       for (const p of area.pincodes) {
         L.circle([p.lat, p.lng], {
@@ -154,7 +166,7 @@ export function DriverRouteMap({
       for (const stop of stops) {
         if (!stop.point) continue;
         const approx = stop.precision === "PINCODE";
-        const bg = !stop.served ? "#f59e0b" : approx ? "#0ea5e9" : "#2563eb";
+        const bg = !stop.served || stop.beyondRadius ? "#f59e0b" : approx ? "#0ea5e9" : "#2563eb";
         const marker = L.marker([stop.point.lat, stop.point.lng], {
           icon: L.divIcon({
             className: "",
@@ -178,6 +190,13 @@ export function DriverRouteMap({
              }</div>
              ${approx ? '<div style="font-size:11px;color:#0369a1;margin-top:3px">Pincode centre — exact door not pinned</div>' : ""}
              ${!stop.served ? '<div style="font-size:11px;color:#b45309;margin-top:3px">Outside our delivery pincodes</div>' : ""}
+             ${
+               stop.beyondRadius
+                 ? `<div style="font-size:11px;color:#b45309;margin-top:3px">${escapeHtml(
+                     formatKm(stop.hubKm)
+                   )} out — beyond our ${radiusOf(area)} km radius</div>`
+                 : ""
+             }
            </div>`
         );
         marker.on("click", () => selectRef.current(stop.order.id));

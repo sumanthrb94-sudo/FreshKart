@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import type { Order } from "../types";
 import {
+  DEFAULT_RADIUS_KM,
   DEFAULT_SERVICE_AREA,
   formatKm,
   haversineKm,
@@ -15,6 +16,7 @@ import {
   locateOrder,
   navigationUrl,
   normalizePincode,
+  radiusOf,
   runBounds,
   sequenceRun,
   summarizeRun,
@@ -23,6 +25,7 @@ import {
 
 const AREA: ServiceArea = {
   hub: { name: "Hub", lat: 17.0, lng: 78.0 },
+  radiusKm: 10,
   pincodes: [
     { code: "500001", area: "Near", lat: 17.01, lng: 78.0 },
     { code: "500002", area: "Middle", lat: 17.05, lng: 78.0 },
@@ -151,6 +154,48 @@ describe("sequenceRun", () => {
   });
 });
 
+describe("delivery radius", () => {
+  it("falls back to the default when an area predates the setting", () => {
+    expect(radiusOf({ hub: AREA.hub, pincodes: [] })).toBe(DEFAULT_RADIUS_KM);
+    expect(radiusOf({ hub: AREA.hub, pincodes: [], radiusKm: 0 })).toBe(DEFAULT_RADIUS_KM);
+    expect(radiusOf(AREA)).toBe(10);
+  });
+
+  it("flags a stop past the radius but still routes it", () => {
+    // 0.2° of latitude ≈ 22 km, comfortably past this area's 10 km.
+    const stops = sequenceRun([order("far", { pincode: "500003" })], AREA);
+    expect(stops[0].beyondRadius).toBe(true);
+    expect(stops[0].hubKm).toBeGreaterThan(20);
+    expect(stops[0].point).not.toBeNull();
+    expect(summarizeRun(stops).beyondRadius).toBe(1);
+  });
+
+  it("leaves stops inside the radius unflagged", () => {
+    const stops = sequenceRun([order("near", { pincode: "500001" })], AREA);
+    expect(stops[0].beyondRadius).toBe(false);
+    expect(stops[0].hubKm).toBeLessThan(2);
+  });
+
+  it("measures the radius from the hub, not along the route", () => {
+    // A detour east before heading north makes the driven distance to "far"
+    // longer than its distance from the hub. The radius must judge the
+    // latter, or a stop 5 km away would be flagged just for being last.
+    const stops = sequenceRun(
+      [order("detour", { lat: 17.0, lng: 78.05 }), order("far", { pincode: "500003" })],
+      AREA
+    );
+    const far = stops.find((s) => s.order.id === "far")!;
+    expect(far.cumulativeKm).toBeGreaterThan(far.hubKm!);
+    expect(far.hubKm).toBeCloseTo(haversineKm(AREA.hub, { lat: 17.2, lng: 78.0 }), 6);
+  });
+
+  it("does not accuse an unmappable stop of being too far", () => {
+    const stops = sequenceRun([order("nowhere", { pincode: "999999" })], AREA);
+    expect(stops[0].hubKm).toBeNull();
+    expect(stops[0].beyondRadius).toBe(false);
+  });
+});
+
 describe("summarizeRun", () => {
   it("totals the distance to the last mapped stop and counts the gaps", () => {
     const stops = sequenceRun(
@@ -219,9 +264,11 @@ describe("DEFAULT_SERVICE_AREA", () => {
     expect(new Set(codes).size).toBe(codes.length);
     for (const p of DEFAULT_SERVICE_AREA.pincodes) {
       expect(normalizePincode(p.code)).toBe(p.code);
-      // Every seeded locality must be within an hour's drive of the hub, or
-      // the "nearest-first" sequence is sorting nonsense.
-      expect(haversineKm(DEFAULT_SERVICE_AREA.hub, p)).toBeLessThan(40);
+      // A starter pincode outside the radius we advertise would flag itself
+      // amber on day one, which reads as a bug rather than a decision.
+      expect(haversineKm(DEFAULT_SERVICE_AREA.hub, p)).toBeLessThanOrEqual(
+        radiusOf(DEFAULT_SERVICE_AREA)
+      );
     }
   });
 });

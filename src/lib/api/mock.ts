@@ -18,6 +18,7 @@ import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/supp
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
 import type { ServiceArea } from "@/lib/service-area";
+import { radiusOf } from "@/lib/service-area";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
 import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
@@ -762,6 +763,7 @@ export class MockDataSource implements DataSource {
   async saveServiceArea(userId: string, area: ServiceArea): Promise<ServiceArea> {
     const next: ServiceArea = {
       hub: area.hub,
+      radiusKm: radiusOf(area),
       pincodes: [...area.pincodes]
         .filter((p, i, all) => all.findIndex((q) => q.code === p.code) === i)
         .sort((a, b) => a.code.localeCompare(b.code)),

@@ -33,7 +33,7 @@ export interface ServicePincode {
 }
 
 export interface ServiceHub {
-  /** e.g. "Bowenpally Market" — shown as the start of the run. */
+  /** e.g. "KGM Fresh, Upperpally" — shown as the start of the run. */
   name: string;
   lat: number;
   lng: number;
@@ -42,9 +42,24 @@ export interface ServiceHub {
 
 export interface ServiceArea {
   hub: ServiceHub;
+  /**
+   * How far from the hub we are willing to run. Stops beyond it still get
+   * routed — the van is already loaded and the buyer is already waiting —
+   * but they are flagged, so a creeping delivery footprint is visible on the
+   * day it starts creeping rather than a month later in the fuel bill.
+   * Optional: areas saved before this existed fall back to the default.
+   */
+  radiusKm?: number;
   pincodes: ServicePincode[];
   updatedAt?: string;
   updatedBy?: string;
+}
+
+/** Used when an area has no radius of its own. */
+export const DEFAULT_RADIUS_KM = 15;
+
+export function radiusOf(area: ServiceArea): number {
+  return area.radiusKm && area.radiusKm > 0 ? area.radiusKm : DEFAULT_RADIUS_KM;
 }
 
 /**
@@ -57,18 +72,33 @@ export interface ServiceArea {
  * deliver.
  */
 export const DEFAULT_SERVICE_AREA: ServiceArea = {
-  hub: { name: "Bowenpally Market", lat: 17.4756, lng: 78.4744, pincode: "500011" },
+  hub: {
+    name: "KGM Fresh, Upperpally",
+    // Placed from the postal address (Yerraboda, Upperpally, 500048), so it
+    // is accurate to a kilometre or two, not to the gate. Standing at the
+    // store, "Set to my location" in the admin delivery-area card fixes it
+    // exactly — everything downstream measures from this point.
+    lat: 17.3436,
+    lng: 78.4237,
+    pincode: "500048",
+  },
+  radiusKm: DEFAULT_RADIUS_KM,
+  // Approximate locality centres for the pincodes within reach of the hub.
+  // Re-adding any of them from the admin card replaces the guess with the
+  // geocoder's real centroid.
   pincodes: [
-    { code: "500003", area: "Secunderabad", lat: 17.4399, lng: 78.4983 },
-    { code: "500016", area: "Begumpet", lat: 17.4435, lng: 78.4645 },
-    { code: "500018", area: "Sanathnagar", lat: 17.456, lng: 78.434 },
-    { code: "500029", area: "Himayatnagar", lat: 17.401, lng: 78.487 },
+    { code: "500005", area: "Charminar", lat: 17.3616, lng: 78.4747 },
+    { code: "500008", area: "Langar Houz", lat: 17.383, lng: 78.403 },
+    { code: "500028", area: "Mehdipatnam", lat: 17.393, lng: 78.434 },
+    { code: "500030", area: "Rajendranagar", lat: 17.322, lng: 78.403 },
+    { code: "500032", area: "Gachibowli", lat: 17.44, lng: 78.3489 },
     { code: "500033", area: "Banjara Hills", lat: 17.4126, lng: 78.438 },
     { code: "500034", area: "Somajiguda", lat: 17.4239, lng: 78.4483 },
-    { code: "500072", area: "Kukatpally", lat: 17.4849, lng: 78.4138 },
-    { code: "500081", area: "Gachibowli", lat: 17.4483, lng: 78.3915 },
-    { code: "500084", area: "Kondapur", lat: 17.463, lng: 78.364 },
-    { code: "500049", area: "Nizampet", lat: 17.51, lng: 78.39 },
+    { code: "500048", area: "Upperpally", lat: 17.3436, lng: 78.4237 },
+    { code: "500064", area: "Bahadurpura", lat: 17.353, lng: 78.447 },
+    { code: "500073", area: "Manikonda", lat: 17.405, lng: 78.372 },
+    { code: "500079", area: "Dilsukhnagar", lat: 17.3687, lng: 78.5247 },
+    { code: "500089", area: "Narsingi", lat: 17.403, lng: 78.354 },
   ],
 };
 
@@ -137,6 +167,10 @@ export interface RunStop {
   legKm: number | null;
   /** Distance covered by the time this stop is reached. */
   cumulativeKm: number | null;
+  /** Straight-line distance from the hub — what the radius is measured on. */
+  hubKm: number | null;
+  /** True when the stop is further from the hub than we said we'd go. */
+  beyondRadius: boolean;
   /** False when the address sits outside the pincodes we serve. */
   served: boolean;
 }
@@ -166,7 +200,9 @@ export function sequenceRun(orders: Order[], area: ServiceArea): RunStop[] {
 
   const stops: RunStop[] = [];
   const remaining = [...located];
-  let cursor: GeoPoint = { lat: area.hub.lat, lng: area.hub.lng };
+  const hub: GeoPoint = { lat: area.hub.lat, lng: area.hub.lng };
+  const radius = radiusOf(area);
+  let cursor: GeoPoint = hub;
   let cumulative = 0;
 
   while (remaining.length > 0) {
@@ -181,6 +217,7 @@ export function sequenceRun(orders: Order[], area: ServiceArea): RunStop[] {
     }
     const [next] = remaining.splice(bestIndex, 1);
     cumulative += bestKm;
+    const hubKm = haversineKm(hub, next.point);
     stops.push({
       order: next.order,
       seq: stops.length + 1,
@@ -188,6 +225,8 @@ export function sequenceRun(orders: Order[], area: ServiceArea): RunStop[] {
       precision: next.precision,
       legKm: bestKm,
       cumulativeKm: cumulative,
+      hubKm,
+      beyondRadius: hubKm > radius,
       served: isServedPincode(area, next.order.delivery.pincode),
     });
     cursor = next.point;
@@ -201,6 +240,10 @@ export function sequenceRun(orders: Order[], area: ServiceArea): RunStop[] {
       precision: "NONE",
       legKm: null,
       cumulativeKm: null,
+      // Nothing to measure, so nothing to accuse it of. An address we can't
+      // place is a data problem, not a distance problem.
+      hubKm: null,
+      beyondRadius: false,
       served: isServedPincode(area, order.delivery.pincode),
     });
   }
@@ -216,6 +259,8 @@ export interface RunSummary {
   unmapped: number;
   /** Stops whose pincode is outside the service area. */
   outsideArea: number;
+  /** Stops further from the hub than the agreed radius. */
+  beyondRadius: number;
 }
 
 export function summarizeRun(stops: RunStop[]): RunSummary {
@@ -226,6 +271,7 @@ export function summarizeRun(stops: RunStop[]): RunSummary {
     mapped: mapped.length,
     unmapped: stops.length - mapped.length,
     outsideArea: stops.filter((s) => !s.served).length,
+    beyondRadius: stops.filter((s) => s.beyondRadius).length,
   };
 }
 

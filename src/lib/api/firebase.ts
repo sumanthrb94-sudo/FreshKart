@@ -50,6 +50,7 @@ import type {
 } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
 import type { ServiceArea } from "@/lib/service-area";
+import { radiusOf } from "@/lib/service-area";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
 import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
@@ -1369,6 +1370,7 @@ export class FirebaseDataSource implements DataSource {
     await this.ready();
     const next: ServiceArea = {
       hub: area.hub,
+      radiusKm: radiusOf(area),
       // Stored sorted and de-duplicated so the admin list, the map legend and
       // the driver's pincode chips all agree on one order.
       pincodes: [...area.pincodes]
