@@ -12,16 +12,12 @@ import {
   notifyOrderPacked,
   notifyOrderShipped,
   notifyOrderDelivered,
-  notifyReturnApproved,
-  notifyReturnRejected,
-  notifyReturnRefunded,
 } from "@/lib/in-app-notifications";
 import type { InAppNotification } from "@/lib/in-app-notifications";
 import type { Order, OrderStatus } from "@/lib/types";
-import type { ReturnRequest, ReturnStatus } from "@/lib/returns";
 import { api } from "@/lib/api";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { playOrderUpdateChime, playReturnUpdateChime } from "@/lib/buyer-alert-sounds";
+import { playOrderUpdateChime } from "@/lib/buyer-alert-sounds";
 
 interface NotificationContextValue {
   notifications: InAppNotification[];
@@ -41,8 +37,8 @@ const NotificationContext = createContext<NotificationContextValue>({
   clearAll: () => {},
 });
 
-/** Real-time order/return status alerts for buyers: watches their own orders
- *  and returns for admin-driven progress (packed/shipped/delivered,
+/** Real-time order status alerts for buyers: watches their own orders
+ *  for admin-driven progress (packed/shipped/delivered,
  *  approved/rejected/refunded) and raises an in-app notification + chime the
  *  moment it happens — these transitions never originate from the buyer's
  *  own client, so there's no risk of double-firing against the immediate,
@@ -52,7 +48,6 @@ const NotificationContext = createContext<NotificationContextValue>({
 function useBuyerStatusAlerts() {
   const { user, isAuthenticated, isAdmin } = useAuth();
   const orderStatusRef = useRef<Map<string, OrderStatus> | null>(null);
-  const returnStatusRef = useRef<Map<string, ReturnStatus> | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated || isAdmin || !user) return;
@@ -86,37 +81,6 @@ function useBuyerStatusAlerts() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, isAdmin, user?.id]);
 
-  useEffect(() => {
-    if (!isAuthenticated || isAdmin || !user) return;
-    if (typeof api.subscribeReturns !== "function") return;
-
-    returnStatusRef.current = null;
-    const unsubscribe = api.subscribeReturns(user.id, (returns: ReturnRequest[]) => {
-      const prev = returnStatusRef.current;
-      if (!prev) {
-        returnStatusRef.current = new Map(returns.map((r) => [r.id, r.status]));
-        return;
-      }
-      for (const ret of returns) {
-        const prevStatus = prev.get(ret.id);
-        if (prevStatus === ret.status) continue;
-        if (ret.status === "APPROVED") {
-          notifyReturnApproved(ret.id);
-          playReturnUpdateChime();
-        } else if (ret.status === "REJECTED") {
-          notifyReturnRejected(ret.id);
-          playReturnUpdateChime();
-        } else if (ret.status === "REFUNDED") {
-          notifyReturnRefunded(ret.id, ret.totalRefund);
-          playReturnUpdateChime();
-        }
-      }
-      returnStatusRef.current = new Map(returns.map((r) => [r.id, r.status]));
-    });
-
-    return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, isAdmin, user?.id]);
 }
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {

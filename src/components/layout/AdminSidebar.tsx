@@ -7,7 +7,7 @@ import { Sprout, ShoppingBag, Store, LogOut, type LucideIcon } from "lucide-reac
 import { cn } from "@/lib/utils";
 import { ADMIN_TABS } from "@/components/admin/AdminBottomNav";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { useLiveOrders, useLiveReturns, useLiveNeedsHumanCount } from "@/lib/admin-alerts-store";
+import { useLiveOrders, useLiveNeedsHumanCount } from "@/lib/admin-alerts-store";
 import { NotificationBell } from "@/components/NotificationDrawer";
 
 /** Live badge count for a nav row, keyed by href — the same
@@ -16,11 +16,9 @@ import { NotificationBell } from "@/components/NotificationDrawer";
  *  of sync with each other. */
 function useNavBadgeCounts(): Record<string, number> {
   const { confirmedOrders, isLive } = useLiveOrders();
-  const { pendingCount } = useLiveReturns();
   const needsHumanCount = useLiveNeedsHumanCount();
   return {
     "/admin/orders": confirmedOrders.length,
-    "/admin/returns": pendingCount,
     "/admin/support": needsHumanCount,
     __isLive: isLive ? 1 : 0,
   } as Record<string, number>;

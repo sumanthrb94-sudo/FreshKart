@@ -14,7 +14,6 @@ import {
   MessageCircle,
   Package,
   Pin,
-  RotateCcw,
   ScanLine,
   Search,
   Settings,
@@ -40,7 +39,7 @@ import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { AdminShell } from "./AdminShell";
-import { useLiveOrders, useLiveReturns, useLiveNeedsHumanCount } from "@/lib/admin-alerts-store";
+import { useLiveOrders, useLiveNeedsHumanCount } from "@/lib/admin-alerts-store";
 import { StatCard } from "@/components/ui/StatCard";
 import { DayPicker } from "@/components/ui/DayPicker";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -63,7 +62,6 @@ const MANAGE_TILES: ManageTileDef[] = [
   { href: "/admin/prices", label: "Prices", icon: Tag, tone: "amber" },
   { href: "/admin/orders", label: "Orders", icon: ClipboardList, tone: "blue" },
   { href: "/admin/pos", label: "POS Sale", icon: ScanLine, tone: "violet" },
-  { href: "/admin/returns", label: "Returns", icon: RotateCcw, tone: "rose" },
   { href: "/admin/support", label: "Support", icon: MessageCircle, tone: "indigo" },
   { href: "/admin/reports", label: "Reports", icon: FileText, tone: "teal" },
   { href: "/admin/coupons", label: "Coupons", icon: BadgePercent, tone: "pink" },
@@ -146,7 +144,6 @@ export function AdminOverviewScreen() {
   // both stay in sync in real time off of exactly one Firestore listener
   // each; a second independent listener here would double-fire the chime.
   const { confirmedOrders } = useLiveOrders();
-  const { pendingCount: pendingReturnsCount } = useLiveReturns();
   const needsHumanCount = useLiveNeedsHumanCount();
   const newOrdersCount = confirmedOrders.length;
 
@@ -284,7 +281,6 @@ export function AdminOverviewScreen() {
       case "/admin/orders":
         return { count: newOrdersCount };
       case "/admin/returns":
-        return { count: pendingReturnsCount };
       case "/admin/support":
         return { count: needsHumanCount };
       default:

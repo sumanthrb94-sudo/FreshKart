@@ -29,10 +29,6 @@ const TYPE_ICONS: Record<InAppNotificationType, typeof ShoppingBag> = {
   order_shipped: Truck,
   order_delivered: CheckCircle2,
   order_cancelled: Ban,
-  return_requested: RotateCcw,
-  return_approved: RotateCcw,
-  return_rejected: XCircle,
-  return_refunded: IndianRupee,
   coupon_applied: Tag,
   payment_reminder: AlertTriangle,
 };
@@ -43,10 +39,6 @@ const TYPE_COLORS: Record<InAppNotificationType, string> = {
   order_shipped: "bg-blue-500/10 text-blue-500",
   order_delivered: "bg-emerald-500/10 text-emerald-500",
   order_cancelled: "bg-red-500/10 text-red-500",
-  return_requested: "bg-amber-500/10 text-amber-500",
-  return_approved: "bg-emerald-500/10 text-emerald-500",
-  return_rejected: "bg-red-500/10 text-red-500",
-  return_refunded: "bg-brand-500/10 text-brand-500",
   coupon_applied: "bg-accent/10 text-accent",
   payment_reminder: "bg-amber-500/10 text-amber-500",
 };

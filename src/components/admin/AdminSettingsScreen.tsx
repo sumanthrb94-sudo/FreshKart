@@ -91,7 +91,6 @@ export function AdminSettingsScreen() {
               <Alert variant="success">
                 Wiped {result.deletedUsers} buyer{result.deletedUsers === 1 ? "" : "s"},{" "}
                 {result.deletedOrders} order{result.deletedOrders === 1 ? "" : "s"},{" "}
-                {result.deletedReturns} return{result.deletedReturns === 1 ? "" : "s"},{" "}
                 {result.deletedTickets} ticket{result.deletedTickets === 1 ? "" : "s"}, and{" "}
                 {result.deletedNotifications} notification
                 {result.deletedNotifications === 1 ? "" : "s"}.

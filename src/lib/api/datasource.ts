@@ -13,11 +13,6 @@ import type {
   User,
 } from "@/lib/types";
 import type {
-  CreateReturnInput,
-  ReturnRequest,
-  ReturnStatus,
-} from "@/lib/returns";
-import type {
   CreateSupportTicketInput,
   SupportTicket,
   TicketSender,
@@ -121,42 +116,12 @@ export interface DataSource {
   /** Admin: read any user's full profile. */
   getUser(id: string): Promise<User | null>;
 
-  // --- Returns --------------------------------------------------------------
-  /** buyerId omitted → all returns (admin). */
-  listReturns(buyerId?: string): Promise<ReturnRequest[]>;
-  /**
-   * Real-time subscription to return changes. Fires immediately with current
-   * data, then on every create/update/delete. Used by admin for instant
-   * new-return-request notifications.
-   */
-  subscribeReturns?(buyerId?: string, cb?: (returns: ReturnRequest[]) => void): () => void;
-  getReturn(id: string): Promise<ReturnRequest | null>;
-  createReturn(input: CreateReturnInput): Promise<ReturnRequest>;
-  updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest>;
-  addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest>;
-  updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest>;
-  /**
-   * Optional: heartbeat a self-expiring "is typing" signal on a return
-   * thread (see lib/typing-indicator.ts — TTL-based, no explicit "stopped
-   * typing" call needed). Best-effort: callers must never let this failing
-   * block or surface an error for an otherwise-successful message send.
-   */
-  setReturnTyping?(id: string, sender: "buyer" | "admin"): Promise<void>;
-  /**
-   * Optional: buyer-triggered nudge on a REJECTED return asking an admin to
-   * take another look. Does NOT reopen the return itself — only an admin
-   * transition (REJECTED → REQUESTED) does that; this just raises a flag
-   * (`reopenRequestedAt`) and appends a buyer message so the ask is visible
-   * in both the admin's return list and the thread.
-   */
-  requestReturnReopen?(id: string): Promise<ReturnRequest>;
-
   // --- Support tickets --------------------------------------------------------
   /** buyerId omitted → all tickets (admin). */
   listSupportTickets(buyerId?: string): Promise<SupportTicket[]>;
   /**
    * Real-time subscription to ticket changes, same shape as subscribeOrders /
-   * subscribeReturns. Used by admin for instant "needs a human" alerts.
+   * subscribeOrders. Used by admin for instant "needs a human" alerts.
    */
   subscribeSupportTickets?(buyerId?: string, cb?: (tickets: SupportTicket[]) => void): () => void;
   getSupportTicket(id: string): Promise<SupportTicket | null>;
@@ -198,7 +163,7 @@ export interface DataSource {
   // --- In-app notifications ----------------------------------------------------
   /** This buyer's notification history, newest first. */
   listInAppNotifications(userId: string): Promise<InAppNotification[]>;
-  /** Real-time subscription, same shape as subscribeOrders/subscribeReturns. */
+  /** Real-time subscription, same shape as subscribeOrders. */
   subscribeInAppNotifications?(userId: string, cb: (notifs: InAppNotification[]) => void): () => void;
   addInAppNotification(
     userId: string,
@@ -237,7 +202,7 @@ export interface DataSource {
   // --- Danger zone ------------------------------------------------------------
   /**
    * Optional: admin-only reset for test/demo data. Deletes every buyer
-   * account plus their orders, returns, support tickets, and notifications —
+   * account plus their orders, support tickets, and notifications —
    * so mobile numbers that were used for testing start fresh from onboarding
    * next time they sign in. Admin accounts, the product catalog, prices, and
    * coupons are left untouched so the shop keeps working right after a wipe.
@@ -249,7 +214,6 @@ export interface DataSource {
 export interface WipeResult {
   deletedUsers: number;
   deletedOrders: number;
-  deletedReturns: number;
   deletedTickets: number;
   deletedNotifications: number;
 }

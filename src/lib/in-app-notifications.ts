@@ -12,10 +12,6 @@ export type InAppNotificationType =
   | "order_shipped"
   | "order_delivered"
   | "order_cancelled"
-  | "return_requested"
-  | "return_approved"
-  | "return_rejected"
-  | "return_refunded"
   | "coupon_applied"
   | "payment_reminder";
 
@@ -165,42 +161,6 @@ export function notifyOrderCancelled(orderNumber: string, reason?: string) {
     "Order Cancelled",
     `Your order ${orderNumber} was cancelled. ${reason || "Any amount paid will be refunded within 5-7 business days."}`,
     { actionUrl: "/orders" }
-  );
-}
-
-export function notifyReturnRequested(orderNumber: string, returnId: string, refundAmount: number) {
-  return addInAppNotification(
-    "return_requested",
-    "Return Request Submitted",
-    `Refund of Rs. ${refundAmount} for order ${orderNumber} will be processed in 3-5 days. Our team will review within 24 hours.`,
-    { actionUrl: `/returns/${returnId}` }
-  );
-}
-
-export function notifyReturnApproved(returnId: string) {
-  return addInAppNotification(
-    "return_approved",
-    "Return Approved",
-    `Your return request ${returnId} has been approved. A pickup will be scheduled soon.`,
-    { actionUrl: `/returns/${returnId}` }
-  );
-}
-
-export function notifyReturnRejected(returnId: string, reason?: string) {
-  return addInAppNotification(
-    "return_rejected",
-    "Return Rejected",
-    `Your return request ${returnId} was rejected. ${reason || "Please contact support for more details."}`,
-    { actionUrl: `/returns/${returnId}` }
-  );
-}
-
-export function notifyReturnRefunded(returnId: string, amount: number) {
-  return addInAppNotification(
-    "return_refunded",
-    "Refund Processed",
-    `Rs. ${amount} has been refunded for return ${returnId}. It will reflect in your account within 5-7 business days.`,
-    { actionUrl: `/returns/${returnId}` }
   );
 }
 

@@ -15,7 +15,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { CallNowInline } from "@/components/CallNowInline";
-import type { ReturnStatus } from "@/lib/returns";
 
 const SUPPORT_PHONE = "+917416620691";
 
@@ -25,16 +24,6 @@ export function OrdersScreen() {
   const { data: orders, loading, error, refetch } = useAsync(
     () => (user ? api.listOrders(user.id) : Promise.resolve([])),
     [user?.id]
-  );
-  // Returns for this buyer, keyed by the order they belong to — so an order
-  // card can surface "Return Requested/Refunded/…" instead of "Delivered"
-  // once a return exists for it.
-  const { data: returns } = useAsync(
-    () => (user ? api.listReturns(user.id) : Promise.resolve([])),
-    [user?.id]
-  );
-  const returnStatusByOrderId = new Map<string, ReturnStatus>(
-    (returns ?? []).map((r) => [r.orderId, r.status])
   );
 
   if (!ready) {
@@ -83,7 +72,7 @@ export function OrdersScreen() {
           ) : (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {orders.map((o) => (
-                <OrderCard key={o.id} order={o} returnStatus={returnStatusByOrderId.get(o.id)} />
+                <OrderCard key={o.id} order={o} />
               ))}
             </div>
           )}

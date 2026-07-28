@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, Sprout, Store, ShoppingBag, Radio, RotateCcw, ChevronDown, MessageCircle } from "lucide-react";
+import { LogOut, Sprout, Store, ShoppingBag, Radio, ChevronDown, MessageCircle } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRequireAuth } from "@/lib/hooks";
 import { AppShell } from "@/components/layout/AppShell";
@@ -14,7 +14,7 @@ import type { Order } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/NotificationDrawer";
-import { useLiveOrders, useLiveReturns, useLiveNeedsHumanCount } from "@/lib/admin-alerts-store";
+import { useLiveOrders, useLiveNeedsHumanCount } from "@/lib/admin-alerts-store";
 
 /** 5:42 PM — clock time, for "when did this order land" context. */
 function formatClockTime(iso: string): string {
@@ -127,7 +127,6 @@ function NewOrdersBadge({ orders }: { orders: Order[] }) {
 function AdminHeader() {
   const { logout } = useAuth();
   const { confirmedOrders, isLive } = useLiveOrders();
-  const { pendingCount: pendingReturnCount } = useLiveReturns();
   const needsHumanCount = useLiveNeedsHumanCount();
 
   async function handleLogout() {
@@ -172,13 +171,6 @@ function AdminHeader() {
             )}
 
             <NewOrdersBadge orders={confirmedOrders} />
-
-            {pendingReturnCount > 0 && (
-              <span className="mr-1 flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-400">
-                <RotateCcw className="h-3 w-3" />
-                {pendingReturnCount} returns
-              </span>
-            )}
 
             {needsHumanCount > 0 && (
               <Link

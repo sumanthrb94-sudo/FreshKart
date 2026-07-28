@@ -12,18 +12,6 @@ import type {
   StoreSettings,
   User,
 } from "@/lib/types";
-import type {
-  CreateReturnInput,
-  ReturnRequest,
-  ReturnStatus,
-  ReturnMessage,
-} from "@/lib/returns";
-import {
-  RETURN_REASON_LABELS,
-  RETURN_REOPEN_REQUEST_TEXT,
-  generateAdjustedInvoiceNumber,
-  buildStatusChangeMessage,
-} from "@/lib/returns";
 import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
@@ -319,197 +307,6 @@ export class MockDataSource implements DataSource {
       updated = o;
     });
     if (!updated) throw new ApiError("Order not found.", 404);
-    return delay(structuredClone(updated));
-  }
-
-  // --- Returns --------------------------------------------------------------
-  async listReturns(buyerId?: string): Promise<ReturnRequest[]> {
-    const all = store.get().returns;
-    const list = buyerId ? all.filter((r) => r.buyerId === buyerId) : all;
-    const sorted = [...list].sort(
-      (a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt)
-    );
-    return delay(structuredClone(sorted));
-  }
-
-  /** Real-time returns subscription — fires immediately and on every mutation,
-   *  so return threads update live (mirrors subscribeOrders). */
-  subscribeReturns(buyerId?: string, cb?: (returns: ReturnRequest[]) => void): () => void {
-    const deliver = () => {
-      const all = store.get().returns;
-      const list = buyerId ? all.filter((r) => r.buyerId === buyerId) : all;
-      const sorted = [...list].sort(
-        (a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt)
-      );
-      cb?.(structuredClone(sorted));
-    };
-    deliver();
-    return store.subscribe(deliver);
-  }
-
-  async getReturn(id: string): Promise<ReturnRequest | null> {
-    const r = store.get().returns.find((x) => x.id === id) ?? null;
-    return delay(r ? structuredClone(r) : null);
-  }
-
-  async createReturn(input: CreateReturnInput): Promise<ReturnRequest> {
-    const existing = store.get().returns.find((r) => r.orderId === input.orderId);
-    if (existing) {
-      throw new ApiError("A return request already exists for this order.", 409);
-    }
-    let created: ReturnRequest | null = null;
-    store.mutate((s) => {
-      const id = `RET-${Date.now()}-${s.returns.length + 1}`;
-      const now = new Date().toISOString();
-      const items = input.items.map((item) => ({
-        ...item,
-        lineRefund: item.returnQty * item.unitPrice,
-      }));
-      const totalRefund = items.reduce((sum, item) => sum + item.lineRefund, 0);
-      const systemMessage: ReturnMessage = {
-        id: `msg-${Date.now()}-sys`,
-        sender: "system",
-        text: `Return request ${id} created for order ${input.orderNumber}. Status: REQUESTED. Reason: ${RETURN_REASON_LABELS[input.reason]}. Estimated refund: Rs. ${totalRefund}.`,
-        sentAt: now,
-      };
-      const returnReq: ReturnRequest = {
-        id,
-        orderId: input.orderId,
-        orderNumber: input.orderNumber,
-        buyerId: input.buyerId,
-        businessName: input.businessName,
-        buyerPhone: input.buyerPhone,
-        items,
-        status: "REQUESTED",
-        reason: input.reason,
-        notes: input.notes,
-        requestedAt: now,
-        totalRefund,
-        adjustedInvoiceNumber: generateAdjustedInvoiceNumber(`INV-${input.orderNumber}`, 1),
-        images: input.images,
-        thread: [systemMessage],
-      };
-      s.returns.unshift(returnReq);
-      created = returnReq;
-    });
-    return delay(structuredClone(created!), 200);
-  }
-
-  async updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest> {
-    let updated: ReturnRequest | null = null;
-    store.mutate((s) => {
-      const r = s.returns.find((x) => x.id === id);
-      if (!r) return;
-      const now = new Date().toISOString();
-      r.status = status;
-      r.updatedAt = now;
-      // Any admin transition is the answer to a pending "please review this
-      // again" nudge, one way or another — clear it so the flag can't outlive
-      // the request it was raised about.
-      r.reopenRequestedAt = undefined;
-      if ((["REJECTED", "REFUNDED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
-        r.resolvedAt = now;
-      } else if (status === "REQUESTED") {
-        // Reopen path (REJECTED → REQUESTED): the return is active again, so
-        // it's no longer "resolved" — clear the stale timestamp rather than
-        // leave it pointing at the rejection this just reversed.
-        r.resolvedAt = undefined;
-      }
-      // Company policy: every status change gets its own confirmed system
-      // message — the buyer shouldn't have to infer the outcome from the
-      // original "Estimated refund" message.
-      r.thread.push({
-        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        sender: "system",
-        text: buildStatusChangeMessage(status, r.totalRefund),
-        sentAt: now,
-      });
-      // When a refund is processed, adjust the parent order's total so the
-      // customer's invoice reflects the refund immediately — mirrors
-      // FirebaseDataSource.updateReturnStatus's transactional order patch.
-      if (status === "REFUNDED") {
-        const order = s.orders.find((o) => o.id === r.orderId);
-        if (order) {
-          const originalTotal = order.subtotal + order.deliveryFee;
-          order.refundAmount = r.totalRefund;
-          order.refundedAt = now;
-          order.adjustedInvoiceNumber = r.adjustedInvoiceNumber;
-          order.total = Math.max(0, originalTotal - r.totalRefund);
-          order.updatedAt = now;
-        }
-      }
-      updated = r;
-    });
-    if (!updated) throw new ApiError("Return request not found.", 404);
-    return delay(structuredClone(updated));
-  }
-
-  async addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest> {
-    let updated: ReturnRequest | null = null;
-    store.mutate((s) => {
-      const r = s.returns.find((x) => x.id === id);
-      if (!r) return;
-      const message: ReturnMessage = {
-        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        sender,
-        text: text.trim(),
-        sentAt: new Date().toISOString(),
-      };
-      r.thread.push(message);
-      r.updatedAt = new Date().toISOString();
-      updated = r;
-    });
-    if (!updated) throw new ApiError("Return request not found.", 404);
-    return delay(structuredClone(updated));
-  }
-
-  async updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest> {
-    let updated: ReturnRequest | null = null;
-    store.mutate((s) => {
-      const r = s.returns.find((x) => x.id === id);
-      if (!r) return;
-      r.adminNotes = notes;
-      r.updatedAt = new Date().toISOString();
-      updated = r;
-    });
-    if (!updated) throw new ApiError("Return request not found.", 404);
-    return delay(structuredClone(updated));
-  }
-
-  /** Heartbeat only — deliberately does NOT touch `updatedAt`, or every
-   *  keystroke would reorder the admin's return list mid-type. */
-  async setReturnTyping(id: string, sender: "buyer" | "admin"): Promise<void> {
-    store.mutate((s) => {
-      const r = s.returns.find((x) => x.id === id);
-      if (!r) return;
-      if (sender === "buyer") r.buyerTypingAt = new Date().toISOString();
-      else r.adminTypingAt = new Date().toISOString();
-    });
-  }
-
-  async requestReturnReopen(id: string): Promise<ReturnRequest> {
-    let updated: ReturnRequest | null = null;
-    let error: string | null = null;
-    store.mutate((s) => {
-      const r = s.returns.find((x) => x.id === id);
-      if (!r) return;
-      if (r.status !== "REJECTED") {
-        error = "Only a rejected return can be asked for another look.";
-        return;
-      }
-      const now = new Date().toISOString();
-      r.thread.push({
-        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        sender: "buyer",
-        text: RETURN_REOPEN_REQUEST_TEXT,
-        sentAt: now,
-      });
-      r.reopenRequestedAt = now;
-      r.updatedAt = now;
-      updated = r;
-    });
-    if (error) throw new ApiError(error, 409);
-    if (!updated) throw new ApiError("Return request not found.", 404);
     return delay(structuredClone(updated));
   }
 
@@ -844,7 +641,6 @@ export class MockDataSource implements DataSource {
   async wipeDatabase(): Promise<WipeResult> {
     let deletedUsers = 0;
     let deletedOrders = 0;
-    let deletedReturns = 0;
     let deletedTickets = 0;
     let deletedNotifications = 0;
     store.mutate((s) => {
@@ -853,13 +649,11 @@ export class MockDataSource implements DataSource {
       s.users = keepUsers;
       deletedOrders = s.orders.length;
       s.orders = [];
-      deletedReturns = s.returns.length;
-      s.returns = [];
       deletedTickets = s.supportTickets.length;
       s.supportTickets = [];
       deletedNotifications = s.notifications.length;
       s.notifications = [];
     });
-    return delay({ deletedUsers, deletedOrders, deletedReturns, deletedTickets, deletedNotifications }, 300);
+    return delay({ deletedUsers, deletedOrders, deletedTickets, deletedNotifications }, 300);
   }
 }

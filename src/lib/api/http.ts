@@ -11,7 +11,6 @@ import type {
   StoreSettings,
   User,
 } from "@/lib/types";
-import type { CreateReturnInput, ReturnRequest, ReturnStatus } from "@/lib/returns";
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
@@ -245,56 +244,6 @@ export class HttpDataSource implements DataSource {
       method: "PATCH",
       body: JSON.stringify({ override, updatedBy: userId }),
     });
-  }
-
-  // --- Returns (stubbed until a REST backend implements the endpoints) --------
-  listReturns() {
-    return this.request<ReturnRequest[]>("/returns");
-  }
-
-  getReturn(id: string) {
-    return this.request<ReturnRequest | null>(`/returns/${id}`);
-  }
-
-  createReturn(input: CreateReturnInput) {
-    return this.request<ReturnRequest>("/returns", {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-  }
-
-  updateReturnStatus(id: string, status: ReturnStatus) {
-    return this.request<ReturnRequest>(`/returns/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
-    });
-  }
-
-  addReturnMessage(id: string, sender: "buyer" | "admin", text: string) {
-    return this.request<ReturnRequest>(`/returns/${id}/messages`, {
-      method: "POST",
-      body: JSON.stringify({ sender, text }),
-    });
-  }
-
-  updateReturnAdminNotes(id: string, notes: string) {
-    return this.request<ReturnRequest>(`/returns/${id}/notes`, {
-      method: "PATCH",
-      body: JSON.stringify({ adminNotes: notes }),
-    });
-  }
-
-  setReturnTyping(id: string, sender: "buyer" | "admin") {
-    // Best-effort, fire-and-forget: a typing indicator is cosmetic and must
-    // never surface an error or block the caller.
-    return this.request<void>(`/returns/${id}/typing`, {
-      method: "POST",
-      body: JSON.stringify({ sender }),
-    }).catch(() => undefined);
-  }
-
-  requestReturnReopen(id: string) {
-    return this.request<ReturnRequest>(`/returns/${id}/request-reopen`, { method: "POST" });
   }
 
   // --- Support tickets (stubbed until a REST backend implements the endpoints) --

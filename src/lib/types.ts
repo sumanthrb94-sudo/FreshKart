@@ -6,7 +6,7 @@
  * is expressed in terms of exactly these shapes — keep them in sync.
  */
 
-export type Role = "BUYER" | "ADMIN" | "SELLER";
+export type Role = "BUYER" | "ADMIN" | "SELLER" | "DRIVER";
 
 export type Unit = "kg" | "pc";
 
@@ -182,6 +182,57 @@ export interface Order {
   refundedAt?: string;
   /** Adjusted invoice number generated for the refund. */
   adjustedInvoiceNumber?: string;
+  /** Delivery executive assigned to run this order. */
+  driverId?: string;
+  /** Denormalised for the admin order list. */
+  driverName?: string;
+  assignedAt?: string;
+  /** Door-side rejection raised by the driver at handover, if any. */
+  adjustment?: DeliveryAdjustment;
+}
+
+/** One rejected line, captured at the door before money changes hands. */
+export interface AdjustmentLine {
+  productId: string;
+  name: string;
+  unit: Unit;
+  /** How much of the delivered quantity the buyer refused. */
+  rejectedQty: number;
+  unitPrice: number;
+  /** rejectedQty * unitPrice */
+  lineRefund: number;
+}
+
+export type AdjustmentStatus = "AUTO_APPROVED" | "PENDING" | "APPROVED" | "REJECTED";
+
+/**
+ * A door-side quantity adjustment: the buyer inspects the goods at handover
+ * and refuses part of the delivery, the driver photographs it, and the
+ * payable amount drops BEFORE cash changes hands. There is no post-delivery
+ * return path — this is the only way an order's value can be reduced.
+ *
+ * Either outcome bills the buyer only for what they kept. The difference is
+ * internal: APPROVED means our produce was genuinely bad, so the refused
+ * stock is a write-off; REJECTED means it was saleable, so it returns to
+ * inventory and no loss is recorded.
+ */
+export interface DeliveryAdjustment {
+  lines: AdjustmentLine[];
+  /** Sum of lineRefund — the amount taken off the bill. */
+  totalRefund: number;
+  reason: string;
+  /** Photo evidence captured at the door (data URLs or storage URLs). */
+  photos: string[];
+  status: AdjustmentStatus;
+  /** Driver user id. */
+  raisedBy: string;
+  raisedByName?: string;
+  raisedAt: string;
+  /** Admin who approved/rejected — absent when auto-approved under the limit. */
+  decidedBy?: string;
+  decidedAt?: string;
+  /** Admin's note when rejecting. */
+  decisionNote?: string;
 }
 
 /** Aggregated buyer view for the admin "Customers" screen. */

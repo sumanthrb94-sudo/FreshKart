@@ -39,18 +39,6 @@ import type {
   StoreSettings,
   User,
 } from "@/lib/types";
-import {
-  RETURN_REASON_LABELS,
-  RETURN_REOPEN_REQUEST_TEXT,
-  generateAdjustedInvoiceNumber,
-  buildStatusChangeMessage,
-} from "@/lib/returns";
-import type {
-  CreateReturnInput,
-  ReturnRequest,
-  ReturnStatus,
-  ReturnMessage,
-} from "@/lib/returns";
 import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
 import type {
   CreateSupportTicketInput,
@@ -75,7 +63,6 @@ const COL = {
   users: "users",
   products: "products",
   orders: "orders",
-  returns: "returns",
   supportTickets: "supportTickets",
   coupons: "coupons",
   notifications: "notifications",
@@ -806,269 +793,6 @@ export class FirebaseDataSource implements DataSource {
     return { ...(snap.data() as Omit<Order, "id">), id: snap.id };
   }
 
-  // --- Returns --------------------------------------------------------------
-  /**
-   * Real-time returns subscription. Admin (no buyerId) gets all returns newest-first;
-   * buyers get only their own returns.
-   */
-  subscribeReturns(buyerId?: string, cb?: (returns: ReturnRequest[]) => void): () => void {
-    const db = getDb();
-    const base = collection(db, COL.returns);
-    const q = buyerId
-      ? query(base, where("buyerId", "==", buyerId))
-      : query(base, orderBy("requestedAt", "desc"));
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snap) => {
-        const returns = snap.docs.map((d) => ({
-          ...(d.data() as Omit<ReturnRequest, "id">),
-          id: d.id,
-        }));
-        const sorted = returns.sort(
-          (a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt)
-        );
-        cb?.(sorted);
-      },
-      (err) => {
-        console.warn("Returns subscription error:", err.message);
-      }
-    );
-
-    return unsubscribe;
-  }
-
-  async listReturns(buyerId?: string): Promise<ReturnRequest[]> {
-    await this.ready();
-    const base = collection(getDb(), COL.returns);
-    const snap = buyerId
-      ? await getDocs(query(base, where("buyerId", "==", buyerId)))
-      : await getDocs(query(base, orderBy("requestedAt", "desc")));
-    const returns = snap.docs.map((d) => ({
-      ...(d.data() as Omit<ReturnRequest, "id">),
-      id: d.id,
-    }));
-    return returns.sort((a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt));
-  }
-
-  async getReturn(id: string): Promise<ReturnRequest | null> {
-    await this.ready();
-    const snap = await getDoc(doc(getDb(), COL.returns, id));
-    return snap.exists() ? { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id } : null;
-  }
-
-  async createReturn(input: CreateReturnInput): Promise<ReturnRequest> {
-    await this.ready();
-    const db = getDb();
-
-    // Prevent duplicate return requests for the same order.
-    // Query by buyerId (required by security rules) and filter by orderId in JS.
-    const existingSnap = await getDocs(
-      query(collection(db, COL.returns), where("buyerId", "==", input.buyerId))
-    );
-    const existingReturn = existingSnap.docs.find((d) => d.data().orderId === input.orderId);
-    if (existingReturn) {
-      throw new ApiError("A return request already exists for this order.", 409);
-    }
-
-    const ref = doc(collection(db, COL.returns));
-    const id = ref.id;
-    const now = new Date().toISOString();
-
-    const items = input.items.map((item) => ({
-      ...item,
-      lineRefund: item.returnQty * item.unitPrice,
-    }));
-    const totalRefund = items.reduce((sum, item) => sum + item.lineRefund, 0);
-
-    const systemMessage: ReturnMessage = {
-      id: `msg-${Date.now()}-sys`,
-      sender: "system",
-      text: `Return request ${id} created for order ${input.orderNumber}. Status: REQUESTED. Reason: ${RETURN_REASON_LABELS[input.reason]}. Estimated refund: Rs. ${totalRefund}.`,
-      sentAt: now,
-    };
-
-    const returnReq: ReturnRequest = {
-      id,
-      orderId: input.orderId,
-      orderNumber: input.orderNumber,
-      buyerId: input.buyerId,
-      businessName: input.businessName,
-      buyerPhone: input.buyerPhone,
-      items,
-      status: "REQUESTED",
-      reason: input.reason,
-      notes: input.notes,
-      requestedAt: now,
-      totalRefund,
-      adjustedInvoiceNumber: generateAdjustedInvoiceNumber(`INV-${input.orderNumber}`, 1),
-      images: input.images,
-      thread: [systemMessage],
-    };
-
-    // Strip id before writing — the Firestore document path is the canonical id.
-    // Also drop undefined optional fields so Firestore doesn't reject them.
-    const { id: _id, ...data } = returnReq;
-    void _id;
-    await withFreshTokenRetry(() =>
-      setDoc(
-        ref,
-        Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) as DocumentData
-      )
-    );
-    return returnReq;
-  }
-
-  async updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest> {
-    await this.ready();
-    const db = getDb();
-    const ref = doc(db, COL.returns, id);
-    const now = new Date().toISOString();
-
-    // When a refund is processed, adjust the parent order's total so the
-    // customer bill reflects the refund.
-    if (status === "REFUNDED") {
-      const updated = await runTransaction(db, async (tx) => {
-        const retSnap = await tx.get(ref);
-        if (!retSnap.exists()) throw new ApiError("Return request not found.", 404);
-        const ret = { ...(retSnap.data() as Omit<ReturnRequest, "id">), id: retSnap.id };
-
-        const orderRef = doc(db, COL.orders, ret.orderId);
-        const orderSnap = await tx.get(orderRef);
-        if (!orderSnap.exists()) throw new ApiError("Order not found.", 404);
-        const order = { ...(orderSnap.data() as Omit<Order, "id">), id: orderSnap.id };
-
-        const originalTotal = order.subtotal + order.deliveryFee;
-        const newTotal = Math.max(0, originalTotal - ret.totalRefund);
-
-        // Company policy: every status change gets its own confirmed system
-        // message — the buyer shouldn't have to infer the outcome from the
-        // original "Estimated refund" message.
-        const statusMessage: ReturnMessage = {
-          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          sender: "system",
-          text: buildStatusChangeMessage(status, ret.totalRefund),
-          sentAt: now,
-        };
-
-        const retPatch: DocumentData = {
-          status,
-          updatedAt: now,
-          resolvedAt: now,
-          thread: arrayUnion(statusMessage),
-        };
-        const orderPatch: DocumentData = {
-          refundAmount: ret.totalRefund,
-          refundedAt: now,
-          adjustedInvoiceNumber: ret.adjustedInvoiceNumber,
-          total: newTotal,
-          updatedAt: now,
-        };
-
-        tx.update(ref, retPatch);
-        tx.update(orderRef, orderPatch);
-        return { ...ret, ...retPatch, thread: [...ret.thread, statusMessage] } as ReturnRequest;
-      });
-      return updated;
-    }
-
-    const statusMessage: ReturnMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      sender: "system",
-      text: buildStatusChangeMessage(status, 0),
-      sentAt: now,
-    };
-    const patch: DocumentData = {
-      status,
-      updatedAt: now,
-      thread: arrayUnion(statusMessage),
-      // Any admin transition answers a pending "please review this again"
-      // nudge one way or another — clear it so the flag can't outlive the
-      // request it was raised about. reopenRequestedAt only ever gets set
-      // while status is REJECTED (see requestReturnReopen), so this is a
-      // no-op field delete on every other transition.
-      reopenRequestedAt: deleteField(),
-    };
-    if ((["REJECTED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
-      patch.resolvedAt = now;
-    } else if (status === "REQUESTED") {
-      // Reopen path (REJECTED → REQUESTED): the return is active again, so
-      // it's no longer "resolved" — clear the stale timestamp rather than
-      // leave it pointing at the rejection this just reversed.
-      patch.resolvedAt = deleteField();
-    }
-    await updateDoc(ref, patch);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
-    return { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
-  }
-
-  async addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest> {
-    await this.ready();
-    const ref = doc(getDb(), COL.returns, id);
-    const message: ReturnMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      sender,
-      text: text.trim(),
-      sentAt: new Date().toISOString(),
-    };
-    await updateDoc(ref, {
-      thread: arrayUnion(message),
-      updatedAt: new Date().toISOString(),
-    });
-    const snap = await getDoc(ref);
-    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
-    return { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
-  }
-
-  async updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest> {
-    await this.ready();
-    const ref = doc(getDb(), COL.returns, id);
-    await updateDoc(ref, { adminNotes: notes, updatedAt: new Date().toISOString() });
-    const snap = await getDoc(ref);
-    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
-    return { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
-  }
-
-  /** Heartbeat only — deliberately does NOT touch `updatedAt`, or every
-   *  keystroke would reorder the admin's return list mid-type. Best-effort:
-   *  a typing indicator failing silently is never worth surfacing an error
-   *  for, so failures are swallowed rather than thrown. */
-  async setReturnTyping(id: string, sender: "buyer" | "admin"): Promise<void> {
-    try {
-      const field = sender === "buyer" ? "buyerTypingAt" : "adminTypingAt";
-      await updateDoc(doc(getDb(), COL.returns, id), { [field]: new Date().toISOString() });
-    } catch {
-      /* cosmetic — never let this interrupt messaging */
-    }
-  }
-
-  async requestReturnReopen(id: string): Promise<ReturnRequest> {
-    await this.ready();
-    const ref = doc(getDb(), COL.returns, id);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) throw new ApiError("Return request not found.", 404);
-    const current = { ...(snap.data() as Omit<ReturnRequest, "id">), id: snap.id };
-    if (current.status !== "REJECTED") {
-      throw new ApiError("Only a rejected return can be asked for another look.", 409);
-    }
-    const now = new Date().toISOString();
-    const message: ReturnMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      sender: "buyer",
-      text: RETURN_REOPEN_REQUEST_TEXT,
-      sentAt: now,
-    };
-    await updateDoc(ref, {
-      thread: arrayUnion(message),
-      reopenRequestedAt: now,
-      updatedAt: now,
-    });
-    const after = await getDoc(ref);
-    if (!after.exists()) throw new ApiError("Return request not found.", 404);
-    return { ...(after.data() as Omit<ReturnRequest, "id">), id: after.id };
-  }
-
   // --- Support tickets ------------------------------------------------------
   subscribeSupportTickets(buyerId?: string, cb?: (tickets: SupportTicket[]) => void): () => void {
     const db = getDb();
@@ -1488,10 +1212,9 @@ export class FirebaseDataSource implements DataSource {
       return targets.length;
     }
 
-    const [deletedOrders, deletedReturns, deletedTickets, deletedNotifications, deletedUsers] =
+    const [deletedOrders, deletedTickets, deletedNotifications, deletedUsers] =
       await Promise.all([
         deleteAll(COL.orders),
-        deleteAll(COL.returns),
         deleteAll(COL.supportTickets),
         deleteAll(COL.notifications),
         deleteAll(COL.users, (data) => (data as User).role !== "ADMIN"),
@@ -1501,6 +1224,6 @@ export class FirebaseDataSource implements DataSource {
     // around from before Google sign-in was removed.
     await Promise.all([deleteAll(COL.emailIndex), deleteAll(COL.phoneIndex)]);
 
-    return { deletedUsers, deletedOrders, deletedReturns, deletedTickets, deletedNotifications };
+    return { deletedUsers, deletedOrders, deletedTickets, deletedNotifications };
   }
 }

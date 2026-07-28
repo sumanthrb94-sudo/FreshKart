@@ -6,7 +6,6 @@ import { playChime } from "@/lib/audio-chime";
 import { toast } from "@/lib/toast";
 import { formatCurrency } from "@/lib/format";
 import type { Order } from "@/lib/types";
-import type { ReturnRequest } from "@/lib/returns";
 import type { SupportTicket } from "@/lib/support-tickets";
 
 /** Live admin order/return/ticket counts, shared by the header badges AND
@@ -27,15 +26,6 @@ function playNewOrderSound() {
     { freq: 523.25, startOffset: 0, duration: 0.4 },
     { freq: 659.25, startOffset: 0.12, duration: 0.4 },
     { freq: 783.99, startOffset: 0.24, duration: 0.4 },
-  ]);
-}
-
-/** New-return-request alert — distinct descending triad (A5 → E5 → A4), sine. */
-function playNewReturnSound() {
-  playChime([
-    { freq: 880.0, startOffset: 0, duration: 0.35, gain: 0.14 },
-    { freq: 659.25, startOffset: 0.1, duration: 0.35, gain: 0.14 },
-    { freq: 440.0, startOffset: 0.2, duration: 0.35, gain: 0.14 },
   ]);
 }
 
@@ -67,7 +57,6 @@ function writeLastSeenTs(key: string, ts: number) {
 }
 
 const ORDERS_LAST_SEEN_KEY = "orders";
-const RETURNS_LAST_SEEN_KEY = "returns";
 
 /** Generic ref-counted singleton subscription: the underlying Firestore
  *  listener starts on the first subscriber and stops on the last, however
@@ -185,63 +174,6 @@ const ordersStore = createLiveStore<OrdersSnapshot>((setSnapshot) => {
 
 export function useLiveOrders(): OrdersSnapshot {
   return useSyncExternalStore(ordersStore.subscribe, ordersStore.getSnapshot, () => ({ confirmedOrders: [], isLive: false }));
-}
-
-interface ReturnsSnapshot {
-  pendingCount: number;
-  isLive: boolean;
-}
-
-const returnsStore = createLiveStore<ReturnsSnapshot>((setSnapshot) => {
-  if (typeof api.subscribeReturns !== "function") {
-    api
-      .listReturns()
-      .then((returns) => setSnapshot({ pendingCount: returns.filter((r) => r.status === "REQUESTED").length, isLive: false }))
-      .catch(() => {});
-    return;
-  }
-
-  let previousIds: Set<string> | null = null;
-  const unsubscribe = api.subscribeReturns(undefined, (returns: ReturnRequest[]) => {
-    const pendingCount = returns.filter((r) => r.status === "REQUESTED").length;
-
-    if (previousIds) {
-      const prev = previousIds;
-      const newReturns = returns.filter((r) => !prev.has(r.id) && r.status === "REQUESTED");
-      if (newReturns.length > 0) {
-        playNewReturnSound();
-        newReturns.forEach((r) => {
-          toast.info("New return request", `${r.businessName} — ${formatCurrency(r.totalRefund)}`, 6000);
-        });
-      }
-    } else {
-      // Same reload-survival fallback as the orders store above.
-      const lastSeenTs = readLastSeenTs(RETURNS_LAST_SEEN_KEY);
-      if (lastSeenTs > 0) {
-        const newSinceLastVisit = returns.filter(
-          (r) => r.status === "REQUESTED" && new Date(r.requestedAt).getTime() > lastSeenTs
-        );
-        if (newSinceLastVisit.length > 0) {
-          playNewReturnSound();
-          newSinceLastVisit.forEach((r) => {
-            toast.info("New return request", `${r.businessName} — ${formatCurrency(r.totalRefund)}`, 6000);
-          });
-        }
-      }
-    }
-    previousIds = new Set(returns.map((r) => r.id));
-
-    const latestTs = returns.reduce((max, r) => Math.max(max, new Date(r.requestedAt).getTime()), 0);
-    writeLastSeenTs(RETURNS_LAST_SEEN_KEY, latestTs);
-
-    setSnapshot({ pendingCount, isLive: true });
-  });
-
-  return unsubscribe;
-}, { pendingCount: 0, isLive: false });
-
-export function useLiveReturns(): ReturnsSnapshot {
-  return useSyncExternalStore(returnsStore.subscribe, returnsStore.getSnapshot, () => ({ pendingCount: 0, isLive: false }));
 }
 
 const ticketsStore = createLiveStore<number>((setSnapshot) => {
