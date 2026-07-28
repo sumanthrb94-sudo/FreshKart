@@ -19,7 +19,6 @@ import {
   sanitizePincodeDigits,
   isValidPincodeDigits,
   PINCODE_DIGIT_LENGTH,
-  MIN_ORDER_TOTAL_QTY,
   MAX_ORDER_TOTAL_QTY,
   isValidOrderWeight,
 } from "../format";
@@ -87,15 +86,17 @@ describe("pincode validation", () => {
 });
 
 describe("order weight bounds", () => {
-  it("accepts weights within [MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY]", () => {
-    expect(isValidOrderWeight(MIN_ORDER_TOTAL_QTY)).toBe(true);
+  // There is no whole-cart minimum: per-product minOrderQty is the gate, so a
+  // single 1kg bunch of leafy greens is a legitimate order.
+  it("accepts any non-empty cart up to MAX_ORDER_TOTAL_QTY", () => {
+    expect(isValidOrderWeight(1)).toBe(true);
     expect(isValidOrderWeight(MAX_ORDER_TOTAL_QTY)).toBe(true);
-    expect(isValidOrderWeight((MIN_ORDER_TOTAL_QTY + MAX_ORDER_TOTAL_QTY) / 2)).toBe(true);
+    expect(isValidOrderWeight(MAX_ORDER_TOTAL_QTY / 2)).toBe(true);
   });
 
-  it("rejects below the minimum", () => {
-    expect(isValidOrderWeight(MIN_ORDER_TOTAL_QTY - 1)).toBe(false);
+  it("rejects an empty or negative cart", () => {
     expect(isValidOrderWeight(0)).toBe(false);
+    expect(isValidOrderWeight(-1)).toBe(false);
   });
 
   it("rejects above the maximum — an order can't silently exceed packing/delivery capacity", () => {

@@ -5,7 +5,8 @@ import { Tag, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import { findCouponByCode, validateCoupon } from "@/lib/coupons";
-import type { Coupon, AppliedCoupon } from "@/lib/coupons";
+import type { AppliedCoupon } from "@/lib/coupons";
+import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 
 interface CouponInputProps {
@@ -20,23 +21,20 @@ export function CouponInput({ orderTotal, onApply, categoryIds, productIds }: Co
   const [applied, setApplied] = useState<AppliedCoupon | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleApply = useCallback(() => {
+  const handleApply = useCallback(async () => {
     if (!code.trim()) return;
     setLoading(true);
-
-    // Simulate network delay
-    setTimeout(() => {
-      const coupon = findCouponByCode(code.trim());
+    try {
+      const coupons = await api.listCoupons();
+      const coupon = findCouponByCode(coupons, code.trim());
       if (!coupon) {
         toast.error("Invalid coupon", "This coupon code does not exist");
-        setLoading(false);
         return;
       }
 
       const result = validateCoupon(coupon, orderTotal, categoryIds, productIds);
       if (!result.valid) {
         toast.error("Cannot apply coupon", result.error || "Invalid coupon");
-        setLoading(false);
         return;
       }
 
@@ -51,8 +49,11 @@ export function CouponInput({ orderTotal, onApply, categoryIds, productIds }: Co
       setApplied(appliedCoupon);
       onApply(appliedCoupon);
       toast.success("Coupon applied!", `Saved ${formatCurrency(discount)} with ${coupon.code}`);
+    } catch {
+      toast.error("Couldn't apply coupon", "Please try again");
+    } finally {
       setLoading(false);
-    }, 400);
+    }
   }, [code, orderTotal, onApply, categoryIds, productIds]);
 
   const handleRemove = () => {

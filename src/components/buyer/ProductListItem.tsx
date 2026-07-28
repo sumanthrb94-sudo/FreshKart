@@ -13,6 +13,9 @@ export function ProductListItem({ product }: { product: Product }) {
   const { t, tProduct } = useLang();
   const qty = qtyOf(product.id);
   const outOfStock = product.stock < product.minOrderQty;
+  // Running low: fewer than two minimum orders left. Worth surfacing on the
+  // shelf so a buyer isn't surprised when the stepper refuses to go higher.
+  const lowStock = !outOfStock && product.stock < product.minOrderQty * 2;
 
   return (
     <div
@@ -63,6 +66,11 @@ export function ProductListItem({ product }: { product: Product }) {
             <span className="mt-1 inline-flex w-fit whitespace-nowrap rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-semibold text-brand-300">
               {t("minOrder")} {product.minOrderQty} {unitLabel(product.unit)}
             </span>
+            {lowStock && (
+              <span className="mt-1 block w-fit whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-500">
+                {t("onlyLeft")} {product.stock} {unitLabel(product.unit)}
+              </span>
+            )}
           </div>
 
           <div className="shrink-0 md:w-full">

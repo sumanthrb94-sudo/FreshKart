@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { Order } from "@/lib/types";
-import type { ReturnStatus } from "@/lib/returns";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { ProductThumb } from "@/components/ui/ProductThumb";
-import { OrderStatusBadge, ReturnStatusBadge } from "@/components/ui/Badge";
+import { OrderStatusBadge } from "@/components/ui/Badge";
 
-export function OrderCard({ order, returnStatus }: { order: Order; returnStatus?: ReturnStatus }) {
+export function OrderCard({ order }: { order: Order }) {
   const shown = order.items.slice(0, 4);
   const extra = order.items.length - shown.length;
   const totalUnits = order.items.reduce((s, i) => s + i.qty, 0);
@@ -22,14 +21,7 @@ export function OrderCard({ order, returnStatus }: { order: Order; returnStatus?
         <span className="text-xs font-semibold text-fg-muted">
           {order.orderNumber}
         </span>
-        {/* Once a return exists for this order, show where the RETURN stands
-            instead of the order's own status — the buyer already knows it was
-            delivered; what they're tracking now is the return/refund. */}
-        {returnStatus ? (
-          <ReturnStatusBadge status={returnStatus} />
-        ) : (
-          <OrderStatusBadge status={order.status} />
-        )}
+        <OrderStatusBadge status={order.status} />
       </div>
 
       <div className="mt-3 flex items-center gap-2">

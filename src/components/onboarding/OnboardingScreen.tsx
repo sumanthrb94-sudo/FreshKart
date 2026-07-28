@@ -4,43 +4,20 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult } from "firebase/auth";
 import { Check, Loader2, ShieldCheck, Store, Sun, Moon } from "lucide-react";
-import { api, ApiError, usingMockBackend } from "@/lib/api";
+import { api, usingMockBackend } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
-import {
-  isPlausibleIndianMobile,
-  isValidEmail,
-  isDisposableEmail,
-  normalizeEmail,
-} from "@/lib/format";
-import {
-  sendOtp,
-  toE164,
-  resetRecaptcha,
-  renderRecaptcha,
-  PhoneAuthError,
-} from "@/lib/firebase/phone-auth";
+import { isPlausibleIndianMobile } from "@/lib/format";
+import { sendOtp, toE164, resetRecaptcha, renderRecaptcha } from "@/lib/firebase/phone-auth";
+import { friendlyPhoneError } from "@/lib/firebase/friendly-phone-error";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
 import { AddressPicker, type PickedAddress } from "@/components/address/AddressPicker";
-import { BrandSplash } from "@/components/ui/BrandSplash";
 
 type Step = "mobile" | "verify" | "shop" | "done";
 
 const STEP_ORDER: Step[] = ["mobile", "verify", "shop"];
 const RECAPTCHA_ID = "recaptcha-container";
-
-/** Google "G" mark — brand-accurate (lucide ships no brand icons). */
-function GoogleIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z" />
-      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.99.66-2.26 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
-      <path fill="#FBBC05" d="M5.84 14.11A6.6 6.6 0 0 1 5.49 12c0-.73.13-1.45.35-2.11V7.05H2.18A11 11 0 0 0 1 12c0 1.77.42 3.45 1.18 4.95l3.66-2.84z" />
-      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.46 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
-    </svg>
-  );
-}
 
 // Produce that drifts around the hero, ricocheting off the edges (Onida/DVD
 // style). X and Y run on different periods so each item reverses at a different
@@ -57,61 +34,6 @@ const FLOATERS = [
   { e: "🥕", s: "text-2xl", dx: "8s", dy: "7.5s", ox: "-3.5s", oy: "-7s" },
 ];
 
-/** Translate Firebase error codes to user-friendly messages. */
-function friendlyPhoneError(e: unknown): string {
-  const code = (e as { code?: string })?.code ?? "";
-  const msg = e instanceof Error ? e.message : "";
-
-  if (code.includes("invalid-phone-number")) {
-    return "Invalid phone number. Please enter a valid 10-digit Indian mobile number.";
-  }
-  if (code.includes("missing-phone-number")) {
-    return "Phone number is required.";
-  }
-  if (code.includes("quota-exceeded")) {
-    return "SMS quota exceeded. Try again later or use Google sign-in.";
-  }
-  if (code.includes("user-disabled")) {
-    return "This phone number has been disabled. Contact support.";
-  }
-  if (code.includes("operation-not-allowed")) {
-    return "Phone sign-in is not enabled. Please enable it in Firebase Console → Authentication → Sign-in method → Phone.";
-  }
-  if (code.includes("captcha-check-failed")) {
-    return "Security check failed. Please refresh the page and try again.";
-  }
-  if (code.includes("app-not-authorized")) {
-    return "This app is not authorized for phone authentication. Add your domain to Firebase Console → Authentication → Authorized domains.";
-  }
-  if (code.includes("invalid-app-credential")) {
-    return "Invalid app configuration. Check your Firebase API key and app ID.";
-  }
-  if (code.includes("network-request-failed")) {
-    return "Network error. Check your internet connection and try again.";
-  }
-  if (code.includes("too-many-requests")) {
-    return "Too many attempts. Please wait a few minutes before trying again.";
-  }
-  if (code.includes("argument-error")) {
-    return "Authentication setup error. The security verifier may not be configured correctly.";
-  }
-  if (code.includes("timeout")) {
-    return "Request timed out. Check your connection and try again.";
-  }
-  // OTP verification errors
-  if (code.includes("invalid-verification-code")) {
-    return "Invalid code. Please check and try again.";
-  }
-  if (code.includes("invalid-verification-id")) {
-    return "Session expired. Please request a new code.";
-  }
-  if (code.includes("session-expired")) {
-    return "Code expired. Please request a new one.";
-  }
-
-  return msg || "Something went wrong. Please try again.";
-}
-
 export function OnboardingScreen() {
   const router = useRouter();
   const { login, refreshUser } = useAuth();
@@ -120,22 +42,11 @@ export function OnboardingScreen() {
   const [step, setStep] = useState<Step>("mobile");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [addrPhone, setAddrPhone] = useState("");
-  const [addrEmail, setAddrEmail] = useState("");
-  const [method, setMethod] = useState<"phone" | "google" | null>(null);
   const [busy, setBusy] = useState(false);
-  const [googleBusy, setGoogleBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
-  // On browsers where Google sign-in falls back to a full-page redirect
-  // (iOS Safari, in-app browsers), the app reloads on return from Google —
-  // hold the sign-in card back until we know whether a redirect just
-  // completed, so returning users don't flash the mobile-number screen.
-  const [checkingRedirect, setCheckingRedirect] = useState(
-    typeof api.completeGoogleRedirect === "function"
-  );
 
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
   const confirmation = useRef<ConfirmationResult | null>(null);
@@ -143,40 +54,8 @@ export function OnboardingScreen() {
   useEffect(() => () => resetRecaptcha(), []);
 
   useEffect(() => {
-    if (!api.completeGoogleRedirect) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const result = await api.completeGoogleRedirect!();
-        if (cancelled || !result) return;
-        await refreshUser();
-        if (result.user) {
-          router.replace(result.user.role === "ADMIN" ? "/admin" : "/");
-        } else {
-          setMethod("google");
-          setStep("shop");
-        }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Google sign-in failed.");
-      } finally {
-        if (!cancelled) setCheckingRedirect(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
     let mounted = true;
-    // Wait for the redirect check to finish — until then, BrandSplash is
-    // rendered instead of the mobile-step markup, so the #recaptcha-container
-    // div this needs doesn't exist in the DOM yet. Firing anyway used to throw
-    // "The sign-in widget could not load", and since this effect only re-runs
-    // on `step` changes (which stays "mobile" the whole time), the widget
-    // never got a second chance to actually mount.
-    if (step === "mobile" && firebaseConfigured && !checkingRedirect) {
+    if (step === "mobile" && firebaseConfigured) {
       setRecaptchaReady(false);
       renderRecaptcha(
         RECAPTCHA_ID,
@@ -194,7 +73,7 @@ export function OnboardingScreen() {
       mounted = false;
       if (step !== "mobile") resetRecaptcha();
     };
-  }, [step, checkingRedirect]);
+  }, [step]);
 
   // Tick down the resend cooldown.
   useEffect(() => {
@@ -204,9 +83,6 @@ export function OnboardingScreen() {
   }, [resendIn]);
 
   const stepIndex = STEP_ORDER.indexOf(step as Step);
-  const googleEnabled = typeof api.signInWithGoogle === "function";
-
-  if (checkingRedirect) return <BrandSplash />;
 
   async function handleDemoLogin(role: "ADMIN" | "BUYER") {
     setDemoBusy(true);
@@ -219,33 +95,6 @@ export function OnboardingScreen() {
       setError(e instanceof Error ? e.message : "Demo login failed.");
     } finally {
       setDemoBusy(false);
-    }
-  }
-
-  async function handleGoogle() {
-    if (!api.signInWithGoogle) {
-      setError("Google sign-in isn't available.");
-      return;
-    }
-    setGoogleBusy(true);
-    setError(null);
-    try {
-      const existing = await api.signInWithGoogle();
-      if (existing === undefined) return; // popup unavailable — redirecting to Google
-      await refreshUser();
-      if (existing) {
-        router.replace(existing.role === "ADMIN" ? "/admin" : "/");
-      } else {
-        setMethod("google"); // Google gave us the email — we'll ask the phone
-        setStep("shop");
-      }
-    } catch (e) {
-      // status 499 = user dismissed the popup; ignore quietly.
-      if (!(e instanceof ApiError && e.status === 499)) {
-        setError(e instanceof Error ? e.message : "Google sign-in failed.");
-      }
-    } finally {
-      setGoogleBusy(false);
     }
   }
 
@@ -285,6 +134,24 @@ export function OnboardingScreen() {
     }
   }
 
+  /** Resend the OTP without leaving the code-entry screen. The first send's
+   *  invisible-reCAPTCHA token was consumed, so re-arm a fresh verifier in
+   *  this step's own hidden container, then fire the SMS again. */
+  async function handleResend() {
+    setBusy(true);
+    setError(null);
+    try {
+      await renderRecaptcha(RECAPTCHA_ID, () => {}, () => {});
+      confirmation.current = await sendOtp(toE164(phone), RECAPTCHA_ID);
+      setOtp(["", "", "", "", "", ""]);
+      setResendIn(30);
+    } catch (e) {
+      setError(friendlyPhoneError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleVerify() {
     const code = otp.join("");
     if (code.length < 6 || !confirmation.current) {
@@ -295,12 +162,15 @@ export function OnboardingScreen() {
     setError(null);
     try {
       await confirmation.current.confirm(code);
+      // This is the customer-facing entry point: it never grants or routes to
+      // the admin console, even for an allowlisted number. Admin sign-in is
+      // exclusive to /admin-login, which is the only screen that calls
+      // completeAdminLogin(). Everyone who signs in here lands in the shop.
       const existing = await refreshUser();
       if (existing) {
-        router.replace(existing.role === "ADMIN" ? "/admin" : "/");
+        router.replace("/");
       } else {
-        setMethod("phone"); // phone is verified — we'll ask the email
-        setStep("shop");
+        setStep("shop"); // phone is verified — just need the delivery address
       }
     } catch (e) {
       setError(friendlyPhoneError(e));
@@ -314,33 +184,12 @@ export function OnboardingScreen() {
       setError("Auth backend not available.");
       return;
     }
-    // Every account ends up with BOTH a phone and an email: the sign-in method
-    // supplies one, and we require the other here — never asking for the same
-    // detail twice (no duplication). This is the second half of the phone↔email
-    // link, so it gets the same fake-number / disposable-email screening as the
-    // sign-in step — a Google user can't tie a throwaway phone to the account,
-    // and a phone user can't tie a temp inbox to it.
-    if (method === "google" && !isPlausibleIndianMobile(addrPhone)) {
-      setError("Please enter a valid 10-digit Indian mobile number.");
-      return;
-    }
-    if (method === "phone") {
-      const email = normalizeEmail(addrEmail);
-      if (!isValidEmail(email)) {
-        setError("Please enter a valid email address.");
-        return;
-      }
-      if (isDisposableEmail(email)) {
-        setError("Please use a permanent email — temporary inboxes aren't allowed.");
-        return;
-      }
-    }
     setBusy(true);
     setError(null);
     try {
+      // Phone already came from the OTP verification above — nothing else to
+      // collect here besides the delivery address.
       await api.completeProfile({
-        phone: addrPhone.trim() || undefined,
-        email: normalizeEmail(addrEmail) || undefined,
         address: addr.address,
         city: addr.city,
         pincode: addr.pincode,
@@ -508,32 +357,7 @@ export function OnboardingScreen() {
               </>
             )}
 
-            {/* Primary: Google */}
-            {googleEnabled && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleGoogle}
-                  disabled={busy || googleBusy || demoBusy}
-                  className="mt-5 flex w-full items-center justify-center gap-3 rounded-xl border border-line bg-surface py-3.5 text-base font-bold text-fg-muted shadow-sm transition-colors hover:bg-raised disabled:opacity-50"
-                >
-                  {googleBusy ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-fg-subtle" />
-                  ) : (
-                    <GoogleIcon />
-                  )}
-                  {googleBusy ? "Signing in…" : "Continue with Google"}
-                </button>
-
-                <div className="my-5 flex items-center gap-3">
-                  <span className="h-px flex-1 bg-line" />
-                  <span className="text-xs font-medium text-fg-subtle">or use your mobile</span>
-                  <span className="h-px flex-1 bg-line" />
-                </div>
-              </>
-            )}
-
-            {/* Secondary: phone OTP */}
+            {/* Sign in: phone OTP — the only sign-in method */}
             <div className="flex items-center gap-2 rounded-xl border border-line px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/30">
               <span className="border-r border-line py-3 pr-3 text-sm font-semibold text-fg-subtle">
                 +91
@@ -553,7 +377,7 @@ export function OnboardingScreen() {
 
             <button
               type="button"
-              disabled={phone.length < 10 || busy || googleBusy || demoBusy || !recaptchaReady}
+              disabled={phone.length < 10 || busy || demoBusy || !recaptchaReady}
               onClick={handleSendOtp}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
             >
@@ -627,7 +451,10 @@ export function OnboardingScreen() {
               ))}
             </div>
 
-            {/* Resend + delivery hint */}
+            {/* Resend + delivery hint. Resending stays HERE on the code screen —
+                it re-arms a fresh verifier in the hidden container below and
+                fires the SMS again, no bounce back to the sign-in screen. */}
+            <div id={RECAPTCHA_ID} className="hidden" />
             <div className="mt-5 text-center text-sm text-fg-subtle">
               Didn&apos;t get the code?{" "}
               {resendIn > 0 ? (
@@ -635,11 +462,7 @@ export function OnboardingScreen() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    resetRecaptcha();
-                    setRecaptchaReady(false);
-                    setStep("mobile");
-                  }}
+                  onClick={handleResend}
                   disabled={busy}
                   className="font-semibold text-brand-400 disabled:opacity-50"
                 >
@@ -648,7 +471,7 @@ export function OnboardingScreen() {
               )}
             </div>
             <p className="mt-1 text-center text-xs text-fg-subtle">
-              SMS can take a moment. Check the number is right, or try again in a minute.
+              SMS can take a moment — and check your spam / blocked messages folder.
             </p>
 
             {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}
@@ -669,50 +492,8 @@ export function OnboardingScreen() {
           <div className="flex flex-1 flex-col overflow-y-auto pb-8">
             <h1 className="text-2xl font-extrabold text-fg">Set up your address</h1>
             <p className="mt-2 text-sm text-fg-subtle">
-              {method === "phone"
-                ? "Add your email & pin your delivery location — used at checkout."
-                : "Add your phone & pin your delivery location — used at checkout."}
+              Pin your delivery location — used at checkout.
             </p>
-
-            {/* Ask only for the contact detail the sign-in method didn't give us
-                — so every account has both phone + email, with no duplicate ask. */}
-            {method === "google" && (
-              <>
-                <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-fg-subtle">
-                  Mobile number
-                </label>
-                <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-line px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/30">
-                  <span className="border-r border-line py-3 pr-3 text-sm font-semibold text-fg-subtle">
-                    +91
-                  </span>
-                  <input
-                    inputMode="numeric"
-                    value={addrPhone}
-                    onChange={(e) => setAddrPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                    placeholder="98765 43210"
-                    aria-label="Mobile number"
-                    className="h-12 flex-1 bg-transparent text-base font-semibold tracking-wide text-fg outline-none placeholder:font-normal placeholder:text-fg-subtle"
-                  />
-                </div>
-              </>
-            )}
-
-            {method === "phone" && (
-              <>
-                <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-fg-subtle">
-                  Email address
-                </label>
-                <input
-                  type="email"
-                  inputMode="email"
-                  value={addrEmail}
-                  onChange={(e) => setAddrEmail(e.target.value)}
-                  placeholder="you@business.com"
-                  aria-label="Email address"
-                  className="mt-1.5 h-12 w-full rounded-xl border border-line px-3.5 text-base font-medium text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
-                />
-              </>
-            )}
 
             <div className="mt-5">
               <AddressPicker

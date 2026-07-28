@@ -1,5 +1,7 @@
 import type {
+  AdjustmentLine,
   AdminStats,
+  DeliveryAdjustment,
   CreateOrderInput,
   Customer,
   DailyPricesSettings,
@@ -8,26 +10,22 @@ import type {
   OrderItem,
   Product,
   ProductInput,
+  StoreOverride,
+  StoreSettings,
   User,
 } from "@/lib/types";
-import type {
-  CreateReturnInput,
-  ReturnRequest,
-  ReturnStatus,
-  ReturnMessage,
-} from "@/lib/returns";
-import {
-  RETURN_REASON_LABELS,
-  RETURN_REOPEN_REQUEST_TEXT,
-  generateAdjustedInvoiceNumber,
-  buildStatusChangeMessage,
-} from "@/lib/returns";
 import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
-import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
+import type { Coupon } from "@/lib/coupons";
+import type { ServiceArea } from "@/lib/service-area";
+import { radiusOf } from "@/lib/service-area";
+import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
+import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
-import { DataSource, ApiError } from "./datasource";
+import { nextStoreClose } from "@/lib/store-hours";
+import { isWithinDriverAuthority, totalRefundOf } from "@/lib/delivery-adjustment";
+import { DataSource, ApiError, type WipeResult } from "./datasource";
 import { store } from "./mock-store";
 
 /** Minimal delay for UI loading state realism in demo mode. */
@@ -139,10 +137,6 @@ export class MockDataSource implements DataSource {
         return;
       }
       const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
-      if (totalQty < MIN_ORDER_TOTAL_QTY) {
-        error = `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
-        return;
-      }
       if (totalQty > MAX_ORDER_TOTAL_QTY) {
         error = `Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
         return;
@@ -244,9 +238,14 @@ export class MockDataSource implements DataSource {
 
   async updateOrderStatus(id: string, status: OrderStatus): Promise<Order> {
     let updated: Order | null = null;
+    let blocked = false;
     store.mutate((s) => {
       const o = s.orders.find((x) => x.id === id);
       if (!o) return;
+      if (status === "DELIVERED" && o.paymentMethod === "COD" && o.paymentStatus !== "PAID") {
+        blocked = true;
+        return;
+      }
       // Cancelling releases reserved stock back to the catalog.
       if (status === "CANCELLED" && o.status !== "CANCELLED") {
         for (const i of o.items) {
@@ -262,6 +261,12 @@ export class MockDataSource implements DataSource {
       o.updatedAt = new Date().toISOString();
       updated = o;
     });
+    if (blocked) {
+      throw new ApiError(
+        "Cash payment must be confirmed before marking a COD order as delivered.",
+        400
+      );
+    }
     if (!updated) throw new ApiError("Order not found.", 404);
     return delay(structuredClone(updated));
   }
@@ -273,6 +278,9 @@ export class MockDataSource implements DataSource {
       for (const id of ids) {
         const o = s.orders.find((x) => x.id === id);
         if (!o) continue;
+        if (status === "DELIVERED" && o.paymentMethod === "COD" && o.paymentStatus !== "PAID") {
+          continue;
+        }
         if (status === "CANCELLED" && o.status !== "CANCELLED") {
           for (const i of o.items) {
             const p = s.products.find((x) => x.id === i.productId);
@@ -307,194 +315,131 @@ export class MockDataSource implements DataSource {
     return delay(structuredClone(updated));
   }
 
-  // --- Returns --------------------------------------------------------------
-  async listReturns(buyerId?: string): Promise<ReturnRequest[]> {
-    const all = store.get().returns;
-    const list = buyerId ? all.filter((r) => r.buyerId === buyerId) : all;
-    const sorted = [...list].sort(
-      (a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt)
-    );
-    return delay(structuredClone(sorted));
+  // --- Delivery run ---------------------------------------------------------
+  async listDriverOrders(driverId: string): Promise<Order[]> {
+    const list = store
+      .get()
+      .orders.filter(
+        (o) => o.driverId === driverId && o.status !== "DELIVERED" && o.status !== "CANCELLED"
+      )
+      .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+    return delay(structuredClone(list));
   }
 
-  /** Real-time returns subscription — fires immediately and on every mutation,
-   *  so return threads update live (mirrors subscribeOrders). */
-  subscribeReturns(buyerId?: string, cb?: (returns: ReturnRequest[]) => void): () => void {
-    const deliver = () => {
-      const all = store.get().returns;
-      const list = buyerId ? all.filter((r) => r.buyerId === buyerId) : all;
-      const sorted = [...list].sort(
-        (a, b) => +new Date(b.requestedAt) - +new Date(a.requestedAt)
-      );
-      cb?.(structuredClone(sorted));
+  subscribeDriverOrders(driverId: string, cb: (orders: Order[]) => void): () => void {
+    const emit = () => {
+      const list = store
+        .get()
+        .orders.filter(
+          (o) => o.driverId === driverId && o.status !== "DELIVERED" && o.status !== "CANCELLED"
+        )
+        .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+      cb(structuredClone(list));
     };
-    deliver();
-    return store.subscribe(deliver);
+    emit();
+    return store.subscribe(emit);
   }
 
-  async getReturn(id: string): Promise<ReturnRequest | null> {
-    const r = store.get().returns.find((x) => x.id === id) ?? null;
-    return delay(r ? structuredClone(r) : null);
+  async listDrivers(): Promise<User[]> {
+    return delay(structuredClone(store.get().users.filter((u) => u.role === "DRIVER")));
   }
 
-  async createReturn(input: CreateReturnInput): Promise<ReturnRequest> {
-    const existing = store.get().returns.find((r) => r.orderId === input.orderId);
-    if (existing) {
-      throw new ApiError("A return request already exists for this order.", 409);
-    }
-    let created: ReturnRequest | null = null;
+  async assignDriver(orderId: string, driverId: string, driverName: string): Promise<Order> {
+    let updated: Order | null = null;
     store.mutate((s) => {
-      const id = `RET-${Date.now()}-${s.returns.length + 1}`;
-      const now = new Date().toISOString();
-      const items = input.items.map((item) => ({
-        ...item,
-        lineRefund: item.returnQty * item.unitPrice,
-      }));
-      const totalRefund = items.reduce((sum, item) => sum + item.lineRefund, 0);
-      const systemMessage: ReturnMessage = {
-        id: `msg-${Date.now()}-sys`,
-        sender: "system",
-        text: `Return request ${id} created for order ${input.orderNumber}. Status: REQUESTED. Reason: ${RETURN_REASON_LABELS[input.reason]}. Estimated refund: Rs. ${totalRefund}.`,
-        sentAt: now,
-      };
-      const returnReq: ReturnRequest = {
-        id,
-        orderId: input.orderId,
-        orderNumber: input.orderNumber,
-        buyerId: input.buyerId,
-        businessName: input.businessName,
-        buyerPhone: input.buyerPhone,
-        items,
-        status: "REQUESTED",
-        reason: input.reason,
-        notes: input.notes,
-        requestedAt: now,
-        totalRefund,
-        adjustedInvoiceNumber: generateAdjustedInvoiceNumber(`INV-${input.orderNumber}`, 1),
-        images: input.images,
-        thread: [systemMessage],
-      };
-      s.returns.unshift(returnReq);
-      created = returnReq;
+      const o = s.orders.find((x) => x.id === orderId);
+      if (!o) return;
+      o.driverId = driverId;
+      o.driverName = driverName;
+      o.assignedAt = new Date().toISOString();
+      o.updatedAt = o.assignedAt;
+      updated = o;
     });
-    return delay(structuredClone(created!), 200);
-  }
-
-  async updateReturnStatus(id: string, status: ReturnStatus): Promise<ReturnRequest> {
-    let updated: ReturnRequest | null = null;
-    store.mutate((s) => {
-      const r = s.returns.find((x) => x.id === id);
-      if (!r) return;
-      const now = new Date().toISOString();
-      r.status = status;
-      r.updatedAt = now;
-      // Any admin transition is the answer to a pending "please review this
-      // again" nudge, one way or another — clear it so the flag can't outlive
-      // the request it was raised about.
-      r.reopenRequestedAt = undefined;
-      if ((["REJECTED", "REFUNDED", "COMPLETED"] as ReturnStatus[]).includes(status)) {
-        r.resolvedAt = now;
-      } else if (status === "REQUESTED") {
-        // Reopen path (REJECTED → REQUESTED): the return is active again, so
-        // it's no longer "resolved" — clear the stale timestamp rather than
-        // leave it pointing at the rejection this just reversed.
-        r.resolvedAt = undefined;
-      }
-      // Company policy: every status change gets its own confirmed system
-      // message — the buyer shouldn't have to infer the outcome from the
-      // original "Estimated refund" message.
-      r.thread.push({
-        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        sender: "system",
-        text: buildStatusChangeMessage(status, r.totalRefund),
-        sentAt: now,
-      });
-      // When a refund is processed, adjust the parent order's total so the
-      // customer's invoice reflects the refund immediately — mirrors
-      // FirebaseDataSource.updateReturnStatus's transactional order patch.
-      if (status === "REFUNDED") {
-        const order = s.orders.find((o) => o.id === r.orderId);
-        if (order) {
-          const originalTotal = order.subtotal + order.deliveryFee;
-          order.refundAmount = r.totalRefund;
-          order.refundedAt = now;
-          order.adjustedInvoiceNumber = r.adjustedInvoiceNumber;
-          order.total = Math.max(0, originalTotal - r.totalRefund);
-          order.updatedAt = now;
-        }
-      }
-      updated = r;
-    });
-    if (!updated) throw new ApiError("Return request not found.", 404);
+    if (!updated) throw new ApiError("Order not found.", 404);
     return delay(structuredClone(updated));
   }
 
-  async addReturnMessage(id: string, sender: "buyer" | "admin", text: string): Promise<ReturnRequest> {
-    let updated: ReturnRequest | null = null;
-    store.mutate((s) => {
-      const r = s.returns.find((x) => x.id === id);
-      if (!r) return;
-      const message: ReturnMessage = {
-        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        sender,
-        text: text.trim(),
-        sentAt: new Date().toISOString(),
-      };
-      r.thread.push(message);
-      r.updatedAt = new Date().toISOString();
-      updated = r;
-    });
-    if (!updated) throw new ApiError("Return request not found.", 404);
-    return delay(structuredClone(updated));
-  }
-
-  async updateReturnAdminNotes(id: string, notes: string): Promise<ReturnRequest> {
-    let updated: ReturnRequest | null = null;
-    store.mutate((s) => {
-      const r = s.returns.find((x) => x.id === id);
-      if (!r) return;
-      r.adminNotes = notes;
-      r.updatedAt = new Date().toISOString();
-      updated = r;
-    });
-    if (!updated) throw new ApiError("Return request not found.", 404);
-    return delay(structuredClone(updated));
-  }
-
-  /** Heartbeat only — deliberately does NOT touch `updatedAt`, or every
-   *  keystroke would reorder the admin's return list mid-type. */
-  async setReturnTyping(id: string, sender: "buyer" | "admin"): Promise<void> {
-    store.mutate((s) => {
-      const r = s.returns.find((x) => x.id === id);
-      if (!r) return;
-      if (sender === "buyer") r.buyerTypingAt = new Date().toISOString();
-      else r.adminTypingAt = new Date().toISOString();
-    });
-  }
-
-  async requestReturnReopen(id: string): Promise<ReturnRequest> {
-    let updated: ReturnRequest | null = null;
+  async createDeliveryAdjustment(
+    orderId: string,
+    input: { lines: AdjustmentLine[]; reason: string; photos: string[] }
+  ): Promise<Order> {
+    let updated: Order | null = null;
     let error: string | null = null;
     store.mutate((s) => {
-      const r = s.returns.find((x) => x.id === id);
-      if (!r) return;
-      if (r.status !== "REJECTED") {
-        error = "Only a rejected return can be asked for another look.";
+      const o = s.orders.find((x) => x.id === orderId);
+      if (!o) return;
+      if (o.adjustment) {
+        error = "An adjustment has already been recorded for this delivery.";
+        return;
+      }
+      const lines = input.lines.filter((l) => l.rejectedQty > 0);
+      if (!lines.length) {
+        error = "Select at least one item the buyer refused.";
+        return;
+      }
+      const totalRefund = totalRefundOf(lines);
+      if (totalRefund > o.total) {
+        error = "The adjustment can't exceed the order value.";
         return;
       }
       const now = new Date().toISOString();
-      r.thread.push({
-        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        sender: "buyer",
-        text: RETURN_REOPEN_REQUEST_TEXT,
-        sentAt: now,
-      });
-      r.reopenRequestedAt = now;
-      r.updatedAt = now;
-      updated = r;
+      const adjustment: DeliveryAdjustment = {
+        lines,
+        totalRefund,
+        reason: input.reason.trim(),
+        photos: input.photos,
+        // Settle on the spot when it is within the driver's authority — a
+        // delivery run must not block on an admin answering their phone.
+        status: isWithinDriverAuthority(totalRefund, o.total) ? "AUTO_APPROVED" : "PENDING",
+        raisedBy: o.driverId ?? "driver",
+        raisedByName: o.driverName,
+        raisedAt: now,
+      };
+      o.adjustment = adjustment;
+      o.updatedAt = now;
+      updated = o;
     });
     if (error) throw new ApiError(error, 409);
-    if (!updated) throw new ApiError("Return request not found.", 404);
+    if (!updated) throw new ApiError("Order not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async decideDeliveryAdjustment(
+    orderId: string,
+    decision: "APPROVED" | "REJECTED",
+    note?: string
+  ): Promise<Order> {
+    let updated: Order | null = null;
+    let error: string | null = null;
+    store.mutate((s) => {
+      const o = s.orders.find((x) => x.id === orderId);
+      if (!o) return;
+      const adj = o.adjustment;
+      if (!adj) {
+        error = "This delivery has no adjustment to decide.";
+        return;
+      }
+      if (adj.status !== "PENDING") {
+        error = "This adjustment has already been settled.";
+        return;
+      }
+      const now = new Date().toISOString();
+      adj.status = decision;
+      adj.decidedAt = now;
+      if (note?.trim()) adj.decisionNote = note.trim();
+      // Rejected means the produce was saleable after all, so it goes back
+      // into stock. Approved is a write-off and must NOT be restocked.
+      if (decision === "REJECTED") {
+        for (const line of adj.lines) {
+          const p = s.products.find((x) => x.id === line.productId);
+          if (p) p.stock += line.rejectedQty;
+        }
+      }
+      o.updatedAt = now;
+      updated = o;
+    });
+    if (error) throw new ApiError(error, 409);
+    if (!updated) throw new ApiError("Order not found.", 404);
     return delay(structuredClone(updated));
   }
 
@@ -671,6 +616,118 @@ export class MockDataSource implements DataSource {
     return delay(u ? structuredClone(u) : null);
   }
 
+  // --- Coupons ----------------------------------------------------------------
+  async listCoupons(): Promise<Coupon[]> {
+    return delay(structuredClone(store.get().coupons));
+  }
+
+  async createCoupon(
+    input: Omit<Coupon, "id" | "usageCount" | "createdAt" | "updatedAt">
+  ): Promise<Coupon> {
+    let created: Coupon | null = null;
+    store.mutate((s) => {
+      const now = new Date().toISOString();
+      const coupon: Coupon = { ...input, id: `coupon-${Date.now()}`, usageCount: 0, createdAt: now, updatedAt: now };
+      s.coupons.push(coupon);
+      created = coupon;
+    });
+    return delay(structuredClone(created!), 200);
+  }
+
+  async updateCoupon(id: string, patch: Partial<Coupon>): Promise<Coupon> {
+    let updated: Coupon | null = null;
+    store.mutate((s) => {
+      const c = s.coupons.find((x) => x.id === id);
+      if (!c) return;
+      Object.assign(c, patch, { id: c.id, updatedAt: new Date().toISOString() });
+      updated = c;
+    });
+    if (!updated) throw new ApiError("Coupon not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async deleteCoupon(id: string): Promise<void> {
+    store.mutate((s) => {
+      s.coupons = s.coupons.filter((c) => c.id !== id);
+    });
+    return delay(undefined);
+  }
+
+  // --- In-app notifications ----------------------------------------------------
+  private sortedNotifs(userId: string): InAppNotification[] {
+    return store
+      .get()
+      .notifications.filter((n) => n.userId === userId)
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+      .slice(0, 100);
+  }
+
+  async listInAppNotifications(userId: string): Promise<InAppNotification[]> {
+    return delay(structuredClone(this.sortedNotifs(userId)));
+  }
+
+  subscribeInAppNotifications(userId: string, cb: (notifs: InAppNotification[]) => void): () => void {
+    const deliver = () => cb(structuredClone(this.sortedNotifs(userId)));
+    deliver();
+    return store.subscribe(deliver);
+  }
+
+  async addInAppNotification(
+    userId: string,
+    type: InAppNotificationType,
+    title: string,
+    message: string,
+    options?: { actionUrl?: string; orderId?: string }
+  ): Promise<InAppNotification> {
+    let created: InAppNotification | null = null;
+    store.mutate((s) => {
+      const notification: InAppNotification = {
+        id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        userId,
+        type,
+        title,
+        message,
+        read: false,
+        ...options,
+        createdAt: new Date().toISOString(),
+      };
+      s.notifications.unshift(notification);
+      created = notification;
+    });
+    return delay(structuredClone(created!));
+  }
+
+  async markInAppNotificationRead(userId: string, id: string): Promise<void> {
+    store.mutate((s) => {
+      const n = s.notifications.find((x) => x.id === id && x.userId === userId);
+      if (n) n.read = true;
+    });
+    return delay(undefined);
+  }
+
+  async markAllInAppNotificationsRead(userId: string): Promise<void> {
+    store.mutate((s) => {
+      s.notifications.forEach((n) => {
+        if (n.userId === userId) n.read = true;
+      });
+    });
+    return delay(undefined);
+  }
+
+  async deleteInAppNotification(userId: string, id: string): Promise<void> {
+    store.mutate((s) => {
+      s.notifications = s.notifications.filter((n) => !(n.id === id && n.userId === userId));
+    });
+    return delay(undefined);
+  }
+
+  async clearAllInAppNotifications(userId: string): Promise<void> {
+    store.mutate((s) => {
+      s.notifications = s.notifications.filter((n) => n.userId !== userId);
+    });
+    return delay(undefined);
+  }
+
   // --- Settings -------------------------------------------------------------
   async getDailyPricesSettings(): Promise<DailyPricesSettings | null> {
     return delay(structuredClone(store.get().dailyPrices) ?? null);
@@ -685,5 +742,105 @@ export class MockDataSource implements DataSource {
       s.dailyPrices = settings;
     });
     return delay(structuredClone(settings));
+  }
+
+  async unpublishDailyPrices(): Promise<void> {
+    store.mutate((s) => {
+      s.dailyPrices = null;
+    });
+    return delay(undefined);
+  }
+
+  async getStoreSettings(): Promise<StoreSettings | null> {
+    return delay(structuredClone(store.get().storeSettings) ?? null);
+  }
+
+  async setStoreOverride(userId: string, override: StoreOverride): Promise<StoreSettings> {
+    // A forced state lapses at the next 9 PM IST, so the shop returns to its
+    // schedule on its own even if nobody remembers to undo a test.
+    const settings: StoreSettings = {
+      override,
+      updatedAt: new Date().toISOString(),
+      updatedBy: userId,
+      ...(override === "AUTO" ? {} : { expiresAt: nextStoreClose().toISOString() }),
+    };
+    store.mutate((s) => {
+      s.storeSettings = settings;
+    });
+    return delay(structuredClone(settings));
+  }
+
+  async getServiceArea(): Promise<ServiceArea | null> {
+    return delay(structuredClone(store.get().serviceArea) ?? null);
+  }
+
+  async saveServiceArea(userId: string, area: ServiceArea): Promise<ServiceArea> {
+    const next: ServiceArea = {
+      hub: area.hub,
+      radiusKm: radiusOf(area),
+      pincodes: [...area.pincodes]
+        .filter((p, i, all) => all.findIndex((q) => q.code === p.code) === i)
+        .sort((a, b) => a.code.localeCompare(b.code)),
+      updatedAt: new Date().toISOString(),
+      updatedBy: userId,
+    };
+    store.mutate((s) => {
+      s.serviceArea = next;
+    });
+    return delay(structuredClone(next));
+  }
+
+  async createDriverAccount(input: {
+    name: string;
+    username: string;
+    phone?: string;
+    password: string;
+  }): Promise<User> {
+    const email = `${input.username.trim().toLowerCase()}@green-basket.in`;
+    if (store.get().users.some((u) => u.email === email)) {
+      throw new ApiError(`The username "${input.username}" is already taken.`, 409);
+    }
+    const user: User = {
+      id: `user-driver-${Date.now()}`,
+      name: input.name,
+      email,
+      phone: input.phone ?? "",
+      role: "DRIVER",
+      businessName: "Green Basket Delivery",
+      createdAt: new Date().toISOString(),
+    };
+    store.mutate((s) => {
+      s.users.push(user);
+      s.credentials[email] = input.password;
+    });
+    return delay(structuredClone(user));
+  }
+
+  async setDriverActive(driverId: string, active: boolean): Promise<void> {
+    store.mutate((s) => {
+      const u = s.users.find((x) => x.id === driverId);
+      if (u) u.disabled = !active;
+    });
+    return delay(undefined);
+  }
+
+  // --- Danger zone ------------------------------------------------------------
+  async wipeDatabase(): Promise<WipeResult> {
+    let deletedUsers = 0;
+    let deletedOrders = 0;
+    let deletedTickets = 0;
+    let deletedNotifications = 0;
+    store.mutate((s) => {
+      const keepUsers = s.users.filter((u) => u.role === "ADMIN");
+      deletedUsers = s.users.length - keepUsers.length;
+      s.users = keepUsers;
+      deletedOrders = s.orders.length;
+      s.orders = [];
+      deletedTickets = s.supportTickets.length;
+      s.supportTickets = [];
+      deletedNotifications = s.notifications.length;
+      s.notifications = [];
+    });
+    return delay({ deletedUsers, deletedOrders, deletedTickets, deletedNotifications }, 300);
   }
 }

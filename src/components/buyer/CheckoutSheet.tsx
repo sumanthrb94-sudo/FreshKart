@@ -6,7 +6,6 @@ import type { DeliveryDetails, PaymentMethod } from "@/lib/types";
 import {
   formatCurrency,
   pricePerUnit,
-  MIN_ORDER_TOTAL_QTY,
   MAX_ORDER_TOTAL_QTY,
   MAX_ORDER_ITEM_TYPES,
   PAYMENT_LABELS,
@@ -17,7 +16,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
-import { Field, Input } from "@/components/ui/Field";
+import { Field, Input, PhoneInput } from "@/components/ui/Field";
 import { ProductThumb } from "@/components/ui/ProductThumb";
 import { QuantityStepper } from "@/components/ui/QuantityStepper";
 import { Sheet } from "@/components/ui/Sheet";
@@ -97,10 +96,6 @@ export function CheckoutSheet({
     }
     if (!isValidPhoneDigits(delivery.phone)) {
       setLocalError("Enter a valid 10-digit phone number for delivery updates.");
-      return;
-    }
-    if (totalQty < MIN_ORDER_TOTAL_QTY) {
-      setLocalError(`Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. Add ${MIN_ORDER_TOTAL_QTY - totalQty} more kg to continue.`);
       return;
     }
     if (totalQty > MAX_ORDER_TOTAL_QTY) {
@@ -196,10 +191,9 @@ export function CheckoutSheet({
                 )}
               </div>
               <Field label="Phone for delivery updates" htmlFor="checkout-phone">
-                <Input
+                <PhoneInput
                   id="checkout-phone"
                   flavor="field"
-                  inputMode="tel"
                   value={delivery.phone}
                   onChange={(e) => set("phone", sanitizePhoneDigits(e.target.value))}
                   placeholder="98765 43210"

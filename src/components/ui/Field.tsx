@@ -82,6 +82,43 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
 );
 Textarea.displayName = "Textarea";
 
+export interface PhoneInputProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
+  flavor?: Flavor;
+}
+
+/** A free-text 10-digit phone field with a fixed "+91" prefix — same visual
+ *  treatment as the sign-in OTP phone field, so the country code is always
+ *  visible instead of implicit in a bare 10-digit box. Purely a display
+ *  affordance: this does NOT check the number against other accounts (see
+ *  isPlausibleIndianMobile / phoneIndex for that — reserved for the sign-in
+ *  linking step). Pair with sanitizePhoneDigits/isValidPhoneDigits as usual. */
+export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(
+  ({ flavor = "input", className, ...props }, ref) => (
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-lg px-3.5 transition-colors focus-within:ring-2 focus-within:ring-brand-500/30",
+        flavor === "input"
+          ? "h-11 bg-surface border border-line focus-within:border-brand-500"
+          : "h-11 bg-raised border border-line focus-within:bg-surface",
+        className
+      )}
+    >
+      <span className="shrink-0 border-r border-line pr-2 text-sm font-semibold text-fg-subtle">
+        +91
+      </span>
+      <input
+        ref={ref}
+        type="tel"
+        inputMode="numeric"
+        className="w-full min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle disabled:cursor-not-allowed disabled:text-fg-subtle"
+        {...props}
+      />
+    </div>
+  )
+);
+PhoneInput.displayName = "PhoneInput";
+
 export interface SelectProps
   extends React.SelectHTMLAttributes<HTMLSelectElement> {
   flavor?: Flavor;

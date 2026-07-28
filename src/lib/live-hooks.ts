@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { api } from "@/lib/api";
-import type { ReturnRequest } from "@/lib/returns";
 import type { SupportTicket } from "@/lib/support-tickets";
 
 interface LiveResult<T> {
@@ -91,19 +90,6 @@ function useLiveList<T>(
   return { data, loading, error, refetch: () => runFetch() };
 }
 
-/** Live returns for a buyer (buyerId set) or all returns (admin, buyerId
- *  omitted). Return-thread screens derive the single active thread from this
- *  live list by id, so it updates in real time. */
-export function useLiveReturns(buyerId?: string, enabled = true): LiveResult<ReturnRequest> {
-  const canSubscribe = typeof api.subscribeReturns === "function";
-  return useLiveList<ReturnRequest>(
-    canSubscribe ? (cb) => api.subscribeReturns!(buyerId, cb) : null,
-    () => api.listReturns(buyerId),
-    [buyerId],
-    enabled,
-    5000
-  );
-}
 
 /** Live support tickets for a buyer or all tickets (admin). */
 export function useLiveSupportTickets(buyerId?: string, enabled = true): LiveResult<SupportTicket> {

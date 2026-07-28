@@ -40,6 +40,12 @@ export class PhoneAuthError extends Error {
   }
 }
 
+/** The hostname the browser is actually on — see the identical helper in
+ *  friendly-phone-error.ts for why every domain rejection should name it. */
+function currentHost(): string {
+  return typeof window !== "undefined" ? window.location.hostname : "this site";
+}
+
 function normalizeFirebaseError(e: unknown): PhoneAuthError {
   const code = (e as { code?: string })?.code ?? "unknown";
   const message = e instanceof Error ? e.message : "Something went wrong.";
@@ -50,33 +56,37 @@ function normalizeFirebaseError(e: unknown): PhoneAuthError {
     case code.includes("too-many-requests"):
       return new PhoneAuthError(
         code,
-        "Too many attempts from this device. Please wait a few minutes and try again."
+        "Too many sign-in attempts from this device. Stop trying for about an hour — retrying now makes the block last longer."
       );
     case code.includes("quota-exceeded"):
       return new PhoneAuthError(
         code,
-        "SMS quota exceeded for today. Try Google sign-in or contact support."
+        "SMS quota exceeded for today. Please try again later or contact support."
       );
     case code.includes("billing-not-enabled"):
       return new PhoneAuthError(
         code,
-        "Phone sign-in is temporarily unavailable. Please use Google sign-in, or contact support."
+        "Phone sign-in is temporarily unavailable. Please contact support."
       );
     case code.includes("operation-not-allowed"):
       return new PhoneAuthError(
         code,
-        "Phone sign-in is not enabled for this app. Please use Google sign-in instead."
+        "Phone sign-in is not enabled for this app. Please contact support."
       );
     case code.includes("app-not-authorized"):
     case code.includes("unauthorized-domain"):
       return new PhoneAuthError(
         code,
-        "This domain is not authorized for sign-in. Add it in Firebase Console → Authentication → Settings → Authorized domains."
+        `"${currentHost()}" isn't authorized for sign-in. Add it in Firebase Console → Authentication → Settings → Authorized domains.`
       );
+    // Firebase reports several unrelated server-side rejections as a bare
+    // `internal-error`. In practice the overwhelming cause is a hostname
+    // missing from the authorized-domains list — which it never names. Lead
+    // with the actual hostname so the fix is a copy-paste, not a hunt.
     case code.includes("internal-error"):
       return new PhoneAuthError(
         code,
-        "Sign-in failed (internal error). Common causes: Phone provider disabled in Firebase Console, an invalid App Check token, or an ad-blocker/firewall blocking Firebase. Try refreshing, disabling extensions, or using Google sign-in."
+        `Sign-in failed. Most likely "${currentHost()}" isn't in Firebase → Authentication → Settings → Authorized domains — add it there. Otherwise an ad-blocker or firewall may be blocking Firebase.`
       );
     case code.includes("captcha-check-failed"):
     case code.includes("recaptcha"):

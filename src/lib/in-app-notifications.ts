@@ -1,7 +1,10 @@
-/** In-App Notification System for Green Basket Customers
- *  Generates and manages notifications shown inside the app.
- *  Persists to localStorage. Separate from email/SMS (in notifications.ts).
+/** In-App Notification System for Green Basket Customers.
+ *  Generates and manages notifications shown inside the app. Backed by
+ *  Firestore (collection `notifications`, scoped by `userId`) so history and
+ *  read-state follow the account across devices — no client storage of any
+ *  kind. Separate from email/SMS (in notifications.ts).
  */
+import { api } from "@/lib/api";
 
 export type InAppNotificationType =
   | "order_confirmed"
@@ -9,15 +12,12 @@ export type InAppNotificationType =
   | "order_shipped"
   | "order_delivered"
   | "order_cancelled"
-  | "return_requested"
-  | "return_approved"
-  | "return_rejected"
-  | "return_refunded"
   | "coupon_applied"
   | "payment_reminder";
 
 export interface InAppNotification {
   id: string;
+  userId: string;
   type: InAppNotificationType;
   title: string;
   message: string;
@@ -27,40 +27,10 @@ export interface InAppNotification {
   createdAt: string;
 }
 
-const STORAGE_KEY_BASE = "green_basket_inapp_notifications";
-
-/** Notifications carry per-user actionUrls (e.g. /returns/{id} scoped to the
- *  buyer who owns that return). A single shared, unscoped localStorage key
- *  would leak one signed-in account's notifications — and their deep links —
- *  to whoever signs in next on the same browser, so storage is namespaced by
- *  the active user id. No user signed in → nothing is loaded or persisted. */
 let activeUserId: string | null = null;
-
-function storageKeyFor(userId: string): string {
-  return `${STORAGE_KEY_BASE}:${userId}`;
-}
-
-function loadNotifications(userId: string): InAppNotification[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const stored = localStorage.getItem(storageKeyFor(userId));
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveNotifications(notifs: InAppNotification[]) {
-  if (typeof window === "undefined" || !activeUserId) return;
-  try {
-    localStorage.setItem(storageKeyFor(activeUserId), JSON.stringify(notifs.slice(0, 100)));
-  } catch {
-    // Storage full
-  }
-}
-
 let notifs: InAppNotification[] = [];
 let listeners: ((notifs: InAppNotification[]) => void)[] = [];
+let unsubscribeLive: (() => void) | null = null;
 
 function notify() {
   listeners.forEach((l) => l([...notifs]));
@@ -71,8 +41,28 @@ function notify() {
 export function setNotificationUser(userId: string | null) {
   if (userId === activeUserId) return;
   activeUserId = userId;
-  notifs = userId ? loadNotifications(userId) : [];
+  unsubscribeLive?.();
+  unsubscribeLive = null;
+  notifs = [];
   notify();
+  if (!userId) return;
+
+  if (typeof api.subscribeInAppNotifications === "function") {
+    unsubscribeLive = api.subscribeInAppNotifications(userId, (fresh) => {
+      if (userId !== activeUserId) return; // a fast account switch outran this subscription
+      notifs = fresh;
+      notify();
+    });
+  } else {
+    api
+      .listInAppNotifications(userId)
+      .then((fresh) => {
+        if (userId !== activeUserId) return;
+        notifs = fresh;
+        notify();
+      })
+      .catch(() => {});
+  }
 }
 
 export function subscribeInAppNotifications(callback: (notifs: InAppNotification[]) => void) {
@@ -87,49 +77,44 @@ export function getUnreadCount(): number {
   return notifs.filter((n) => !n.read).length;
 }
 
+/** Fire-and-forget: the live subscription (or the next poll) reflects the
+ *  new notification once the write lands, so this doesn't need to be awaited
+ *  by any caller — matches how every other notify* helper below is used. */
 export function addInAppNotification(
   type: InAppNotificationType,
   title: string,
   message: string,
   options?: { actionUrl?: string; orderId?: string }
-): InAppNotification {
-  const notification: InAppNotification = {
-    id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    type,
-    title,
-    message,
-    read: false,
-    ...options,
-    createdAt: new Date().toISOString(),
-  };
-  notifs = [notification, ...notifs].slice(0, 100);
-  saveNotifications(notifs);
-  notify();
-  return notification;
+): void {
+  if (!activeUserId) return;
+  api.addInAppNotification(activeUserId, type, title, message, options).catch(() => {});
 }
 
+// Read/delete actions update the local cache immediately (optimistic) for a
+// snappy UI, then sync to Firestore in the background; the live subscription
+// reconciles if the write fails.
 export function markInAppAsRead(id: string) {
   notifs = notifs.map((n) => (n.id === id ? { ...n, read: true } : n));
-  saveNotifications(notifs);
   notify();
+  if (activeUserId) api.markInAppNotificationRead(activeUserId, id).catch(() => {});
 }
 
 export function markAllInAppAsRead() {
   notifs = notifs.map((n) => ({ ...n, read: true }));
-  saveNotifications(notifs);
   notify();
+  if (activeUserId) api.markAllInAppNotificationsRead(activeUserId).catch(() => {});
 }
 
 export function deleteInAppNotification(id: string) {
   notifs = notifs.filter((n) => n.id !== id);
-  saveNotifications(notifs);
   notify();
+  if (activeUserId) api.deleteInAppNotification(activeUserId, id).catch(() => {});
 }
 
 export function clearAllInAppNotifications() {
   notifs = [];
-  saveNotifications(notifs);
   notify();
+  if (activeUserId) api.clearAllInAppNotifications(activeUserId).catch(() => {});
 }
 
 // ── Pre-built notification generators ────────────────────────────────────
@@ -176,42 +161,6 @@ export function notifyOrderCancelled(orderNumber: string, reason?: string) {
     "Order Cancelled",
     `Your order ${orderNumber} was cancelled. ${reason || "Any amount paid will be refunded within 5-7 business days."}`,
     { actionUrl: "/orders" }
-  );
-}
-
-export function notifyReturnRequested(orderNumber: string, returnId: string, refundAmount: number) {
-  return addInAppNotification(
-    "return_requested",
-    "Return Request Submitted",
-    `Refund of Rs. ${refundAmount} for order ${orderNumber} will be processed in 3-5 days. Our team will review within 24 hours.`,
-    { actionUrl: `/returns/${returnId}` }
-  );
-}
-
-export function notifyReturnApproved(returnId: string) {
-  return addInAppNotification(
-    "return_approved",
-    "Return Approved",
-    `Your return request ${returnId} has been approved. A pickup will be scheduled soon.`,
-    { actionUrl: `/returns/${returnId}` }
-  );
-}
-
-export function notifyReturnRejected(returnId: string, reason?: string) {
-  return addInAppNotification(
-    "return_rejected",
-    "Return Rejected",
-    `Your return request ${returnId} was rejected. ${reason || "Please contact support for more details."}`,
-    { actionUrl: `/returns/${returnId}` }
-  );
-}
-
-export function notifyReturnRefunded(returnId: string, amount: number) {
-  return addInAppNotification(
-    "return_refunded",
-    "Refund Processed",
-    `Rs. ${amount} has been refunded for return ${returnId}. It will reflect in your account within 5-7 business days.`,
-    { actionUrl: `/returns/${returnId}` }
   );
 }
 

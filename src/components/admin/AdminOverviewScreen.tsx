@@ -14,10 +14,12 @@ import {
   MessageCircle,
   Package,
   Pin,
-  RotateCcw,
   ScanLine,
   Search,
+  Settings,
   ShoppingCart,
+  Truck,
+  Undo2,
   Sparkles,
   Tag,
   Users,
@@ -39,7 +41,7 @@ import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { AdminShell } from "./AdminShell";
-import { useLiveOrders, useLiveReturns, useLiveNeedsHumanCount } from "@/lib/admin-alerts-store";
+import { useLiveOrders, useLiveNeedsHumanCount } from "@/lib/admin-alerts-store";
 import { StatCard } from "@/components/ui/StatCard";
 import { DayPicker } from "@/components/ui/DayPicker";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -51,7 +53,7 @@ import { FullScreenLoader, Spinner } from "@/components/ui/Spinner";
 
 const ALL_STATUSES: OrderStatus[] = [...STATUS_FLOW, "CANCELLED"];
 
-type Tone = "brand" | "amber" | "blue" | "violet" | "rose" | "indigo" | "teal" | "pink" | "cyan";
+type Tone = "brand" | "amber" | "blue" | "violet" | "rose" | "indigo" | "teal" | "pink" | "cyan" | "slate";
 
 type ManageTileDef = { href: string; label: string; icon: LucideIcon; tone: Tone };
 
@@ -62,14 +64,14 @@ const MANAGE_TILES: ManageTileDef[] = [
   { href: "/admin/prices", label: "Prices", icon: Tag, tone: "amber" },
   { href: "/admin/orders", label: "Orders", icon: ClipboardList, tone: "blue" },
   { href: "/admin/pos", label: "POS Sale", icon: ScanLine, tone: "violet" },
-  { href: "/admin/returns", label: "Returns", icon: RotateCcw, tone: "rose" },
+  { href: "/admin/deliveries", label: "Deliveries", icon: Truck, tone: "rose" },
+  { href: "/admin/returns", label: "Returns", icon: Undo2, tone: "amber" },
   { href: "/admin/support", label: "Support", icon: MessageCircle, tone: "indigo" },
   { href: "/admin/reports", label: "Reports", icon: FileText, tone: "teal" },
   { href: "/admin/coupons", label: "Coupons", icon: BadgePercent, tone: "pink" },
   { href: "/admin/customers", label: "Buyers", icon: Users, tone: "cyan" },
+  { href: "/admin/settings", label: "Settings", icon: Settings, tone: "slate" },
 ];
-
-const PINNED_TILES_KEY = "admin-pinned-tiles";
 
 type SearchResult = {
   kind: "order" | "product" | "customer";
@@ -127,7 +129,7 @@ function searchAll(
 }
 
 export function AdminOverviewScreen() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const router = useRouter();
   const { data: stats, loading: statsLoading, error: statsError, refetch: refetchStats } =
     useAsync(() => api.getAdminStats(), []);
@@ -145,8 +147,7 @@ export function AdminOverviewScreen() {
   // subscriptions the header badges use (src/lib/admin-alerts-store.ts), so
   // both stay in sync in real time off of exactly one Firestore listener
   // each; a second independent listener here would double-fire the chime.
-  const { confirmedOrders } = useLiveOrders();
-  const { pendingCount: pendingReturnsCount } = useLiveReturns();
+  const { confirmedOrders, pendingAdjustments } = useLiveOrders();
   const needsHumanCount = useLiveNeedsHumanCount();
   const newOrdersCount = confirmedOrders.length;
 
@@ -201,25 +202,17 @@ export function AdminOverviewScreen() {
     else router.push(`/admin/customers?highlight=${result.id}`);
   }
 
-  // Pinned "Manage" tiles — persisted locally so admins who mostly live in
-  // 2-3 sections can float them to the front of the grid.
+  // Pinned "Manage" tiles — persisted on the admin's own profile so admins
+  // who mostly live in 2-3 sections can float them to the front of the grid,
+  // and it follows them across devices instead of resetting per browser.
   const [pinned, setPinned] = useState<string[]>([]);
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(PINNED_TILES_KEY);
-      if (raw) setPinned(JSON.parse(raw));
-    } catch {
-      // Ignore malformed/unavailable localStorage — falls back to unpinned order.
-    }
-  }, []);
+    setPinned(user?.pinnedTiles ?? []);
+  }, [user?.pinnedTiles]);
   function togglePin(href: string) {
     setPinned((prev) => {
       const next = prev.includes(href) ? prev.filter((h) => h !== href) : [...prev, href];
-      try {
-        window.localStorage.setItem(PINNED_TILES_KEY, JSON.stringify(next));
-      } catch {
-        // Ignore write failures (private browsing, storage disabled, etc).
-      }
+      updateProfile({ pinnedTiles: next }).catch(() => {});
       return next;
     });
   }
@@ -292,7 +285,9 @@ export function AdminOverviewScreen() {
       case "/admin/orders":
         return { count: newOrdersCount };
       case "/admin/returns":
-        return { count: pendingReturnsCount };
+        // A driver is standing at a customer's door waiting on this, so it
+        // flashes rather than sitting quietly as a number.
+        return { count: pendingAdjustments.length, attention: pendingAdjustments.length > 0 };
       case "/admin/support":
         return { count: needsHumanCount };
       default:
@@ -687,6 +682,7 @@ const TONE_CLASSES: Record<Tone, string> = {
   teal: "bg-gradient-to-br from-teal-500/20 to-teal-500/5 text-teal-500",
   pink: "bg-gradient-to-br from-pink-500/20 to-pink-500/5 text-pink-500",
   cyan: "bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 text-cyan-500",
+  slate: "bg-gradient-to-br from-slate-500/20 to-slate-500/5 text-slate-500",
 };
 
 // Whole-tile wash: a very faint hint of the tone bleeding down from the top
@@ -701,6 +697,7 @@ const TONE_TILE_WASH: Record<Tone, string> = {
   teal: "from-teal-500/[0.07]",
   pink: "from-pink-500/[0.07]",
   cyan: "from-cyan-500/[0.07]",
+  slate: "from-slate-500/[0.07]",
 };
 
 /** One tappable tile in the "Manage" grid — icon, label, an optional live

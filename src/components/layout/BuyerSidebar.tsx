@@ -6,7 +6,7 @@ import { LogOut, Sprout, ShoppingCart, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
-import { formatCurrency, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import { BUYER_TABS } from "@/components/buyer/BuyerBottomNav";
 
 /**
@@ -60,15 +60,12 @@ export function BuyerSidebar() {
       </nav>
 
       <div className="border-t border-line p-3">
+        {/* No whole-cart minimum — per-product minimums are enforced by the
+            quantity stepper, so any non-empty cart is checkout-ready. */}
         {itemCount > 0 && (
           <Link
-            href={totalQty >= MIN_ORDER_TOTAL_QTY ? "/?cart=1" : "/"}
-            className={cn(
-              "mb-3 flex flex-col gap-2 rounded-xl p-3 text-brand-400 transition-colors",
-              totalQty >= MIN_ORDER_TOTAL_QTY
-                ? "bg-brand-500/10 hover:bg-brand-500 hover:text-white"
-                : "cursor-not-allowed bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-white"
-            )}
+            href="/?cart=1"
+            className="mb-3 flex flex-col gap-2 rounded-xl bg-brand-500/10 p-3 text-brand-400 transition-colors hover:bg-brand-500 hover:text-white"
           >
             <span className="flex items-center justify-between text-xs font-bold">
               <span className="flex items-center gap-1.5">
@@ -78,9 +75,7 @@ export function BuyerSidebar() {
               <span>{formatCurrency(subtotal)}</span>
             </span>
             <span className="flex items-center justify-between text-sm font-extrabold">
-              {totalQty >= MIN_ORDER_TOTAL_QTY
-                ? "Review & Order"
-                : `Min ${MIN_ORDER_TOTAL_QTY} kgs · add ${MIN_ORDER_TOTAL_QTY - totalQty}`}
+              Review &amp; Order
               <ArrowRight className="h-4 w-4" />
             </span>
           </Link>

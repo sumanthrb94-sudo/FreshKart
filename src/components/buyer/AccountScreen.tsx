@@ -15,7 +15,7 @@ import { BuyerSidebar } from "@/components/layout/BuyerSidebar";
 import { PageHero } from "./PageHero";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { Field, Input } from "@/components/ui/Field";
+import { Field, Input, PhoneInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import { FullScreenLoader } from "@/components/ui/Spinner";
@@ -231,8 +231,7 @@ export function AccountScreen() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Phone">
-                    <Input
-                      inputMode="tel"
+                    <PhoneInput
                       value={form.phone}
                       onChange={(e) => set("phone", sanitizePhoneDigits(e.target.value))}
                     />
@@ -289,7 +288,7 @@ export function AccountScreen() {
                 </div>
                 <div>
                   <p className="text-xs text-fg-subtle">Phone</p>
-                  <p className="font-semibold text-fg">{user.phone || "—"}</p>
+                  <p className="font-semibold text-fg">{user.phone ? `+91 ${user.phone}` : "—"}</p>
                 </div>
                 <div>
                   <p className="text-xs text-fg-subtle">GSTIN</p>

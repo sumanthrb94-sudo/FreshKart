@@ -15,9 +15,13 @@
 // After deploying, verify three flows: Google login, the address map, and
 // product images — if any break, the blocked origin shows in the console.
 // ---------------------------------------------------------------------------
+// Next.js dev-mode webpack HMR needs 'unsafe-eval' to run at all; production
+// builds never need it, so it's only added outside production.
+const isDev = process.env.NODE_ENV !== "production";
+
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://apis.google.com https://*.gstatic.com https://*.googletagmanager.com https://va.vercel-scripts.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
+  `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval' " : ""}https://apis.google.com https://*.gstatic.com https://*.googletagmanager.com https://va.vercel-scripts.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://images.unsplash.com https://*.googleusercontent.com https://*.tile.openstreetmap.org https://*.gstatic.com https://*.google-analytics.com https://www.gstatic.com/recaptcha/ https://www.google.com/recaptcha/ https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com",
   "font-src 'self' data:",

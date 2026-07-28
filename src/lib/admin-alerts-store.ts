@@ -6,7 +6,6 @@ import { playChime } from "@/lib/audio-chime";
 import { toast } from "@/lib/toast";
 import { formatCurrency } from "@/lib/format";
 import type { Order } from "@/lib/types";
-import type { ReturnRequest } from "@/lib/returns";
 import type { SupportTicket } from "@/lib/support-tickets";
 
 /** Live admin order/return/ticket counts, shared by the header badges AND
@@ -30,12 +29,14 @@ function playNewOrderSound() {
   ]);
 }
 
-/** New-return-request alert — distinct descending triad (A5 → E5 → A4), sine. */
-function playNewReturnSound() {
+/** Doorstep escalation — an urgent, insistent double-beep. A driver is
+ *  standing in a customer's shop unable to collect until this is answered,
+ *  so it is deliberately the most attention-grabbing sound in the console. */
+function playEscalationSound() {
   playChime([
-    { freq: 880.0, startOffset: 0, duration: 0.35, gain: 0.14 },
-    { freq: 659.25, startOffset: 0.1, duration: 0.35, gain: 0.14 },
-    { freq: 440.0, startOffset: 0.2, duration: 0.35, gain: 0.14 },
+    { freq: 880.0, startOffset: 0, duration: 0.18, type: "square", gain: 0.09 },
+    { freq: 880.0, startOffset: 0.26, duration: 0.18, type: "square", gain: 0.09 },
+    { freq: 1174.66, startOffset: 0.52, duration: 0.26, type: "square", gain: 0.09 },
   ]);
 }
 
@@ -48,34 +49,25 @@ function playOrderCancelledSound() {
   ]);
 }
 
-/** "New since last time you looked" baselines, persisted across page
- *  reloads/tab closes. Without this, the in-memory previous-snapshot diff
- *  only catches orders that arrive while THIS tab stays continuously open —
- *  an admin who checks by reloading (or reopening the tab) never hears
- *  anything for orders that landed while they were away, even though the
- *  count itself is always correct (it's read fresh on every load either
- *  way). Storing the latest-seen timestamp survives exactly that gap. */
+/** "New since last time you looked" baselines. In-memory only (no client
+ *  storage) — this resets on a fresh page load/reopened tab, so an admin who
+ *  reloads while new orders arrived won't hear a chime for those specific
+ *  ones. The count itself is always correct regardless (read fresh on every
+ *  load either way); this only affects the one-time celebratory chime for a
+ *  backlog that arrived while nobody had a tab open, which is an acceptable
+ *  trade-off to avoid any client-side persistence. */
+const lastSeenTs: Record<string, number> = {};
+
 function readLastSeenTs(key: string): number {
-  if (typeof window === "undefined") return 0;
-  try {
-    return Number(window.localStorage.getItem(key)) || 0;
-  } catch {
-    return 0;
-  }
+  return lastSeenTs[key] ?? 0;
 }
 
 function writeLastSeenTs(key: string, ts: number) {
-  if (typeof window === "undefined" || !ts) return;
-  try {
-    window.localStorage.setItem(key, String(ts));
-  } catch {
-    // Storage unavailable (private browsing, quota) — falls back to
-    // in-tab-only detection for this session, same as before this existed.
-  }
+  if (!ts) return;
+  lastSeenTs[key] = ts;
 }
 
-const ORDERS_LAST_SEEN_KEY = "green_basket_admin_orders_last_seen_ts";
-const RETURNS_LAST_SEEN_KEY = "green_basket_admin_returns_last_seen_ts";
+const ORDERS_LAST_SEEN_KEY = "orders";
 
 /** Generic ref-counted singleton subscription: the underlying Firestore
  *  listener starts on the first subscriber and stops on the last, however
@@ -122,6 +114,10 @@ function createLiveStore<TSnapshot>(
 
 interface OrdersSnapshot {
   confirmedOrders: Order[];
+  /** Door-side rejections over the driver's own limit, waiting on an admin.
+   *  Derived from the SAME listener as the orders above — a second listener
+   *  would double-fire the escalation alert. */
+  pendingAdjustments: Order[];
   isLive: boolean;
 }
 
@@ -129,13 +125,40 @@ const ordersStore = createLiveStore<OrdersSnapshot>((setSnapshot) => {
   if (typeof api.subscribeOrders !== "function") {
     api
       .listOrders()
-      .then((orders) => setSnapshot({ confirmedOrders: orders.filter((o) => o.status === "CONFIRMED"), isLive: false }))
+      .then((orders) =>
+        setSnapshot({
+          confirmedOrders: orders.filter((o) => o.status === "CONFIRMED"),
+          pendingAdjustments: orders.filter((o) => o.adjustment?.status === "PENDING"),
+          isLive: false,
+        })
+      )
       .catch(() => {});
     return;
   }
 
   let previousStatus: Map<string, Order["status"]> | null = null;
+  let previousPending: Set<string> | null = null;
   const unsubscribe = api.subscribeOrders(undefined, (orders) => {
+    const pendingAdjustments = orders.filter((o) => o.adjustment?.status === "PENDING");
+
+    // A driver is waiting at a door — announce it the moment it lands, and
+    // only for escalations this tab hasn't already seen.
+    const pendingIds = new Set(pendingAdjustments.map((o) => o.id));
+    if (previousPending) {
+      const fresh = pendingAdjustments.filter((o) => !previousPending!.has(o.id));
+      if (fresh.length > 0) {
+        playEscalationSound();
+        fresh.forEach((o) => {
+          toast.error(
+            "Driver needs a decision",
+            `${o.businessName} — ${formatCurrency(o.adjustment?.totalRefund ?? 0)} refused`,
+            10000
+          );
+        });
+      }
+    }
+    previousPending = pendingIds;
+
     const confirmedOrders = orders
       .filter((o) => o.status === "CONFIRMED")
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -185,71 +208,18 @@ const ordersStore = createLiveStore<OrdersSnapshot>((setSnapshot) => {
     const latestTs = orders.reduce((max, o) => Math.max(max, new Date(o.createdAt).getTime()), 0);
     writeLastSeenTs(ORDERS_LAST_SEEN_KEY, latestTs);
 
-    setSnapshot({ confirmedOrders, isLive: true });
+    setSnapshot({ confirmedOrders, pendingAdjustments, isLive: true });
   });
 
   return unsubscribe;
-}, { confirmedOrders: [], isLive: false });
+}, { confirmedOrders: [], pendingAdjustments: [], isLive: false });
 
 export function useLiveOrders(): OrdersSnapshot {
-  return useSyncExternalStore(ordersStore.subscribe, ordersStore.getSnapshot, () => ({ confirmedOrders: [], isLive: false }));
-}
-
-interface ReturnsSnapshot {
-  pendingCount: number;
-  isLive: boolean;
-}
-
-const returnsStore = createLiveStore<ReturnsSnapshot>((setSnapshot) => {
-  if (typeof api.subscribeReturns !== "function") {
-    api
-      .listReturns()
-      .then((returns) => setSnapshot({ pendingCount: returns.filter((r) => r.status === "REQUESTED").length, isLive: false }))
-      .catch(() => {});
-    return;
-  }
-
-  let previousIds: Set<string> | null = null;
-  const unsubscribe = api.subscribeReturns(undefined, (returns: ReturnRequest[]) => {
-    const pendingCount = returns.filter((r) => r.status === "REQUESTED").length;
-
-    if (previousIds) {
-      const prev = previousIds;
-      const newReturns = returns.filter((r) => !prev.has(r.id) && r.status === "REQUESTED");
-      if (newReturns.length > 0) {
-        playNewReturnSound();
-        newReturns.forEach((r) => {
-          toast.info("New return request", `${r.businessName} — ${formatCurrency(r.totalRefund)}`, 6000);
-        });
-      }
-    } else {
-      // Same reload-survival fallback as the orders store above.
-      const lastSeenTs = readLastSeenTs(RETURNS_LAST_SEEN_KEY);
-      if (lastSeenTs > 0) {
-        const newSinceLastVisit = returns.filter(
-          (r) => r.status === "REQUESTED" && new Date(r.requestedAt).getTime() > lastSeenTs
-        );
-        if (newSinceLastVisit.length > 0) {
-          playNewReturnSound();
-          newSinceLastVisit.forEach((r) => {
-            toast.info("New return request", `${r.businessName} — ${formatCurrency(r.totalRefund)}`, 6000);
-          });
-        }
-      }
-    }
-    previousIds = new Set(returns.map((r) => r.id));
-
-    const latestTs = returns.reduce((max, r) => Math.max(max, new Date(r.requestedAt).getTime()), 0);
-    writeLastSeenTs(RETURNS_LAST_SEEN_KEY, latestTs);
-
-    setSnapshot({ pendingCount, isLive: true });
-  });
-
-  return unsubscribe;
-}, { pendingCount: 0, isLive: false });
-
-export function useLiveReturns(): ReturnsSnapshot {
-  return useSyncExternalStore(returnsStore.subscribe, returnsStore.getSnapshot, () => ({ pendingCount: 0, isLive: false }));
+  return useSyncExternalStore(ordersStore.subscribe, ordersStore.getSnapshot, () => ({
+    confirmedOrders: [],
+    pendingAdjustments: [],
+    isLive: false,
+  }));
 }
 
 const ticketsStore = createLiveStore<number>((setSnapshot) => {

@@ -11,8 +11,6 @@ import {
 import type { User } from "@/lib/types";
 import { api } from "@/lib/api";
 
-const SESSION_KEY = "green-basket.session.v1";
-
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
@@ -32,29 +30,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // No client-side caching of the session — Firebase Auth (subscribeAuth)
+  // is the sole source of truth for who's signed in, backed by Firestore for
+  // the profile itself. This trades an instant optimistic paint for never
+  // risking a stale/incorrect cached identity.
   const persist = useCallback((next: User | null) => {
     setUser(next);
-    try {
-      if (next) window.localStorage.setItem(SESSION_KEY, JSON.stringify(next));
-      else window.localStorage.removeItem(SESSION_KEY);
-    } catch {
-      /* ignore */
-    }
   }, []);
 
-  // Restore session. With a backend that manages auth state (Firebase), that
-  // subscription is the source of truth; localStorage gives an instant
-  // optimistic paint while it settles. Otherwise localStorage is authoritative.
   useEffect(() => {
-    let hydrated: User | null = null;
-    try {
-      const raw = window.localStorage.getItem(SESSION_KEY);
-      if (raw) hydrated = JSON.parse(raw) as User;
-    } catch {
-      /* ignore */
-    }
-    if (hydrated) setUser(hydrated);
-
     if (api.subscribeAuth) {
       // Safety net: never let a stalled backend read pin the app on a loader.
       const safety = setTimeout(() => setLoading(false), 9000);

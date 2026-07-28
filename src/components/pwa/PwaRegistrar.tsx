@@ -9,7 +9,10 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-const DISMISS_KEY = "green-basket.pwa.dismissed.v1";
+// In-memory only — resets on a full reload, but persists across client-side
+// navigation for the rest of this visit. Not worth a server round-trip for
+// "don't nag again this session".
+let dismissedThisSession = false;
 
 /**
  * Registers the service worker and surfaces a Chrome-style "Install app"
@@ -31,11 +34,7 @@ export function PwaRegistrar() {
   useEffect(() => {
     const onPrompt = (e: Event) => {
       e.preventDefault();
-      try {
-        if (window.localStorage.getItem(DISMISS_KEY)) return;
-      } catch {
-        /* ignore */
-      }
+      if (dismissedThisSession) return;
       setDeferred(e as BeforeInstallPromptEvent);
       setVisible(true);
     };
@@ -61,11 +60,7 @@ export function PwaRegistrar() {
 
   function dismiss() {
     setVisible(false);
-    try {
-      window.localStorage.setItem(DISMISS_KEY, "1");
-    } catch {
-      /* ignore */
-    }
+    dismissedThisSession = true;
   }
 
   if (!visible) return null;

@@ -7,10 +7,13 @@ import type {
   OrderStatus,
   Product,
   ProductInput,
+  StoreOverride,
+  StoreSettings,
   User,
 } from "@/lib/types";
-import type { CreateReturnInput, ReturnRequest, ReturnStatus } from "@/lib/returns";
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
+import type { Coupon } from "@/lib/coupons";
+import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
 import { DataSource, ApiError } from "./datasource";
 
 /**
@@ -152,6 +155,71 @@ export class HttpDataSource implements DataSource {
     return this.request<User | null>(`/users/${id}`);
   }
 
+  listCoupons() {
+    return this.request<Coupon[]>("/coupons");
+  }
+
+  createCoupon(input: Omit<Coupon, "id" | "usageCount" | "createdAt" | "updatedAt">) {
+    return this.request<Coupon>("/coupons", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  updateCoupon(id: string, patch: Partial<Coupon>) {
+    return this.request<Coupon>(`/coupons/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  }
+
+  deleteCoupon(id: string) {
+    return this.request<void>(`/coupons/${id}`, { method: "DELETE" });
+  }
+
+  listInAppNotifications(userId: string) {
+    return this.request<InAppNotification[]>(`/notifications?userId=${encodeURIComponent(userId)}`);
+  }
+
+  addInAppNotification(
+    userId: string,
+    type: InAppNotificationType,
+    title: string,
+    message: string,
+    options?: { actionUrl?: string; orderId?: string }
+  ) {
+    return this.request<InAppNotification>("/notifications", {
+      method: "POST",
+      body: JSON.stringify({ userId, type, title, message, ...options }),
+    });
+  }
+
+  markInAppNotificationRead(userId: string, id: string) {
+    return this.request<void>(`/notifications/${id}/read`, {
+      method: "PATCH",
+      body: JSON.stringify({ userId }),
+    });
+  }
+
+  markAllInAppNotificationsRead(userId: string) {
+    return this.request<void>("/notifications/read-all", {
+      method: "PATCH",
+      body: JSON.stringify({ userId }),
+    });
+  }
+
+  deleteInAppNotification(userId: string, id: string) {
+    return this.request<void>(`/notifications/${id}?userId=${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  clearAllInAppNotifications(userId: string) {
+    return this.request<void>(`/notifications?userId=${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
+  }
+
   getDailyPricesSettings() {
     return this.request<DailyPricesSettings | null>("/settings/dailyPrices");
   }
@@ -163,54 +231,19 @@ export class HttpDataSource implements DataSource {
     });
   }
 
-  // --- Returns (stubbed until a REST backend implements the endpoints) --------
-  listReturns() {
-    return this.request<ReturnRequest[]>("/returns");
+  unpublishDailyPrices() {
+    return this.request<void>("/settings/dailyPrices/publish", { method: "DELETE" });
   }
 
-  getReturn(id: string) {
-    return this.request<ReturnRequest | null>(`/returns/${id}`);
+  getStoreSettings() {
+    return this.request<StoreSettings | null>("/settings/store");
   }
 
-  createReturn(input: CreateReturnInput) {
-    return this.request<ReturnRequest>("/returns", {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-  }
-
-  updateReturnStatus(id: string, status: ReturnStatus) {
-    return this.request<ReturnRequest>(`/returns/${id}/status`, {
+  setStoreOverride(userId: string, override: StoreOverride) {
+    return this.request<StoreSettings>("/settings/store", {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ override, updatedBy: userId }),
     });
-  }
-
-  addReturnMessage(id: string, sender: "buyer" | "admin", text: string) {
-    return this.request<ReturnRequest>(`/returns/${id}/messages`, {
-      method: "POST",
-      body: JSON.stringify({ sender, text }),
-    });
-  }
-
-  updateReturnAdminNotes(id: string, notes: string) {
-    return this.request<ReturnRequest>(`/returns/${id}/notes`, {
-      method: "PATCH",
-      body: JSON.stringify({ adminNotes: notes }),
-    });
-  }
-
-  setReturnTyping(id: string, sender: "buyer" | "admin") {
-    // Best-effort, fire-and-forget: a typing indicator is cosmetic and must
-    // never surface an error or block the caller.
-    return this.request<void>(`/returns/${id}/typing`, {
-      method: "POST",
-      body: JSON.stringify({ sender }),
-    }).catch(() => undefined);
-  }
-
-  requestReturnReopen(id: string) {
-    return this.request<ReturnRequest>(`/returns/${id}/request-reopen`, { method: "POST" });
   }
 
   // --- Support tickets (stubbed until a REST backend implements the endpoints) --

@@ -9,7 +9,7 @@ import type {
   Product,
   User,
 } from "@/lib/types";
-import { generateOrderNumber, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
+import { generateOrderNumber } from "@/lib/format";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { ORDERS, PRODUCTS, USERS } from "@/lib/mock-data";
@@ -93,9 +93,6 @@ export const repository = {
     if (!buyer) throw new RepoError("Buyer not found.", 404);
     if (!input.items?.length) throw new RepoError("Your cart is empty.");
     const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
-    if (totalQty < MIN_ORDER_TOTAL_QTY) {
-      throw new RepoError(`Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`);
-    }
 
     const items: OrderItem[] = input.items.map((line) => {
       const p = products.find((x) => x.id === line.productId);
@@ -153,6 +150,12 @@ export const repository = {
   updateOrderStatus(id: string, status: OrderStatus): Order {
     const o = orders.find((x) => x.id === id);
     if (!o) throw new RepoError("Order not found.", 404);
+    if (status === "DELIVERED" && o.paymentMethod === "COD" && o.paymentStatus !== "PAID") {
+      throw new RepoError(
+        "Cash payment must be confirmed before marking a COD order as delivered.",
+        400
+      );
+    }
     if (status === "CANCELLED" && o.status !== "CANCELLED") {
       for (const i of o.items) {
         const p = products.find((x) => x.id === i.productId);

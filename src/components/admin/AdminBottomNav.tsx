@@ -7,11 +7,13 @@ import {
   Package,
   Tag,
   ClipboardList,
-  RotateCcw,
   FileText,
   Users,
   BadgePercent,
   MessageCircle,
+  Settings,
+  Truck,
+  Undo2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,11 +30,13 @@ export const ADMIN_TABS: AdminTab[] = [
   { href: "/admin/products", label: "Inventory", icon: Package, isActive: (p) => p.startsWith("/admin/products") },
   { href: "/admin/prices", label: "Prices", icon: Tag, isActive: (p) => p.startsWith("/admin/prices") },
   { href: "/admin/orders", label: "Orders", icon: ClipboardList, isActive: (p) => p.startsWith("/admin/orders") },
-  { href: "/admin/returns", label: "Returns", icon: RotateCcw, isActive: (p) => p.startsWith("/admin/returns") },
+  { href: "/admin/deliveries", label: "Deliveries", icon: Truck, isActive: (p) => p.startsWith("/admin/deliveries") },
+  { href: "/admin/returns", label: "Returns", icon: Undo2, isActive: (p) => p.startsWith("/admin/returns") },
   { href: "/admin/support", label: "Support", icon: MessageCircle, isActive: (p) => p.startsWith("/admin/support") },
   { href: "/admin/reports", label: "Reports", icon: FileText, isActive: (p) => p.startsWith("/admin/reports") },
   { href: "/admin/coupons", label: "Coupons", icon: BadgePercent, isActive: (p) => p.startsWith("/admin/coupons") },
   { href: "/admin/customers", label: "Buyers", icon: Users, isActive: (p) => p.startsWith("/admin/customers") },
+  { href: "/admin/settings", label: "Settings", icon: Settings, isActive: (p) => p.startsWith("/admin/settings") },
 ];
 
 // Mobile bottom bar shows only the 5 most-used sections — the full set

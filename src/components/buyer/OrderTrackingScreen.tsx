@@ -21,7 +21,6 @@ import {
   PAYMENT_LONG,
 } from "@/lib/format";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
-import { RETURN_WINDOW_HOURS } from "@/lib/returns";
 import type { Order } from "@/lib/types";
 import { AppShell } from "@/components/layout/AppShell";
 import { BuyerHeader } from "./BuyerHeader";
@@ -90,7 +89,6 @@ export function OrderTrackingScreen({ id }: { id: string }) {
   const params = useSearchParams();
   const justPlaced = params.get("placed") === "1";
   const { order, loading } = useLiveOrder(id, user?.id);
-  const { data: returns } = useAsync(() => api.listReturns(user?.id), [user?.id]);
   const [cancelling, setCancelling] = useState(false);
 
   async function handleCancel() {
@@ -136,10 +134,8 @@ export function OrderTrackingScreen({ id }: { id: string }) {
   }
 
   const isDelivered = order.status === "DELIVERED";
-  const existingReturn = returns?.find((r) => r.orderId === order.id);
   const deliveredAt = order.deliveredAt || order.updatedAt;
   const hoursSinceDelivery = (Date.now() - new Date(deliveredAt).getTime()) / 36e5;
-  const canReturn = isDelivered && !existingReturn && hoursSinceDelivery <= RETURN_WINDOW_HOURS;
 
   return (
     <AppShell header={<BuyerHeader />} sidebar={<BuyerSidebar />}>
@@ -168,24 +164,15 @@ export function OrderTrackingScreen({ id }: { id: string }) {
         {/* Invoice Download */}
         <InvoiceDownloader order={order} fullWidth />
 
-        {/* Return Request Button - only for delivered orders within the return window and without an existing return */}
-        {canReturn && (
-          <Link href={`/orders/${order.id}/return`}>
-            <Button variant="outline" fullWidth leadingIcon={<RotateCcw className="h-4 w-4" />}>
-              Request Return / Refund
-            </Button>
-          </Link>
-        )}
-        {isDelivered && existingReturn && (
-          <Link href={`/returns/${existingReturn.id}`}>
-            <Button variant="outline" fullWidth leadingIcon={<RotateCcw className="h-4 w-4" />}>
-              View return request
-            </Button>
-          </Link>
-        )}
-        {isDelivered && !existingReturn && hoursSinceDelivery > RETURN_WINDOW_HOURS && (
-          <div className="rounded-lg border border-line bg-surface px-3 py-2 text-center text-xs text-fg-subtle">
-            Return window closed ({Math.floor(hoursSinceDelivery)} hours since delivery)
+        {/* Quality issues are settled at the door, before payment: the buyer
+            checks the goods with the driver present and refuses anything they
+            don't want, so there is no post-delivery return to request here. */}
+        {isDelivered && order.adjustment && order.adjustment.status !== "PENDING" && (
+          <div className="rounded-lg border border-line bg-surface px-3 py-2 text-xs text-fg-subtle">
+            <span className="font-semibold text-fg">
+              {formatCurrency(order.adjustment.totalRefund)} adjusted at delivery
+            </span>{" "}
+            — {order.adjustment.reason}. You were billed only for what you accepted.
           </div>
         )}
 
