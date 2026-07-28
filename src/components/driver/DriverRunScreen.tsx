@@ -75,11 +75,34 @@ export function DriverRunScreen() {
     if (!authLoading && (!user || user.role !== "DRIVER")) router.replace("/driver-login");
   }, [authLoading, user, router]);
 
-  const { data: orders, loading } = useAsync(
-    () =>
-      user && api.listDriverOrders ? api.listDriverOrders(user.id) : Promise.resolve([] as Order[]),
-    [user?.id, tick]
-  );
+  // Live, not fetched-once: the office's approve/reject has to land on the
+  // handset while the driver is still at the door, and a stop added to the
+  // run mid-morning should just appear.
+  const [liveOrders, setLiveOrders] = useState<Order[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!user) return;
+    if (api.subscribeDriverOrders) {
+      const stop = api.subscribeDriverOrders(user.id, (next) => {
+        setLiveOrders(next);
+        setLoading(false);
+      });
+      return stop;
+    }
+    // Backend without a real-time channel — one-shot, refreshed by `tick`.
+    let live = true;
+    (api.listDriverOrders ? api.listDriverOrders(user.id) : Promise.resolve([] as Order[]))
+      .then((next) => {
+        if (!live) return;
+        setLiveOrders(next);
+        setLoading(false);
+      })
+      .catch(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [user, tick]);
+  const orders = liveOrders;
 
   const { data: savedArea } = useAsync(
     () => (api.getServiceArea ? api.getServiceArea() : Promise.resolve(null)),

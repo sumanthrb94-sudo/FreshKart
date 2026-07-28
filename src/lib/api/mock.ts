@@ -326,6 +326,20 @@ export class MockDataSource implements DataSource {
     return delay(structuredClone(list));
   }
 
+  subscribeDriverOrders(driverId: string, cb: (orders: Order[]) => void): () => void {
+    const emit = () => {
+      const list = store
+        .get()
+        .orders.filter(
+          (o) => o.driverId === driverId && o.status !== "DELIVERED" && o.status !== "CANCELLED"
+        )
+        .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+      cb(structuredClone(list));
+    };
+    emit();
+    return store.subscribe(emit);
+  }
+
   async listDrivers(): Promise<User[]> {
     return delay(structuredClone(store.get().users.filter((u) => u.role === "DRIVER")));
   }

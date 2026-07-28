@@ -145,7 +145,7 @@ export function AdminOverviewScreen() {
   // subscriptions the header badges use (src/lib/admin-alerts-store.ts), so
   // both stay in sync in real time off of exactly one Firestore listener
   // each; a second independent listener here would double-fire the chime.
-  const { confirmedOrders } = useLiveOrders();
+  const { confirmedOrders, pendingAdjustments } = useLiveOrders();
   const needsHumanCount = useLiveNeedsHumanCount();
   const newOrdersCount = confirmedOrders.length;
 
@@ -282,7 +282,10 @@ export function AdminOverviewScreen() {
         return { attention: !publishedToday };
       case "/admin/orders":
         return { count: newOrdersCount };
-      case "/admin/returns":
+      case "/admin/deliveries":
+        // A driver is standing at a customer's door waiting on this, so it
+        // flashes rather than sitting quietly as a number.
+        return { count: pendingAdjustments.length, attention: pendingAdjustments.length > 0 };
       case "/admin/support":
         return { count: needsHumanCount };
       default:

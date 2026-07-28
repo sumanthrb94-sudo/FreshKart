@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, Clock, Truck, X } from "lucide-react";
 import type { Order, User } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -30,7 +30,32 @@ export function AdminDeliveriesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<Record<string, string>>({});
 
-  const { data: orders, loading } = useAsync(() => api.listOrders(), [tick]);
+  // Escalations arrive from a driver standing at a door, so this list is a
+  // live subscription rather than a snapshot the admin has to remember to
+  // reload. The same singleton listener feeds the dashboard's badge.
+  const [orders, setOrders] = useState<Order[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (api.subscribeOrders) {
+      const stop = api.subscribeOrders(undefined, (next) => {
+        setOrders(next);
+        setLoading(false);
+      });
+      return stop;
+    }
+    let live = true;
+    api
+      .listOrders()
+      .then((next) => {
+        if (!live) return;
+        setOrders(next);
+        setLoading(false);
+      })
+      .catch(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [tick]);
   const { data: drivers } = useAsync(
     () => (api.listDrivers ? api.listDrivers() : Promise.resolve([] as User[])),
     []

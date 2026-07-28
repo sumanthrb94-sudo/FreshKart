@@ -817,6 +817,29 @@ export class FirebaseDataSource implements DataSource {
       .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
   }
 
+  /**
+   * Live version of listDriverOrders. The driver's phone must learn the
+   * office's decision while he is still standing at the door — asking him to
+   * pull-to-refresh with a customer waiting is how a delivery run stalls.
+   */
+  subscribeDriverOrders(driverId: string, cb: (orders: Order[]) => void): () => void {
+    const q = query(collection(getDb(), COL.orders), where("driverId", "==", driverId));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const orders = snap.docs
+          .map((d) => ({ ...(d.data() as Omit<Order, "id">), id: d.id }))
+          .filter((o) => o.status !== "DELIVERED" && o.status !== "CANCELLED")
+          .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+        cb(orders);
+      },
+      () => {
+        // A dropped listener (mandi-area signal) must not blank the run —
+        // keep whatever the driver already has on screen.
+      }
+    );
+  }
+
   async listDrivers(): Promise<User[]> {
     await this.ready();
     const snap = await getDocs(

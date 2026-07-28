@@ -29,6 +29,17 @@ function playNewOrderSound() {
   ]);
 }
 
+/** Doorstep escalation — an urgent, insistent double-beep. A driver is
+ *  standing in a customer's shop unable to collect until this is answered,
+ *  so it is deliberately the most attention-grabbing sound in the console. */
+function playEscalationSound() {
+  playChime([
+    { freq: 880.0, startOffset: 0, duration: 0.18, type: "square", gain: 0.09 },
+    { freq: 880.0, startOffset: 0.26, duration: 0.18, type: "square", gain: 0.09 },
+    { freq: 1174.66, startOffset: 0.52, duration: 0.26, type: "square", gain: 0.09 },
+  ]);
+}
+
 /** Order-cancelled alert — low descending square-wave buzz, unmistakably a
  *  negative event next to the two pleasant sine chimes above. */
 function playOrderCancelledSound() {
@@ -103,6 +114,10 @@ function createLiveStore<TSnapshot>(
 
 interface OrdersSnapshot {
   confirmedOrders: Order[];
+  /** Door-side rejections over the driver's own limit, waiting on an admin.
+   *  Derived from the SAME listener as the orders above — a second listener
+   *  would double-fire the escalation alert. */
+  pendingAdjustments: Order[];
   isLive: boolean;
 }
 
@@ -110,13 +125,40 @@ const ordersStore = createLiveStore<OrdersSnapshot>((setSnapshot) => {
   if (typeof api.subscribeOrders !== "function") {
     api
       .listOrders()
-      .then((orders) => setSnapshot({ confirmedOrders: orders.filter((o) => o.status === "CONFIRMED"), isLive: false }))
+      .then((orders) =>
+        setSnapshot({
+          confirmedOrders: orders.filter((o) => o.status === "CONFIRMED"),
+          pendingAdjustments: orders.filter((o) => o.adjustment?.status === "PENDING"),
+          isLive: false,
+        })
+      )
       .catch(() => {});
     return;
   }
 
   let previousStatus: Map<string, Order["status"]> | null = null;
+  let previousPending: Set<string> | null = null;
   const unsubscribe = api.subscribeOrders(undefined, (orders) => {
+    const pendingAdjustments = orders.filter((o) => o.adjustment?.status === "PENDING");
+
+    // A driver is waiting at a door — announce it the moment it lands, and
+    // only for escalations this tab hasn't already seen.
+    const pendingIds = new Set(pendingAdjustments.map((o) => o.id));
+    if (previousPending) {
+      const fresh = pendingAdjustments.filter((o) => !previousPending!.has(o.id));
+      if (fresh.length > 0) {
+        playEscalationSound();
+        fresh.forEach((o) => {
+          toast.error(
+            "Driver needs a decision",
+            `${o.businessName} — ${formatCurrency(o.adjustment?.totalRefund ?? 0)} refused`,
+            10000
+          );
+        });
+      }
+    }
+    previousPending = pendingIds;
+
     const confirmedOrders = orders
       .filter((o) => o.status === "CONFIRMED")
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -166,14 +208,18 @@ const ordersStore = createLiveStore<OrdersSnapshot>((setSnapshot) => {
     const latestTs = orders.reduce((max, o) => Math.max(max, new Date(o.createdAt).getTime()), 0);
     writeLastSeenTs(ORDERS_LAST_SEEN_KEY, latestTs);
 
-    setSnapshot({ confirmedOrders, isLive: true });
+    setSnapshot({ confirmedOrders, pendingAdjustments, isLive: true });
   });
 
   return unsubscribe;
-}, { confirmedOrders: [], isLive: false });
+}, { confirmedOrders: [], pendingAdjustments: [], isLive: false });
 
 export function useLiveOrders(): OrdersSnapshot {
-  return useSyncExternalStore(ordersStore.subscribe, ordersStore.getSnapshot, () => ({ confirmedOrders: [], isLive: false }));
+  return useSyncExternalStore(ordersStore.subscribe, ordersStore.getSnapshot, () => ({
+    confirmedOrders: [],
+    pendingAdjustments: [],
+    isLive: false,
+  }));
 }
 
 const ticketsStore = createLiveStore<number>((setSnapshot) => {

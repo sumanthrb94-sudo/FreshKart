@@ -104,6 +104,12 @@ export interface DataSource {
    * instant new-order notifications without page refresh.
    */
   subscribeOrders?(buyerId?: string, cb?: (orders: Order[]) => void): () => void;
+  /**
+   * Optional: real-time feed of the orders assigned to one driver. Separate
+   * from subscribeOrders because a driver may only ever see their own run —
+   * both by security rule and by sanity on a phone screen.
+   */
+  subscribeDriverOrders?(driverId: string, cb: (orders: Order[]) => void): () => void;
   getOrder(id: string): Promise<Order | null>;
   updateOrderStatus(id: string, status: OrderStatus): Promise<Order>;
   /** Bulk update status for multiple orders at once (morning delivery batch processing). */
