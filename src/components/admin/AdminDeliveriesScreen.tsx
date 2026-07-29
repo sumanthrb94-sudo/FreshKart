@@ -12,6 +12,8 @@ import { onIstDay, summarizeCashRun } from "@/lib/cash-run";
 import { AdminShell } from "./AdminShell";
 import { AdminServiceAreaCard } from "./AdminServiceAreaCard";
 import { AdminExecutivesCard } from "./AdminExecutivesCard";
+import { AdminRunProgressCard } from "./AdminRunProgressCard";
+import { DEFAULT_SERVICE_AREA, type ServiceArea } from "@/lib/service-area";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
@@ -59,6 +61,12 @@ export function AdminDeliveriesScreen() {
       live = false;
     };
   }, [tick]);
+  const { data: savedArea } = useAsync(
+    () => (api.getServiceArea ? api.getServiceArea() : Promise.resolve(null)),
+    []
+  );
+  const area: ServiceArea = savedArea ?? DEFAULT_SERVICE_AREA;
+
   const { data: drivers } = useAsync(
     () => (api.listDrivers ? api.listDrivers() : Promise.resolve([] as User[])),
     []
@@ -152,6 +160,9 @@ export function AdminDeliveriesScreen() {
             )}
           </CardBody>
         </Card>
+
+        {/* Where each driver has got to, right now */}
+        <AdminRunProgressCard drivers={drivers ?? []} orders={orders ?? []} area={area} />
 
         {/* What each driver owes the till tonight */}
         <Card>
