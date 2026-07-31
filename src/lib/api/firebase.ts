@@ -269,16 +269,41 @@ export class FirebaseDataSource implements DataSource {
 
   subscribeAuth(cb: (user: User | null) => void): () => void {
     const auth = getFirebaseAuth();
+    // Has the app been told anything yet? Until it has, it is stuck on a
+    // loader, so even a failure has to produce an answer.
+    let hasEmitted = false;
+
     return onAuthStateChanged(auth, async (fbUser) => {
       if (!fbUser) {
+        hasEmitted = true;
         cb(null);
         return;
       }
       try {
-        const snap = await readDoc(doc(getDb(), COL.users, fbUser.uid));
+        // Firestore's client can briefly lag behind Auth after a sign-in or a
+        // token refresh, and this listener fires on BOTH. Force a fresh token
+        // and retry once, exactly as the write paths do.
+        const snap = await withFreshTokenRetry(() =>
+          readDoc(doc(getDb(), COL.users, fbUser.uid))
+        );
+        hasEmitted = true;
         cb(snap.exists() ? snapToUser(snap) : null);
       } catch {
-        cb(null);
+        // A failed read is NOT a sign-out.
+        //
+        // This used to emit null, which the whole app reads as "logged out":
+        // the buyer's screen re-rendered as a stranger, "Review & Order"
+        // pushed them back to the home page, and a Place-order click became a
+        // silent no-op — the user saw a refresh and had to click again. All
+        // from one transient permission-denied on a token refresh, mid-session.
+        //
+        // Firebase still says this person is signed in, so keep them signed in
+        // and wait for the next emission. Only the very first read has to
+        // answer, because until then the app is showing a loader.
+        if (!hasEmitted) {
+          hasEmitted = true;
+          cb(null);
+        }
       }
     });
   }
@@ -805,7 +830,22 @@ export class FirebaseDataSource implements DataSource {
     return updated;
   }
 
+  /**
+   * Buyer-facing cancel. Once an order is with a driver the crates are on the
+   * van, and cancelling would take the stop off his run with nothing telling
+   * him why — from that point the office cancels it (updateOrderStatus) and
+   * can tell him. The security rules enforce the same boundary.
+   */
   async cancelOrder(id: string): Promise<Order> {
+    await this.ready();
+    const snap = await readDoc(doc(getDb(), COL.orders, id));
+    const existing = snap.exists() ? (snap.data() as Order) : null;
+    if (existing?.driverId && existing.status !== "DELIVERED") {
+      throw new ApiError(
+        "This order is already with the delivery executive. Call us to stop it, or refuse what you don't want at the door.",
+        409
+      );
+    }
     return this.updateOrderStatus(id, "CANCELLED");
   }
 

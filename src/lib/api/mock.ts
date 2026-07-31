@@ -314,7 +314,20 @@ export class MockDataSource implements DataSource {
     return delay(updated, 200);
   }
 
+  /**
+   * Buyer-facing cancel. Once an order is with a driver the crates are on the
+   * van, and cancelling would take the stop off his run with nothing telling
+   * him why — from that point the office cancels it (updateOrderStatus) and
+   * can tell him.
+   */
   async cancelOrder(id: string): Promise<Order> {
+    const existing = store.get().orders.find((o) => o.id === id);
+    if (existing?.driverId && existing.status !== "DELIVERED") {
+      throw new ApiError(
+        "This order is already with the delivery executive. Call us to stop it, or refuse what you don't want at the door.",
+        409
+      );
+    }
     return this.updateOrderStatus(id, "CANCELLED");
   }
 

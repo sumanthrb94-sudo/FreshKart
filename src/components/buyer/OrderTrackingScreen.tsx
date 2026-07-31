@@ -279,11 +279,19 @@ export function OrderTrackingScreen({ id }: { id: string }) {
           </Card>
         )}
 
-        {canBuyerCancel(order.status) && (
+        {canBuyerCancel(order.status, order.driverId) ? (
           <Button variant="outline" fullWidth loading={cancelling} onClick={handleCancel} className="text-red-600">
             Cancel order
           </Button>
-        )}
+        ) : order.driverId && order.status !== "DELIVERED" && order.status !== "CANCELLED" ? (
+          <p className="text-center text-xs text-fg-subtle">
+            This order is already with {order.driverName ?? "our delivery executive"}. Call us on{" "}
+            <a href="tel:+917416620691" className="font-semibold text-brand-500">
+              +91 74166 20691
+            </a>{" "}
+            if you need to stop it — or refuse what you don&apos;t want at the door.
+          </p>
+        ) : null}
 
         <Link href="/" className="pb-2">
           <Button variant="ghost" fullWidth>

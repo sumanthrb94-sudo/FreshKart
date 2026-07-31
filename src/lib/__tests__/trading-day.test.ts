@@ -9,6 +9,7 @@
 
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { getIstBusinessDayRange, getIstDateString, isDailyPriceUpdatePublished } from "../time";
+import { canBuyerCancel } from "../format";
 
 /** Pin "now" to a given IST wall-clock instant. */
 function atIst(istWallClock: string) {
@@ -88,5 +89,29 @@ describe("the business day", () => {
     const { startIso, endIso } = getIstBusinessDayRange("2026-07-29");
     const late = new Date("2026-07-29T20:59:00+05:30").toISOString();
     expect(late >= startIso && late < endIso).toBe(true);
+  });
+});
+
+describe("cancelling an order that is already on the van", () => {
+  // Found by running the buyer, the office and the driver at the same time:
+  // a buyer could call off an order the driver had already loaded, and the
+  // stop simply disappeared from his run with no explanation.
+  it("lets a buyer cancel while the order is still at the hub", () => {
+    expect(canBuyerCancel("PENDING")).toBe(true);
+    expect(canBuyerCancel("CONFIRMED")).toBe(true);
+    expect(canBuyerCancel("CONFIRMED", null)).toBe(true);
+  });
+
+  it("stops the buyer once a driver is carrying it", () => {
+    // Assignment does NOT change the status, so status alone cannot answer
+    // this — the driver is the signal.
+    expect(canBuyerCancel("CONFIRMED", "driver-1")).toBe(false);
+    expect(canBuyerCancel("PENDING", "driver-1")).toBe(false);
+  });
+
+  it("still refuses once the order has moved on by itself", () => {
+    expect(canBuyerCancel("SHIPPED")).toBe(false);
+    expect(canBuyerCancel("DELIVERED")).toBe(false);
+    expect(canBuyerCancel("CANCELLED")).toBe(false);
   });
 });

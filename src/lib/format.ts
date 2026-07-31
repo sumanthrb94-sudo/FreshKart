@@ -282,7 +282,17 @@ export function nextStatus(status: OrderStatus): OrderStatus | null {
 }
 
 /** Buyer may cancel only while the order is still early. */
-export function canBuyerCancel(status: OrderStatus): boolean {
+/**
+ * A buyer may call off an order right up until it is handed to a driver —
+ * after that the crates are physically on the van, and a cancellation would
+ * take the stop off his run with nothing telling him why. From that point the
+ * office cancels it, and can tell the driver.
+ *
+ * Assignment deliberately does not change the order's status, so status alone
+ * cannot answer this — the driver is the signal.
+ */
+export function canBuyerCancel(status: OrderStatus, driverId?: string | null): boolean {
+  if (driverId) return false;
   return status === "PENDING" || status === "CONFIRMED";
 }
 

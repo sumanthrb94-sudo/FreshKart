@@ -265,7 +265,7 @@ export function CheckoutSheet({
 
         <p className="flex items-center justify-center gap-1.5 text-xs text-fg-subtle">
           <ShieldCheck className="h-4 w-4 text-brand-500" />
-          Quality checked · easy returns on bad stock
+          Quality checked · refuse anything you&apos;re not happy with at the door
         </p>
       </div>
 
