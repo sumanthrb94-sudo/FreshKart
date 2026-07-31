@@ -118,7 +118,13 @@ export function ShopScreen() {
   }
 
   async function placeOrder(delivery: DeliveryDetails, method: PaymentMethod, paid: boolean) {
-    if (!user) return;
+    if (!user) {
+      // Never fail silently here. A dead button teaches the buyer to press it
+      // again, which is exactly how one order becomes two.
+      setOrderError("Your session dropped for a moment. Tap Place order again.");
+      setCheckoutOpen(true);
+      return;
+    }
     setBusy(true);
     setOrderError(null);
     try {

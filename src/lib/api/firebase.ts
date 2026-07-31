@@ -269,16 +269,41 @@ export class FirebaseDataSource implements DataSource {
 
   subscribeAuth(cb: (user: User | null) => void): () => void {
     const auth = getFirebaseAuth();
+    // Has the app been told anything yet? Until it has, it is stuck on a
+    // loader, so even a failure has to produce an answer.
+    let hasEmitted = false;
+
     return onAuthStateChanged(auth, async (fbUser) => {
       if (!fbUser) {
+        hasEmitted = true;
         cb(null);
         return;
       }
       try {
-        const snap = await readDoc(doc(getDb(), COL.users, fbUser.uid));
+        // Firestore's client can briefly lag behind Auth after a sign-in or a
+        // token refresh, and this listener fires on BOTH. Force a fresh token
+        // and retry once, exactly as the write paths do.
+        const snap = await withFreshTokenRetry(() =>
+          readDoc(doc(getDb(), COL.users, fbUser.uid))
+        );
+        hasEmitted = true;
         cb(snap.exists() ? snapToUser(snap) : null);
       } catch {
-        cb(null);
+        // A failed read is NOT a sign-out.
+        //
+        // This used to emit null, which the whole app reads as "logged out":
+        // the buyer's screen re-rendered as a stranger, "Review & Order"
+        // pushed them back to the home page, and a Place-order click became a
+        // silent no-op — the user saw a refresh and had to click again. All
+        // from one transient permission-denied on a token refresh, mid-session.
+        //
+        // Firebase still says this person is signed in, so keep them signed in
+        // and wait for the next emission. Only the very first read has to
+        // answer, because until then the app is showing a loader.
+        if (!hasEmitted) {
+          hasEmitted = true;
+          cb(null);
+        }
       }
     });
   }
