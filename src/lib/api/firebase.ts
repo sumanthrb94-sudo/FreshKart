@@ -830,7 +830,22 @@ export class FirebaseDataSource implements DataSource {
     return updated;
   }
 
+  /**
+   * Buyer-facing cancel. Once an order is with a driver the crates are on the
+   * van, and cancelling would take the stop off his run with nothing telling
+   * him why — from that point the office cancels it (updateOrderStatus) and
+   * can tell him. The security rules enforce the same boundary.
+   */
   async cancelOrder(id: string): Promise<Order> {
+    await this.ready();
+    const snap = await readDoc(doc(getDb(), COL.orders, id));
+    const existing = snap.exists() ? (snap.data() as Order) : null;
+    if (existing?.driverId && existing.status !== "DELIVERED") {
+      throw new ApiError(
+        "This order is already with the delivery executive. Call us to stop it, or refuse what you don't want at the door.",
+        409
+      );
+    }
     return this.updateOrderStatus(id, "CANCELLED");
   }
 

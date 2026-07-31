@@ -488,6 +488,11 @@ service cloud.firestore {
                     || (isAssignedDriver() && isDriverDoorstepUpdate())
                     || (resource.data.buyerId == request.auth.uid
                         && resource.data.status in ['PENDING', 'CONFIRMED']
+                        // Not once it is with a driver: the crates are on the
+                        // van, and a buyer-side cancel would drop the stop off
+                        // his run with nothing telling him why. The office can
+                        // still cancel it (isAdmin above) and phone him.
+                        && !('driverId' in resource.data)
                         && request.resource.data.status == 'CANCELLED'
                         && onlyCancelFieldsChanged());
       allow delete: if isAdmin();
