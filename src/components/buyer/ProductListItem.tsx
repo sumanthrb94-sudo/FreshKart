@@ -90,7 +90,15 @@ export function ProductListItem({ product }: { product: Product }) {
             {t("add")}
           </button>
         ) : (
-          <div className="flex flex-col items-end gap-1 md:w-full md:flex-row md:items-center md:justify-between">
+          /* The stepper replaces the Add button in place, so it has to sit on
+             the same line the button did — the card's midline. Stacking the
+             line total under it in normal flow centred the PAIR instead,
+             which pushed the control up by half the total's height: tapping
+             Add visibly nudged the thing you just tapped. So the total hangs
+             out of flow beneath, centred on the stepper rather than hard
+             against its right edge. On md+ the card is a column and the two
+             sit side by side, where neither problem arises. */
+          <div className="relative flex flex-col items-end md:w-full md:flex-row md:items-center md:justify-between">
             <QuantityStepper
               product={product}
               qty={qty}
@@ -98,7 +106,7 @@ export function ProductListItem({ product }: { product: Product }) {
               onDecrement={() => decrement(product)}
               size="sm"
             />
-            <span className="text-xs font-bold text-fg">
+            <span className="absolute inset-x-0 top-full mt-0.5 whitespace-nowrap text-center text-xs font-bold text-fg md:static md:mt-0 md:text-right">
               {formatCurrency(product.price * qty)}
             </span>
           </div>
