@@ -1,9 +1,10 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import {
   getAuth,
+  initializeAuth,
   onAuthStateChanged,
-  setPersistence,
   browserLocalPersistence,
+  indexedDBLocalPersistence,
   type Auth,
 } from "firebase/auth";
 import { initializeFirestore, type Firestore } from "firebase/firestore";
@@ -82,9 +83,29 @@ export const authReady: Promise<void> = new Promise((res) => {
 
 export function getFirebaseAuth(): Auth {
   if (!_auth) {
-    _auth = getAuth(getFirebaseApp());
-    // Keep the session across reloads (default, but explicit).
-    setPersistence(_auth, browserLocalPersistence).catch(() => {});
+    // TWO storage tiers, in the SDK's own order of preference.
+    //
+    // This used to be getAuth() followed by
+    // `setPersistence(_auth, browserLocalPersistence)`, which reads like
+    // "keep the session" but actually NARROWS it: getAuth() in a browser
+    // defaults to [indexedDBLocalPersistence, browserLocalPersistence], and
+    // naming one persistence throws the other away. Where localStorage is
+    // partitioned or evicted — iOS Safari private mode, in-app browsers
+    // (a WhatsApp link opens one), ITP eviction — the SDK had IndexedDB to
+    // fall back on and no longer did, so the session died on reload.
+    //
+    // The old call also ended in `.catch(() => {})`. If the switch failed,
+    // Auth silently fell back to IN-MEMORY for that page: signed out on every
+    // reload, with nothing anywhere saying why.
+    try {
+      _auth = initializeAuth(getFirebaseApp(), {
+        persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+      });
+    } catch {
+      // Already initialised (Fast Refresh, or a second call in the same tab).
+      // getAuth() returns that existing instance with its persistence intact.
+      _auth = getAuth(getFirebaseApp());
+    }
     onAuthStateChanged(_auth, () => {
       resolveAuthReady?.();
       resolveAuthReady = null;

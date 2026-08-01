@@ -38,8 +38,65 @@ let orderSeq = 0;
 
 export class MockDataSource implements DataSource {
   // --- Auth ---------------------------------------------------------------
-  // This mock backend is for catalog/order demo data only. It does not model
-  // auth because the production app uses Firebase Phone OTP / Google sign-in.
+  // A demo backend, but it has to model a SESSION, because the app's whole
+  // idea of "am I signed in" hangs off subscribeAuth. Without it, AuthProvider
+  // kept the user in React state alone and every reload landed back on the
+  // sign-in screen — which made local testing look exactly like the
+  // production bug it had nothing to do with.
+  //
+  // localStorage, so it behaves the way Firebase does in production: shared
+  // across tabs and surviving a reload. sessionStorage was tried first and is
+  // wrong here — it is per-tab, so opening a second tab asked for sign-in
+  // again, which is the exact complaint this is meant to fix.
+  private sessionKey = "green-basket.demo-session.v1";
+  private authListeners = new Set<(user: User | null) => void>();
+  private presenceListeners = new Set<(signedIn: boolean) => void>();
+
+  private readSession(): User | null {
+    try {
+      const id = window.localStorage.getItem(this.sessionKey);
+      if (!id) return null;
+      return store.get().users.find((u) => u.id === id) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private setSession(user: User | null) {
+    try {
+      if (user) window.localStorage.setItem(this.sessionKey, user.id);
+      else window.localStorage.removeItem(this.sessionKey);
+    } catch {
+      /* storage unavailable — the session is then in-memory for this page */
+    }
+    for (const l of this.authListeners) l(user ? structuredClone(user) : null);
+    for (const l of this.presenceListeners) l(Boolean(user));
+  }
+
+  subscribeAuth(cb: (user: User | null) => void): () => void {
+    this.authListeners.add(cb);
+    const current = this.readSession();
+    // Async, to match the real backend: listeners must never assume a
+    // synchronous first emission.
+    queueMicrotask(() => cb(current ? structuredClone(current) : null));
+    return () => this.authListeners.delete(cb);
+  }
+
+  subscribeAuthPresence(cb: (signedIn: boolean) => void): () => void {
+    this.presenceListeners.add(cb);
+    const current = this.readSession();
+    queueMicrotask(() => cb(Boolean(current)));
+    return () => this.presenceListeners.delete(cb);
+  }
+
+  async getCurrentUser(): Promise<User | null> {
+    const u = this.readSession();
+    return delay(u ? structuredClone(u) : null);
+  }
+
+  async logout(): Promise<void> {
+    this.setSession(null);
+  }
 
   async login({ email, password }: { email: string; password: string }): Promise<User> {
     const expected = store.get().credentials[email];
@@ -48,6 +105,7 @@ export class MockDataSource implements DataSource {
     }
     const user = store.get().users.find((u) => u.email === email);
     if (!user) throw new ApiError("User not found.", 404);
+    this.setSession(user);
     return delay(structuredClone(user));
   }
 

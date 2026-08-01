@@ -170,7 +170,11 @@ async function writeUserDoc(
  */
 async function withFreshTokenRetry<T>(op: () => Promise<T>): Promise<T> {
   const fbUser = getFirebaseAuth().currentUser;
-  if (fbUser) await fbUser.getIdToken();
+  // Bounded. getIdToken() goes to the network when the cached token is stale,
+  // and an unbounded call here could outlive the loader the app is showing —
+  // which is exactly how a live session ended up looking like a signed-out
+  // one. A refresh that cannot finish in 5s is a refresh worth retrying.
+  if (fbUser) await withTimeout(fbUser.getIdToken(), 5000).catch(() => {});
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       return await op();
@@ -268,42 +272,62 @@ export class FirebaseDataSource implements DataSource {
     return profile;
   }
 
+  /** Local and instant — no Firestore, so it cannot be slow or fail. */
+  subscribeAuthPresence(cb: (signedIn: boolean) => void): () => void {
+    return onAuthStateChanged(getFirebaseAuth(), (fbUser) => cb(Boolean(fbUser)));
+  }
+
+  /**
+   * Who is signed in.
+   *
+   * `null` means ONE thing: Firebase says nobody is signed in. It never means
+   * "the profile read failed", and it never means "this is taking a while".
+   * Conflating those is what made a valid session look like a logged-out one:
+   * the app would show the sign-in screen to somebody Firebase was perfectly
+   * happy to keep signed in, and `onAuthStateChanged` does not fire again for
+   * about an hour, so they stayed locked out for the life of the page.
+   *
+   * Firebase Auth is the authority on identity — its refresh token lives in
+   * browser storage and does not expire until sign-out. The Firestore profile
+   * is enrichment, fetched over a network that fails. So a read that fails is
+   * retried, with backoff, for as long as Firebase still holds the user.
+   */
   subscribeAuth(cb: (user: User | null) => void): () => void {
     const auth = getFirebaseAuth();
-    // Has the app been told anything yet? Until it has, it is stuck on a
-    // loader, so even a failure has to produce an answer.
-    let hasEmitted = false;
+    // Bumped on every auth change so a slow retry loop from a previous state
+    // can tell it has been superseded and stop emitting.
+    let generation = 0;
 
     return onAuthStateChanged(auth, async (fbUser) => {
+      const mine = ++generation;
       if (!fbUser) {
-        hasEmitted = true;
         cb(null);
         return;
       }
-      try {
-        // Firestore's client can briefly lag behind Auth after a sign-in or a
-        // token refresh, and this listener fires on BOTH. Force a fresh token
-        // and retry once, exactly as the write paths do.
-        const snap = await withFreshTokenRetry(() =>
-          readDoc(doc(getDb(), COL.users, fbUser.uid))
-        );
-        hasEmitted = true;
-        cb(snap.exists() ? snapToUser(snap) : null);
-      } catch {
-        // A failed read is NOT a sign-out.
-        //
-        // This used to emit null, which the whole app reads as "logged out":
-        // the buyer's screen re-rendered as a stranger, "Review & Order"
-        // pushed them back to the home page, and a Place-order click became a
-        // silent no-op — the user saw a refresh and had to click again. All
-        // from one transient permission-denied on a token refresh, mid-session.
-        //
-        // Firebase still says this person is signed in, so keep them signed in
-        // and wait for the next emission. Only the very first read has to
-        // answer, because until then the app is showing a loader.
-        if (!hasEmitted) {
-          hasEmitted = true;
-          cb(null);
+
+      // ~30s of attempts. Long enough to ride out a tunnel or a cold radio,
+      // short enough that a genuinely broken profile surfaces rather than
+      // spinning forever.
+      const backoffMs = [0, 1000, 2000, 4000, 8000, 15000];
+      for (const wait of backoffMs) {
+        if (wait) await new Promise((r) => setTimeout(r, wait));
+        if (mine !== generation) return; // signed out, or signed in as someone else
+        try {
+          // Firestore's client can briefly lag behind Auth after a sign-in or
+          // a token refresh, and this listener fires on BOTH. Force a fresh
+          // token and retry, exactly as the write paths do.
+          const snap = await withFreshTokenRetry(() =>
+            readDoc(doc(getDb(), COL.users, fbUser.uid))
+          );
+          if (mine !== generation) return;
+          // A signed-in Firebase user with no profile document is a real
+          // state, not a failure: onboarding was abandoned part-way. The app
+          // reads null as "send them to sign-up", which is right.
+          cb(snap.exists() ? snapToUser(snap) : null);
+          return;
+        } catch {
+          // Keep trying. Firebase still says this person is signed in, so the
+          // app must not be told otherwise.
         }
       }
     });
