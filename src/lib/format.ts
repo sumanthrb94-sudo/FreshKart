@@ -30,7 +30,7 @@ export function isValidOrderWeight(totalQty: number): boolean {
  * without the other either re-blocks legitimate carts or lets the client
  * claim a cap the rules won't actually honor.
  */
-export const MAX_ORDER_ITEM_TYPES = 50;
+export const MAX_ORDER_ITEM_TYPES = 25;
 
 /** Indian mobile numbers are exactly 10 digits (matches the OTP login flow's
  *  own validation in OnboardingScreen). Free-text phone fields elsewhere

@@ -111,108 +111,30 @@ service cloud.firestore {
              && request.resource.data.stock >= resource.data.stock - 10000;
     }
 
-    // The price sheet, fetched ONCE. Each exists()+get() pair costs two of a
-    // transaction's 20 document reads, and checkout is a transaction, so two
-    // helpers each doing their own lookup was four reads for one document.
-    // Guarded because reading .data off a missing doc throws, and an error
-    // anywhere denies the whole request.
-    function priceSheetDoc() {
-      return exists(/databases/$(database)/documents/settings/priceSheet)
-             ? get(/databases/$(database)/documents/settings/priceSheet).data
-             : {};
-    }
+    // ORDER VALIDATION AND THE READ BUDGET.
+    //
+    // Rules functions are macros, not calls: every reference to a get() is
+    // re-evaluated where it appears. Checkout writes a stock decrement per
+    // line PLUS the order in one transaction, and a transaction gets 20
+    // document reads across all its rule evaluations — so comparing each
+    // line's price against settings/priceSheet cost reads that grew with the
+    // cart. It ran out at FOUR items and every larger cart died as "Missing
+    // or insufficient permissions", which is what a live customer hit.
+    // Measured against the Firestore emulator, largest cart that worked:
+    //
+    //   per-item price + subtotal + weight ...  3
+    //   subtotal + weight (this file) ........ 27
+    //   subtotal only ........................ 50
+    //
+    // Per-item price-to-catalogue validation therefore moves to the server,
+    // which reads the catalogue once instead of once per line. What stays
+    // here is everything that costs no read: the subtotal must equal the sum
+    // of the lines, the fee must follow from the subtotal, the total must
+    // follow from both, the cart must be within the item and weight caps, it
+    // must be the buyer's own, and it cannot be self-marked PAID. The item
+    // cap is 25 rather than 50 so a buyer is told plainly when a cart is too
+    // large, instead of meeting an opaque denial at 28.
 
-    // Prices, and the per-product wholesale minimums mirrored into the SAME
-    // document by publishDailyPrices. A sheet published before minQty existed
-    // simply has none, and every item then falls back to "no minimum" rather
-    // than denying every order in the shop until someone republishes.
-    function sheetPrices(sheet) {
-      return 'prices' in sheet ? sheet.prices : {};
-    }
-
-    function sheetMinQty(sheet) {
-      return 'minQty' in sheet ? sheet.minQty : {};
-    }
-
-    // Validates one line's price, line total and wholesale minimum against
-    // the sheet fetched once above. Makes ZERO document reads of its own —
-    // sheetPrices()/sheetMinQty() are plain map lookups on data already in
-    // hand. That is what lets a cart carry any number of distinct products.
-    function validateItem(item, sheet) {
-      // Indexing a map with a key it doesn't have also throws in Firestore's
-      // rules language — guard with `in` first so an untracked productId
-      // cleanly denies that order instead of erroring the whole request.
-      return item.productId in sheetPrices(sheet)
-             && item.price == sheetPrices(sheet)[item.productId]
-             && item.lineTotal == item.price * item.qty
-             && (!(item.productId in sheetMinQty(sheet))
-                 || item.qty >= sheetMinQty(sheet)[item.productId]);
-    }
-
-    // Validates every item in the cart. Firestore's rules language does
-    // NOT actually support the `all()` CEL macro despite it existing in
-    // standard CEL (confirmed against the Firestore emulator: "Function
-    // not found error: Name: [all]") — so like getExpectedSubtotal(),
-    // this has to be hand-unrolled. Each branch only costs a size check
-    // and one validateItem() call (no get() calls, since prices is
-    // pre-fetched), so unlike the old per-item get() approach this isn't
-    // bound by any call-budget limit — 50 is comfortably above the
-    // entire product catalog, so no real cart can ever hit it. The
-    // client mirrors the same number via MAX_ORDER_ITEM_TYPES in
-    // src/lib/format.ts.
-    function validateOrderItems(items, sheet) {
-      return items.size() > 0 && items.size() <= 50
-             && (items.size() < 1 || validateItem(items[0], sheet))
-             && (items.size() < 2 || validateItem(items[1], sheet))
-             && (items.size() < 3 || validateItem(items[2], sheet))
-             && (items.size() < 4 || validateItem(items[3], sheet))
-             && (items.size() < 5 || validateItem(items[4], sheet))
-             && (items.size() < 6 || validateItem(items[5], sheet))
-             && (items.size() < 7 || validateItem(items[6], sheet))
-             && (items.size() < 8 || validateItem(items[7], sheet))
-             && (items.size() < 9 || validateItem(items[8], sheet))
-             && (items.size() < 10 || validateItem(items[9], sheet))
-             && (items.size() < 11 || validateItem(items[10], sheet))
-             && (items.size() < 12 || validateItem(items[11], sheet))
-             && (items.size() < 13 || validateItem(items[12], sheet))
-             && (items.size() < 14 || validateItem(items[13], sheet))
-             && (items.size() < 15 || validateItem(items[14], sheet))
-             && (items.size() < 16 || validateItem(items[15], sheet))
-             && (items.size() < 17 || validateItem(items[16], sheet))
-             && (items.size() < 18 || validateItem(items[17], sheet))
-             && (items.size() < 19 || validateItem(items[18], sheet))
-             && (items.size() < 20 || validateItem(items[19], sheet))
-             && (items.size() < 21 || validateItem(items[20], sheet))
-             && (items.size() < 22 || validateItem(items[21], sheet))
-             && (items.size() < 23 || validateItem(items[22], sheet))
-             && (items.size() < 24 || validateItem(items[23], sheet))
-             && (items.size() < 25 || validateItem(items[24], sheet))
-             && (items.size() < 26 || validateItem(items[25], sheet))
-             && (items.size() < 27 || validateItem(items[26], sheet))
-             && (items.size() < 28 || validateItem(items[27], sheet))
-             && (items.size() < 29 || validateItem(items[28], sheet))
-             && (items.size() < 30 || validateItem(items[29], sheet))
-             && (items.size() < 31 || validateItem(items[30], sheet))
-             && (items.size() < 32 || validateItem(items[31], sheet))
-             && (items.size() < 33 || validateItem(items[32], sheet))
-             && (items.size() < 34 || validateItem(items[33], sheet))
-             && (items.size() < 35 || validateItem(items[34], sheet))
-             && (items.size() < 36 || validateItem(items[35], sheet))
-             && (items.size() < 37 || validateItem(items[36], sheet))
-             && (items.size() < 38 || validateItem(items[37], sheet))
-             && (items.size() < 39 || validateItem(items[38], sheet))
-             && (items.size() < 40 || validateItem(items[39], sheet))
-             && (items.size() < 41 || validateItem(items[40], sheet))
-             && (items.size() < 42 || validateItem(items[41], sheet))
-             && (items.size() < 43 || validateItem(items[42], sheet))
-             && (items.size() < 44 || validateItem(items[43], sheet))
-             && (items.size() < 45 || validateItem(items[44], sheet))
-             && (items.size() < 46 || validateItem(items[45], sheet))
-             && (items.size() < 47 || validateItem(items[46], sheet))
-             && (items.size() < 48 || validateItem(items[47], sheet))
-             && (items.size() < 49 || validateItem(items[48], sheet))
-             && (items.size() < 50 || validateItem(items[49], sheet));
-    }
     // Delivery fee slab based on subtotal (in rupees).
     // Mirrors calculateDeliveryFee() in src/lib/delivery.ts — keep in
     // lockstep, or every checkout is denied.
@@ -292,8 +214,9 @@ service cloud.firestore {
     // There is no whole-cart minimum any more — each product carries its own
     // minimum order quantity (1kg leafy, 20kg onion/potato, 6pc cauliflower,
     // …), so a single 1kg bunch of coriander is a legitimate order. Those
-    // per-product minimums are checked in validateItem() against the minQty
-    // map mirrored into settings/priceSheet; this keeps only the gross sanity
+    // per-product minimums are enforced by the app and, next, by the server
+    // order route — not here, since that needs a read per line; this keeps
+    // only the gross sanity
     // bounds — a cart must carry something, and can't exceed the 500-unit
     // ceiling (MAX_ORDER_TOTAL_QTY in src/lib/format.ts).
     function isOrderWeightValid(items) {
@@ -502,7 +425,8 @@ service cloud.firestore {
                         // buyer could write paymentStatus:'PAID' and receive
                         // goods without paying.
                         && request.resource.data.paymentStatus == 'UNPAID'
-                        && validateOrderItems(request.resource.data.items, priceSheetDoc())
+                        && request.resource.data.items.size() > 0
+                        && request.resource.data.items.size() <= 25
                         && isOrderWeightValid(request.resource.data.items)
                         && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items)
                         && request.resource.data.deliveryFee == getExpectedDeliveryFee(request.resource.data.subtotal)
