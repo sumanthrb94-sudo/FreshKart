@@ -101,8 +101,16 @@ export function BrandAuthScreen({
           {subline && <p className="relative z-10 mt-1 text-xs text-white/70">{subline}</p>}
         </div>
 
-        {/* Auth card */}
-        <div className="relative z-10 rounded-t-[28px] bg-surface px-7 pb-9 pt-3 shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]">
+        {/* Auth card.
+            The hero above takes flex-1, so without a floor under this card it
+            shrank to its contents and the sign-in field ended up around 70%
+            down a phone screen — a long reach on a big handset, and reading
+            as an afterthought under all that green. The floor claims the
+            bottom ~40% for the thing people came to do. Contents still sit at
+            the top of the card, so a taller card lifts the field rather than
+            centring it in more space. Mobile only: on desktop the panel is
+            already a centred dialog. */}
+        <div className="relative z-10 min-h-[40dvh] rounded-t-[28px] bg-surface px-7 pb-9 pt-3 shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)] lg:min-h-0">
           {children}
         </div>
       </div>

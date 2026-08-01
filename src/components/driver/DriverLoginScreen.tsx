@@ -66,7 +66,7 @@ export function DriverLoginScreen() {
       subline="Your route · your stops · your cash"
     >
       <form onSubmit={handleSubmit}>
-        <h2 className="text-lg font-extrabold leading-tight text-fg">Executive login</h2>
+        <h2 className="text-2xl font-extrabold leading-tight text-fg">Executive login</h2>
         <p className="mt-0.5 text-sm text-fg-subtle">Welcome — sign in and start delivering.</p>
 
         <StaffCredentialFields
