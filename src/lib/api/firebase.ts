@@ -57,6 +57,7 @@ import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { effectiveOverride, getStoreStatus, nextStoreClose } from "@/lib/store-hours";
 import { isWithinDriverAuthority, totalRefundOf } from "@/lib/delivery-adjustment";
+import { deliveryDateOf, nextDeliveryDate } from "@/lib/delivery-run";
 import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
 // Shared with the sign-in UI, which routes allowlisted numbers straight to
 // admin; rules-side enforcement is the matching isAdminPhone() in
@@ -910,14 +911,90 @@ export class FirebaseDataSource implements DataSource {
   async assignDriver(orderId: string, driverId: string, driverName: string): Promise<Order> {
     await this.ready();
     const db = getDb();
+    const now = new Date();
     await updateDoc(doc(db, COL.orders, orderId), {
       driverId,
       driverName,
-      assignedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      assignedAt: now.toISOString(),
+      // Which morning's van. Assigning before the 8 AM departure catches
+      // today's run; after it, the order is for tomorrow.
+      deliveryDate: nextDeliveryDate(now),
+      updatedAt: now.toISOString(),
     });
     const snap = await getDoc(doc(db, COL.orders, orderId));
     if (!snap.exists()) throw new ApiError("Order not found.", 404);
+    return { ...(snap.data() as Omit<Order, "id">), id: snap.id };
+  }
+
+  /**
+   * Close a run: the van is back, the cash is counted, the run leaves the
+   * board.
+   *
+   * Anything still undelivered is released back to unassigned in the same
+   * pass. Closing a run with live stops is not an error — a driver can fall
+   * ill halfway — but those orders must not stay attached to a run nobody is
+   * watching any more, which is precisely how an order disappears.
+   */
+  async closeRun(
+    driverId: string,
+    deliveryDate: string
+  ): Promise<{ closed: number; released: number }> {
+    await this.ready();
+    const db = getDb();
+    const snap = await getDocs(
+      query(collection(db, COL.orders), where("driverId", "==", driverId))
+    );
+    const now = new Date().toISOString();
+    const mine = snap.docs
+      .map((d) => ({ ...(d.data() as Omit<Order, "id">), id: d.id }))
+      .filter(
+        (o) =>
+          o.status !== "CANCELLED" && !o.runClosedAt && deliveryDateOf(o) === deliveryDate
+      );
+    if (mine.length === 0) throw new ApiError("That run has already been closed.", 404);
+
+    let released = 0;
+    const batch = writeBatch(db);
+    for (const order of mine) {
+      const ref = doc(db, COL.orders, order.id);
+      if (order.status === "DELIVERED") {
+        batch.update(ref, { runClosedAt: now, updatedAt: now });
+      } else {
+        // Back to the pool, and NOT marked closed — an order that never
+        // arrived is unfinished business, not a settled one.
+        released += 1;
+        batch.update(ref, {
+          driverId: deleteField(),
+          driverName: deleteField(),
+          assignedAt: deleteField(),
+          deliveryDate: deleteField(),
+          updatedAt: now,
+        });
+      }
+    }
+    await batch.commit();
+    return { closed: mine.length - released, released };
+  }
+
+  async releaseOrder(orderId: string, reason?: string): Promise<Order> {
+    await this.ready();
+    const db = getDb();
+    const ref = doc(db, COL.orders, orderId);
+    const before = await getDoc(ref);
+    if (!before.exists()) throw new ApiError("Order not found.", 404);
+    if ((before.data() as Order).status === "DELIVERED") {
+      throw new ApiError("That order has already been delivered.", 409);
+    }
+    const now = new Date().toISOString();
+    await updateDoc(ref, {
+      driverId: deleteField(),
+      driverName: deleteField(),
+      assignedAt: deleteField(),
+      deliveryDate: deleteField(),
+      ...(reason ? { notes: reason } : {}),
+      updatedAt: now,
+    });
+    const snap = await getDoc(ref);
     return { ...(snap.data() as Omit<Order, "id">), id: snap.id };
   }
 

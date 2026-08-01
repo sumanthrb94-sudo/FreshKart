@@ -453,6 +453,25 @@ service cloud.firestore {
              && request.resource.data.items == resource.data.items;
     }
 
+    // A driver handing a stop back: shop shut, nobody there, gate locked. He
+    // takes himself off the order and it returns to the office's unassigned
+    // queue, so he can move on instead of stalling the whole run at a closed
+    // shutter. Narrow on purpose — status, money and items are untouchable,
+    // the driver fields must end up GONE rather than pointed at someone else,
+    // and an order already delivered can't be handed back. `notes` carries
+    // who gave it up and why, which is the only record of the attempt.
+    function isDriverReleaseUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['driverId', 'driverName', 'assignedAt', 'deliveryDate', 'notes', 'updatedAt'])
+             && !('driverId' in request.resource.data)
+             && !('deliveryDate' in request.resource.data)
+             && resource.data.status != 'DELIVERED'
+             && request.resource.data.status == resource.data.status
+             && request.resource.data.buyerId == resource.data.buyerId
+             && request.resource.data.total == resource.data.total
+             && request.resource.data.items == resource.data.items;
+    }
+
     match /orders/{orderId} {
       allow read: if isSignedIn()
                   && (resource.data.buyerId == request.auth.uid
@@ -485,7 +504,8 @@ service cloud.firestore {
       // order is still PENDING/CONFIRMED and may ONLY change `status`,
       // `updatedAt`, and `notes` (cannot tamper with items, totals, etc.).
       allow update: if isAdmin()
-                    || (isAssignedDriver() && isDriverDoorstepUpdate())
+                    || (isAssignedDriver()
+                        && (isDriverDoorstepUpdate() || isDriverReleaseUpdate()))
                     || (resource.data.buyerId == request.auth.uid
                         && resource.data.status in ['PENDING', 'CONFIRMED']
                         // Not once it is with a driver: the crates are on the

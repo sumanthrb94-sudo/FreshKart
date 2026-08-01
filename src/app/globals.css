@@ -20,6 +20,35 @@
 
   /* Smooth theme transition duration */
   --theme-duration: 250ms;
+
+  /* Brand accent — the green on chips, badges, nav active states and "+ ADD".
+     Dark theme: pale mints (brand-300/400) over a translucent emerald tint,
+     which glow against the near-black canvas. Light mode overrides all four,
+     because the same values on a pale green canvas read as glassy — a mint
+     label on a 15%-alpha mint pill barely separates from the pill. */
+  --brand-accent-soft: #6ee7b7; /* brand-300 */
+  --brand-accent: #34d399; /* brand-400 */
+  --brand-tint-10: rgb(5 150 105 / 0.1);
+  --brand-tint-15: rgb(5 150 105 / 0.15);
+  --brand-tint-20: rgb(5 150 105 / 0.2);
+  --brand-tint-25: rgb(5 150 105 / 0.25);
+}
+
+/* The light-mode accent. Darker text so it carries on a light background, and
+   a SOLID tint rather than an alpha one — translucency over an already-green
+   canvas is what reads as glass. Applied through variables so the two places
+   that mean "light" (the .light class, and desktop below) each set them once
+   instead of restating every rule. */
+html.light {
+  --brand-accent-soft: #065f46; /* brand-700 */
+  --brand-accent: #047857; /* brand-600 */
+  /* 10% and 15% are a hair apart over a near-white surface, as are 20% and
+     25% — light mode collapses each pair rather than inventing flat colours
+     nobody can tell apart. */
+  --brand-tint-10: #d1fae5; /* brand-100 */
+  --brand-tint-15: #d1fae5;
+  --brand-tint-20: #a7f3d0; /* brand-200 */
+  --brand-tint-25: #a7f3d0;
 }
 
 /* Light mode */
@@ -49,20 +78,45 @@ html.light {
     --color-fg: #1a1a1e;
     --color-fg-muted: #5c5f66;
     --color-fg-subtle: #71786f;
-  }
 
-  /* text-brand-300/400 (badges, chips, nav active states, "+ ADD" labels)
-     were tuned to pop against the dark theme's near-black canvas — on this
-     forced-light desktop canvas they read as washed-out, low-contrast green.
-     Darken them here rather than touching every call site (18 files use
-     these two utilities as "brand accent text on a tinted background").
-     Mobile is untouched: this block only applies past the breakpoint. */
-  .text-brand-300 {
-    color: #065f46 !important; /* brand-700 */
+    /* Desktop renders light without ever getting the .light class, so it
+       needs the light accent too. Same values as html.light above. */
+    --brand-accent-soft: #065f46;
+    --brand-accent: #047857;
+    --brand-tint-10: #d1fae5;
+    --brand-tint-15: #d1fae5;
+    --brand-tint-20: #a7f3d0;
+    --brand-tint-25: #a7f3d0;
   }
-  .text-brand-400 {
-    color: #047857 !important; /* brand-600 */
-  }
+}
+
+/* Route the brand accent utilities through the variables above, so the theme
+   decides the colour instead of every call site (105 uses across 20+ files
+   spell it as brand-300/400 text on a brand-500/10..25 tint).
+
+   No !important anywhere: these rules sit after @tailwind utilities and match
+   its specificity, so they win on their own, while the higher-specificity
+   variants — hover:text-white on "+ ADD", hover:bg-brand-500/25 on chips —
+   still beat them. An earlier version of this block used !important and so
+   ate "+ ADD"'s hover:text-white, leaving dark green text on a solid green
+   button at the one moment the button is being pressed. */
+.text-brand-300 {
+  color: var(--brand-accent-soft);
+}
+.text-brand-400 {
+  color: var(--brand-accent);
+}
+.bg-brand-500\/10 {
+  background-color: var(--brand-tint-10);
+}
+.bg-brand-500\/15 {
+  background-color: var(--brand-tint-15);
+}
+.hover\:bg-brand-500\/20:hover {
+  background-color: var(--brand-tint-20);
+}
+.hover\:bg-brand-500\/25:hover {
+  background-color: var(--brand-tint-25);
 }
 
 html {

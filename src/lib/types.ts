@@ -189,6 +189,17 @@ export interface Order {
   /** Denormalised for the admin order list. */
   driverName?: string;
   assignedAt?: string;
+  /**
+   * IST date ("YYYY-MM-DD") of the morning this order is meant to reach the
+   * door — the run it rides on. Stamped at assignment. Orders that predate
+   * the field fall back to their assignment time; see deliveryDateOf.
+   */
+  deliveryDate?: string;
+  /**
+   * Set when the office closes the run this order belonged to: the van is
+   * back and the cash is counted. A closed run leaves the board.
+   */
+  runClosedAt?: string;
   /** Door-side rejection raised by the driver at handover, if any. */
   adjustment?: DeliveryAdjustment;
 }

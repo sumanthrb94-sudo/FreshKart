@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { AlertTriangle, Clock, MapPin, Navigation, Truck } from "lucide-react";
 import type { Order, User } from "@/lib/types";
+import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import { formatKm, type ServiceArea } from "@/lib/service-area";
-import { runProgress, sinceLabel } from "@/lib/run-progress";
+import { openRuns, sinceLabel, type RunProgress } from "@/lib/run-progress";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
 import { cn } from "@/lib/utils";
 
 /**
@@ -22,14 +26,35 @@ export function AdminRunProgressCard({
   drivers,
   orders,
   area,
+  onClosed,
 }: {
   drivers: User[];
   orders: Order[];
   area: ServiceArea;
+  onClosed?: () => void;
 }) {
-  const runs = drivers
-    .map((d) => runProgress(d, orders, area))
-    .filter((r) => r.ordersTotal > 0);
+  const [closing, setClosing] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // One entry per driver PER DELIVERY DATE. A driver holding an unclosed run
+  // from yesterday and today's fresh load appears twice, which is the honest
+  // picture — and the only way the office sees that yesterday's cash is still
+  // outstanding.
+  const runs = openRuns(drivers, orders, area);
+
+  async function close(run: RunProgress) {
+    if (!api.closeRun) return;
+    const key = `${run.driver.id}::${run.deliveryDate}`;
+    setClosing(key);
+    setError(null);
+    try {
+      await api.closeRun(run.driver.id, run.deliveryDate);
+      onClosed?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't close the run.");
+    } finally {
+      setClosing(null);
+    }
+  }
 
   return (
     <Card>
@@ -38,6 +63,7 @@ export function AdminRunProgressCard({
         <h2 className="text-sm font-bold text-fg">Runs in progress</h2>
       </CardHeader>
       <CardBody className="flex flex-col gap-3">
+        {error && <Alert variant="error">{error}</Alert>}
         {runs.length === 0 ? (
           <p className="text-xs text-fg-subtle">
             Nobody is out yet. Assign orders below and the run appears here.
@@ -45,16 +71,20 @@ export function AdminRunProgressCard({
         ) : (
           runs.map((run) => {
             const pct = run.stopsTotal ? Math.round((run.stopsDone / run.stopsTotal) * 100) : 0;
+            const key = `${run.driver.id}::${run.deliveryDate}`;
+            const undelivered = run.ordersTotal - run.ordersDone;
             return (
               <div
-                key={run.driver.id}
+                key={key}
                 className={cn(
                   "rounded-lg border p-3",
-                  run.isStalled
-                    ? "border-amber-500/50 bg-amber-500/5"
-                    : run.finished
-                      ? "border-brand-500/30 bg-brand-500/5"
-                      : "border-line bg-raised"
+                  run.overdue
+                    ? "border-amber-500/60 bg-amber-500/10"
+                    : run.isStalled
+                      ? "border-amber-500/50 bg-amber-500/5"
+                      : run.finished
+                        ? "border-brand-500/30 bg-brand-500/5"
+                        : "border-line bg-raised"
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -64,6 +94,12 @@ export function AdminRunProgressCard({
                       {run.driver.name}
                     </p>
                     <p className="mt-0.5 text-xs text-fg-subtle">
+                      {/* Which morning's van, always — two runs from two days
+                          look identical otherwise. */}
+                      <span className="font-semibold capitalize text-fg-muted">
+                        {run.dayLabel}
+                      </span>
+                      {" · "}
                       {run.finished
                         ? `Run complete — ${run.stopsTotal} stop${run.stopsTotal === 1 ? "" : "s"}`
                         : `Stop ${Math.min(run.stopsDone + 1, run.stopsTotal)} of ${run.stopsTotal}`}
@@ -129,12 +165,40 @@ export function AdminRunProgressCard({
                   </a>
                 </div>
 
-                {run.isStalled && (
+                {run.isStalled && !run.overdue && (
                   <p className="mt-1.5 text-2xs font-semibold text-amber-600">
                     No update in {sinceLabel(run.silentMinutes).replace(" ago", "")} with stops left
                     — worth a call.
                   </p>
                 )}
+
+                {/* An overdue run is one whose delivery morning has passed and
+                    which nobody has closed. It is NOT today's work, and saying
+                    so is the whole point — this board used to show a run
+                    finished the previous day as though the van were still
+                    out. */}
+                {run.overdue && (
+                  <p className="mt-1.5 text-2xs font-semibold text-amber-600">
+                    {run.dayLabel === "yesterday" ? "Yesterday's" : `${run.dayLabel}'s`} run, still
+                    open. Close it once the cash is in.
+                  </p>
+                )}
+
+                <div className="mt-2 flex items-center justify-between gap-2 border-t border-line pt-2">
+                  <span className="text-2xs text-fg-subtle">
+                    {undelivered === 0
+                      ? "All stops delivered."
+                      : `${undelivered} stop${undelivered === 1 ? "" : "s"} not delivered — closing sends ${undelivered === 1 ? "it" : "them"} back to Assign a driver.`}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant={run.finished ? "primary" : "secondary"}
+                    disabled={closing === key || !api.closeRun}
+                    onClick={() => close(run)}
+                  >
+                    {closing === key ? "Closing…" : "Close run"}
+                  </Button>
+                </div>
               </div>
             );
           })

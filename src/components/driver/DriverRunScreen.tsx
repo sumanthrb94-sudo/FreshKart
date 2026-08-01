@@ -17,6 +17,7 @@ import {
   Package,
   Phone,
   Truck,
+  Undo2,
   X,
 } from "lucide-react";
 import type { AdjustmentLine, Order } from "@/lib/types";
@@ -603,6 +604,8 @@ function DeliveryStop({
   onChanged: () => void;
 }) {
   const [rejecting, setRejecting] = useState(false);
+  const [handingBack, setHandingBack] = useState(false);
+  const [handBackReason, setHandBackReason] = useState("");
   const [qty, setQty] = useState<Record<string, number>>({});
   const [reason, setReason] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
@@ -642,6 +645,33 @@ function DeliveryStop({
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't record the rejection.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * A door that can't be worked: shutter down, nobody there, gate locked.
+   *
+   * The stop leaves this run and goes back to the office's unassigned queue,
+   * so the driver moves on instead of standing at a closed shop while the run
+   * ages into "stalled". The reason is written onto the order because it is
+   * the only record the attempt ever happened — the office reads it to decide
+   * whether to re-send tomorrow, ring the shop, or cancel.
+   */
+  async function handBack() {
+    if (!api.releaseOrder) return;
+    if (!handBackReason.trim()) {
+      setError("Say what happened — the office decides what to do next from this.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.releaseOrder(order.id, `Not delivered: ${handBackReason.trim()}`);
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't hand the stop back.");
     } finally {
       setBusy(false);
     }
@@ -770,10 +800,51 @@ function DeliveryStop({
       )}
 
       {/* Reject flow */}
-      {!adj && !rejecting && (
-        <Button variant="outline" onClick={() => setRejecting(true)} leadingIcon={<X className="h-4 w-4" />}>
-          Buyer refused something
-        </Button>
+      {!adj && !rejecting && !handingBack && (
+        <div className="flex flex-col gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setRejecting(true)}
+            leadingIcon={<X className="h-4 w-4" />}
+          >
+            Buyer refused something
+          </Button>
+          {api.releaseOrder && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setHandingBack(true)}
+              leadingIcon={<Undo2 className="h-4 w-4" />}
+            >
+              Couldn&apos;t deliver — hand back to office
+            </Button>
+          )}
+        </div>
+      )}
+
+      {handingBack && (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
+          <p className="text-sm font-bold text-fg">What stopped you?</p>
+          <p className="text-xs text-fg-subtle">
+            This stop leaves your run and goes back to the office. Keep the goods on the van — they
+            will tell you what to do with them.
+          </p>
+          <input
+            value={handBackReason}
+            onChange={(e) => setHandBackReason(e.target.value)}
+            placeholder="e.g. shop shutter down, nobody answering"
+            aria-label="Reason the delivery could not be made"
+            className="h-11 rounded-lg border border-line bg-surface px-3 text-sm text-fg outline-none focus:border-amber-500"
+          />
+          <div className="flex gap-2">
+            <Button loading={busy} onClick={handBack}>
+              Hand back
+            </Button>
+            <Button variant="outline" disabled={busy} onClick={() => setHandingBack(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
       )}
 
       {rejecting && (

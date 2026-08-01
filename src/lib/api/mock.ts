@@ -25,6 +25,7 @@ import { calculateDeliveryFee } from "@/lib/delivery";
 import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
 import { effectiveOverride, getStoreStatus, nextStoreClose } from "@/lib/store-hours";
 import { isWithinDriverAuthority, totalRefundOf } from "@/lib/delivery-adjustment";
+import { deliveryDateOf, nextDeliveryDate } from "@/lib/delivery-run";
 import { DataSource, ApiError, type WipeResult } from "./datasource";
 import { store } from "./mock-store";
 
@@ -376,12 +377,72 @@ export class MockDataSource implements DataSource {
     store.mutate((s) => {
       const o = s.orders.find((x) => x.id === orderId);
       if (!o) return;
+      const now = new Date();
       o.driverId = driverId;
       o.driverName = driverName;
-      o.assignedAt = new Date().toISOString();
+      o.assignedAt = now.toISOString();
+      o.deliveryDate = nextDeliveryDate(now);
       o.updatedAt = o.assignedAt;
       updated = o;
     });
+    if (!updated) throw new ApiError("Order not found.", 404);
+    return delay(structuredClone(updated));
+  }
+
+  async closeRun(
+    driverId: string,
+    deliveryDate: string
+  ): Promise<{ closed: number; released: number }> {
+    let closed = 0;
+    let released = 0;
+    let found = false;
+    store.mutate((s) => {
+      const now = new Date().toISOString();
+      for (const o of s.orders) {
+        if (o.driverId !== driverId) continue;
+        if (o.status === "CANCELLED" || o.runClosedAt) continue;
+        if (deliveryDateOf(o) !== deliveryDate) continue;
+        found = true;
+        if (o.status === "DELIVERED") {
+          o.runClosedAt = now;
+          closed += 1;
+        } else {
+          // Never arrived — back to the pool for the office to decide on.
+          delete o.driverId;
+          delete o.driverName;
+          delete o.assignedAt;
+          delete o.deliveryDate;
+          released += 1;
+        }
+        o.updatedAt = now;
+      }
+    });
+    if (!found) throw new ApiError("That run has already been closed.", 404);
+    return delay({ closed, released });
+  }
+
+  async releaseOrder(orderId: string, reason?: string): Promise<Order> {
+    let updated: Order | null = null;
+    let error: string | null = null;
+    store.mutate((s) => {
+      const o = s.orders.find((x) => x.id === orderId);
+      if (!o) {
+        error = "Order not found.";
+        return;
+      }
+      if (o.status === "DELIVERED") {
+        error = "That order has already been delivered.";
+        return;
+      }
+      delete o.driverId;
+      delete o.driverName;
+      delete o.assignedAt;
+      delete o.deliveryDate;
+      if (reason) o.notes = reason;
+      o.updatedAt = new Date().toISOString();
+      updated = o;
+    });
+    if (error) throw new ApiError(error, 409);
     if (!updated) throw new ApiError("Order not found.", 404);
     return delay(structuredClone(updated));
   }

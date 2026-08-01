@@ -162,7 +162,12 @@ export function AdminDeliveriesScreen() {
         </Card>
 
         {/* Where each driver has got to, right now */}
-        <AdminRunProgressCard drivers={drivers ?? []} orders={orders ?? []} area={area} />
+        <AdminRunProgressCard
+          drivers={drivers ?? []}
+          orders={orders ?? []}
+          area={area}
+          onClosed={refresh}
+        />
 
         {/* What each driver owes the till tonight */}
         <Card>
