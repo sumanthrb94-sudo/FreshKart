@@ -124,8 +124,25 @@ export interface DataSource {
    * everything not yet DELIVERED or CANCELLED.
    */
   listDriverOrders?(driverId: string): Promise<Order[]>;
-  /** Optional — admin: hand an order to a delivery executive. */
+  /**
+   * Optional — admin: hand an order to a delivery executive. Stamps the
+   * delivery date, so the order joins that morning's run rather than a
+   * driver's undifferentiated pile.
+   */
   assignDriver?(orderId: string, driverId: string, driverName: string): Promise<Order>;
+  /**
+   * Optional — admin: close a run. The van is back and the cash is counted,
+   * so the run leaves the board. Any stop that never got made goes back to
+   * unassigned for the office to decide on, rather than riding along
+   * invisibly into the next day.
+   */
+  closeRun?(driverId: string, deliveryDate: string): Promise<{ closed: number; released: number }>;
+  /**
+   * Optional — take an order off a driver and back into the unassigned pool.
+   * Used by the driver when a door can't be worked (shop shut, nobody there)
+   * and by closeRun for anything left over.
+   */
+  releaseOrder?(orderId: string, reason?: string): Promise<Order>;
   /** Optional — admin: list accounts with the DRIVER role, for assignment. */
   listDrivers?(): Promise<User[]>;
   /**

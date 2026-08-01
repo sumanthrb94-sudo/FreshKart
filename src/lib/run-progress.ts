@@ -1,6 +1,14 @@
 import type { Order, User } from "@/lib/types";
 import { planRun, type RunVisit, type ServiceArea } from "./service-area";
 import { summarizeCashRun } from "./cash-run";
+import {
+  isOverdueRun,
+  nextDeliveryDate,
+  openRunKeys,
+  ordersInRun,
+  runDayLabel,
+  type RunKey,
+} from "./delivery-run";
 
 /**
  * Where a driver has got to, right now.
@@ -22,6 +30,12 @@ export const SILENT_RUN_MINUTES = 45;
 
 export interface RunProgress {
   driver: User;
+  /** IST date of the morning this run delivers. */
+  deliveryDate: string;
+  /** "today" / "tomorrow" / "Fri 1 Aug". */
+  dayLabel: string;
+  /** True when the delivery morning has passed and the run is still open. */
+  overdue: boolean;
   /** Doors on today's run, done and remaining. */
   stopsTotal: number;
   stopsDone: number;
@@ -49,9 +63,17 @@ export function runProgress(
   driver: User,
   orders: Order[],
   area: ServiceArea,
-  now: Date = new Date()
+  now: Date = new Date(),
+  deliveryDate?: string
 ): RunProgress {
-  const mine = orders.filter((o) => o.driverId === driver.id && o.status !== "CANCELLED");
+  // Scoped to ONE delivery date. Without that scope a driver's "run" was every
+  // order ever assigned to him, so a finished run never left the board and the
+  // next day's first assignment was added to its totals.
+  const key: RunKey = {
+    driverId: driver.id,
+    deliveryDate: deliveryDate ?? earliestOpenRunDate(orders, driver, now),
+  };
+  const mine = ordersInRun(orders, key);
   const outstanding = mine.filter((o) => o.status !== "DELIVERED");
   const done = mine.filter((o) => o.status === "DELIVERED");
 
@@ -79,6 +101,9 @@ export function runProgress(
 
   return {
     driver,
+    deliveryDate: key.deliveryDate,
+    dayLabel: runDayLabel(key.deliveryDate, now),
+    overdue: isOverdueRun(key.deliveryDate, now),
     stopsTotal,
     stopsDone,
     ordersTotal: mine.length,
@@ -95,6 +120,40 @@ export function runProgress(
     isStalled: !finished && mine.length > 0 && (silentMinutes ?? 0) >= SILENT_RUN_MINUTES,
     finished,
   };
+}
+
+/**
+ * The run to show when the caller didn't name a date: the driver's oldest
+ * open one. Oldest rather than newest because an unclosed run from a past
+ * morning is the one that needs attention — closing it is what releases the
+ * cash and frees any stop that never got made.
+ */
+function earliestOpenRunDate(orders: Order[], driver: User, now: Date): string {
+  const mine = openRunKeys(orders, [driver]);
+  return mine[0]?.deliveryDate ?? nextDeliveryDate(now);
+}
+
+/**
+ * Every open run across every driver, oldest delivery date first.
+ *
+ * One entry per driver PER DAY, so a driver holding an unclosed run from
+ * yesterday and today's fresh load appears twice — which is the honest
+ * picture, and the only way the office can see that yesterday's cash is
+ * still outstanding.
+ */
+export function openRuns(
+  drivers: User[],
+  orders: Order[],
+  area: ServiceArea,
+  now: Date = new Date()
+): RunProgress[] {
+  const byId = new Map(drivers.map((d) => [d.id, d]));
+  return openRunKeys(orders, drivers)
+    .map((key) => {
+      const driver = byId.get(key.driverId);
+      return driver ? runProgress(driver, orders, area, now, key.deliveryDate) : null;
+    })
+    .filter((r): r is RunProgress => r !== null && r.ordersTotal > 0);
 }
 
 /** "just now" / "12 min ago" / "2h 05m ago" / "3 days ago" — a line an admin
