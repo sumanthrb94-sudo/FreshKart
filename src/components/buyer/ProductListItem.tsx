@@ -41,69 +41,68 @@ export function ProductListItem({ product }: { product: Product }) {
         />
       </div>
 
-      {/* Content */}
-      <div className="flex min-w-0 flex-1 flex-col md:p-3">
+      {/* Name, price and chips. On mobile this is the middle column between the
+          thumbnail and the action; on the md+ grid the card turns into a
+          column and this becomes the body above a full-width action row. */}
+      <div className="flex min-w-0 flex-1 flex-col md:px-3 md:pt-3">
         <p className="line-clamp-2 text-sm font-bold leading-snug text-fg">
           {tProduct(product.name)}
         </p>
 
-        {/* Price/chip and the action control (Add / stepper) sit side-by-side
-            on mobile, where the card is wide enough (image is a small fixed
-            square, not the whole card width). On the md+ grid, cards narrow
-            to ~180-200px — cramming a ~120px quantity stepper next to the
-            price+chip there left no room for either and they visibly
-            overlapped. Stacking them (price row, then a full-width action
-            row) fixes that regardless of exactly how narrow the column
-            gets. */}
-        <div className="mt-1.5 flex items-end justify-between gap-2 md:mt-auto md:flex-col md:items-stretch md:gap-1.5">
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-extrabold text-fg">
-                {formatCurrency(product.price)}
-              </span>
-              <span className="text-xs text-fg-subtle">/ {unitLabel(product.unit)}</span>
-            </div>
-            <span className="mt-1 inline-flex w-fit whitespace-nowrap rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-semibold text-brand-300">
-              {t("minOrder")} {product.minOrderQty} {unitLabel(product.unit)}
+        <div className="mt-1.5 min-w-0 md:mt-auto">
+          <div className="flex items-baseline gap-1">
+            <span className="text-lg font-extrabold text-fg">
+              {formatCurrency(product.price)}
             </span>
-            {lowStock && (
-              <span className="mt-1 block w-fit whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-500">
-                {t("onlyLeft")} {product.stock} {unitLabel(product.unit)}
-              </span>
-            )}
+            <span className="text-xs text-fg-subtle">/ {unitLabel(product.unit)}</span>
           </div>
-
-          <div className="shrink-0 md:w-full">
-            {outOfStock ? (
-              <span className="block rounded-full bg-raised px-2.5 py-1.5 text-center text-xs font-semibold text-fg-subtle">
-                {t("outOfStock")}
-              </span>
-            ) : qty === 0 ? (
-              <button
-                type="button"
-                data-testid="add-to-cart-btn"
-                onClick={() => add(product)}
-                className="flex items-center gap-1 rounded-full border border-brand-500 bg-brand-500/10 px-3 py-1.5 text-sm font-bold text-brand-400 transition-colors hover:bg-brand-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 md:w-full md:justify-center"
-              >
-                <Plus className="h-4 w-4" />
-                {t("add")}
-              </button>
-            ) : (
-              <div className="flex flex-col items-end gap-1 md:w-full md:flex-row md:items-center md:justify-between">
-                <QuantityStepper
-                  product={product}
-                  qty={qty}
-                  onIncrement={() => increment(product)}
-                  onDecrement={() => decrement(product)}
-                  size="sm"
-                />
-                <span className="text-xs font-bold text-fg">
-                  {formatCurrency(product.price * qty)}
-                </span>
-              </div>
-            )}
-          </div>
+          <span className="mt-1 inline-flex w-fit whitespace-nowrap rounded-full bg-brand-500/15 px-2 py-0.5 text-[11px] font-semibold text-brand-300">
+            {t("minOrder")} {product.minOrderQty} {unitLabel(product.unit)}
+          </span>
+          {lowStock && (
+            <span className="mt-1 block w-fit whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-500">
+              {t("onlyLeft")} {product.stock} {unitLabel(product.unit)}
+            </span>
+          )}
         </div>
+      </div>
+
+      {/* The action (Add / stepper) is a child of the CARD, not of the text
+          column — that is what lets the card's own items-center put it on the
+          card's vertical midline on mobile. Nested inside the text column it
+          could only ever align to the price and chip, which sat it visibly
+          low. On the md+ grid the card is a column, so this simply becomes the
+          full-width row underneath: cards there narrow to ~180-200px and a
+          ~120px stepper alongside the price left no room for either. */}
+      <div className="shrink-0 md:w-full md:px-3 md:pb-3 md:pt-1.5">
+        {outOfStock ? (
+          <span className="block rounded-full bg-raised px-2.5 py-1.5 text-center text-xs font-semibold text-fg-subtle">
+            {t("outOfStock")}
+          </span>
+        ) : qty === 0 ? (
+          <button
+            type="button"
+            data-testid="add-to-cart-btn"
+            onClick={() => add(product)}
+            className="flex items-center gap-1 rounded-full border border-brand-500 bg-brand-500/10 px-3 py-1.5 text-sm font-bold text-brand-400 transition-colors hover:bg-brand-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 md:w-full md:justify-center"
+          >
+            <Plus className="h-4 w-4" />
+            {t("add")}
+          </button>
+        ) : (
+          <div className="flex flex-col items-end gap-1 md:w-full md:flex-row md:items-center md:justify-between">
+            <QuantityStepper
+              product={product}
+              qty={qty}
+              onIncrement={() => increment(product)}
+              onDecrement={() => decrement(product)}
+              size="sm"
+            />
+            <span className="text-xs font-bold text-fg">
+              {formatCurrency(product.price * qty)}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
