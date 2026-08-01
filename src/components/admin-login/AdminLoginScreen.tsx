@@ -73,7 +73,7 @@ export function AdminLoginScreen() {
       subline="Prices · orders · deliveries · reports"
     >
       <form onSubmit={handleSubmit}>
-        <h2 className="text-lg font-extrabold leading-tight text-fg">Admin login</h2>
+        <h2 className="text-2xl font-extrabold leading-tight text-fg">Admin login</h2>
         <p className="mt-0.5 text-sm text-fg-subtle">Authorised staff only.</p>
 
         <StaffCredentialFields

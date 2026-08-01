@@ -111,44 +111,42 @@ service cloud.firestore {
              && request.resource.data.stock >= resource.data.stock - 10000;
     }
 
-    // Same defensive pattern as userRole(): guard against settings/priceSheet
-    // ever being missing (shouldn't happen in normal use, but a raw get()
-    // here would error — and therefore deny — every single order if it
-    // ever were). Falls back to an empty map, which cleanly fails every
-    // item's `productId in prices` check instead of erroring.
-    function priceSheetPrices() {
+    // The price sheet, fetched ONCE. Each exists()+get() pair costs two of a
+    // transaction's 20 document reads, and checkout is a transaction, so two
+    // helpers each doing their own lookup was four reads for one document.
+    // Guarded because reading .data off a missing doc throws, and an error
+    // anywhere denies the whole request.
+    function priceSheetDoc() {
       return exists(/databases/$(database)/documents/settings/priceSheet)
-             ? get(/databases/$(database)/documents/settings/priceSheet).data.prices
+             ? get(/databases/$(database)/documents/settings/priceSheet).data
              : {};
     }
 
-    // Per-product wholesale minimums (20 kg onion, 1 kg leafy, 6 pc
-    // cauliflower …), mirrored into the SAME document as the prices by
-    // publishDailyPrices — so checking them costs no extra get() call.
-    // A sheet published before this map existed simply has no `minQty`,
-    // and every item then falls back to "no minimum" rather than denying
-    // every order in the shop until someone republishes.
-    function priceSheetMinQty() {
-      return exists(/databases/$(database)/documents/settings/priceSheet)
-             && 'minQty' in get(/databases/$(database)/documents/settings/priceSheet).data
-             ? get(/databases/$(database)/documents/settings/priceSheet).data.minQty
-             : {};
+    // Prices, and the per-product wholesale minimums mirrored into the SAME
+    // document by publishDailyPrices. A sheet published before minQty existed
+    // simply has none, and every item then falls back to "no minimum" rather
+    // than denying every order in the shop until someone republishes.
+    function sheetPrices(sheet) {
+      return 'prices' in sheet ? sheet.prices : {};
     }
 
-    // Helper to validate a single order item's price and line total integrity.
-    // `prices` is the pre-fetched settings/priceSheet map — passed in so this
-    // makes ZERO get() calls of its own, unlike the old per-item
-    // get(products/{id}) lookup. That's what removes the item-count ceiling
-    // that used to be forced by Firestore's get()-call budget per rule
-    // evaluation (10 for a single doc, 20 inside a transaction).
-    function validateItem(item, prices, minQty) {
+    function sheetMinQty(sheet) {
+      return 'minQty' in sheet ? sheet.minQty : {};
+    }
+
+    // Validates one line's price, line total and wholesale minimum against
+    // the sheet fetched once above. Makes ZERO document reads of its own —
+    // sheetPrices()/sheetMinQty() are plain map lookups on data already in
+    // hand. That is what lets a cart carry any number of distinct products.
+    function validateItem(item, sheet) {
       // Indexing a map with a key it doesn't have also throws in Firestore's
       // rules language — guard with `in` first so an untracked productId
       // cleanly denies that order instead of erroring the whole request.
-      return item.productId in prices
-             && item.price == prices[item.productId]
+      return item.productId in sheetPrices(sheet)
+             && item.price == sheetPrices(sheet)[item.productId]
              && item.lineTotal == item.price * item.qty
-             && (!(item.productId in minQty) || item.qty >= minQty[item.productId]);
+             && (!(item.productId in sheetMinQty(sheet))
+                 || item.qty >= sheetMinQty(sheet)[item.productId]);
     }
 
     // Validates every item in the cart. Firestore's rules language does
@@ -162,58 +160,58 @@ service cloud.firestore {
     // entire product catalog, so no real cart can ever hit it. The
     // client mirrors the same number via MAX_ORDER_ITEM_TYPES in
     // src/lib/format.ts.
-    function validateOrderItems(items, prices, minQty) {
+    function validateOrderItems(items, sheet) {
       return items.size() > 0 && items.size() <= 50
-             && (items.size() < 1 || validateItem(items[0], prices, minQty))
-             && (items.size() < 2 || validateItem(items[1], prices, minQty))
-             && (items.size() < 3 || validateItem(items[2], prices, minQty))
-             && (items.size() < 4 || validateItem(items[3], prices, minQty))
-             && (items.size() < 5 || validateItem(items[4], prices, minQty))
-             && (items.size() < 6 || validateItem(items[5], prices, minQty))
-             && (items.size() < 7 || validateItem(items[6], prices, minQty))
-             && (items.size() < 8 || validateItem(items[7], prices, minQty))
-             && (items.size() < 9 || validateItem(items[8], prices, minQty))
-             && (items.size() < 10 || validateItem(items[9], prices, minQty))
-             && (items.size() < 11 || validateItem(items[10], prices, minQty))
-             && (items.size() < 12 || validateItem(items[11], prices, minQty))
-             && (items.size() < 13 || validateItem(items[12], prices, minQty))
-             && (items.size() < 14 || validateItem(items[13], prices, minQty))
-             && (items.size() < 15 || validateItem(items[14], prices, minQty))
-             && (items.size() < 16 || validateItem(items[15], prices, minQty))
-             && (items.size() < 17 || validateItem(items[16], prices, minQty))
-             && (items.size() < 18 || validateItem(items[17], prices, minQty))
-             && (items.size() < 19 || validateItem(items[18], prices, minQty))
-             && (items.size() < 20 || validateItem(items[19], prices, minQty))
-             && (items.size() < 21 || validateItem(items[20], prices, minQty))
-             && (items.size() < 22 || validateItem(items[21], prices, minQty))
-             && (items.size() < 23 || validateItem(items[22], prices, minQty))
-             && (items.size() < 24 || validateItem(items[23], prices, minQty))
-             && (items.size() < 25 || validateItem(items[24], prices, minQty))
-             && (items.size() < 26 || validateItem(items[25], prices, minQty))
-             && (items.size() < 27 || validateItem(items[26], prices, minQty))
-             && (items.size() < 28 || validateItem(items[27], prices, minQty))
-             && (items.size() < 29 || validateItem(items[28], prices, minQty))
-             && (items.size() < 30 || validateItem(items[29], prices, minQty))
-             && (items.size() < 31 || validateItem(items[30], prices, minQty))
-             && (items.size() < 32 || validateItem(items[31], prices, minQty))
-             && (items.size() < 33 || validateItem(items[32], prices, minQty))
-             && (items.size() < 34 || validateItem(items[33], prices, minQty))
-             && (items.size() < 35 || validateItem(items[34], prices, minQty))
-             && (items.size() < 36 || validateItem(items[35], prices, minQty))
-             && (items.size() < 37 || validateItem(items[36], prices, minQty))
-             && (items.size() < 38 || validateItem(items[37], prices, minQty))
-             && (items.size() < 39 || validateItem(items[38], prices, minQty))
-             && (items.size() < 40 || validateItem(items[39], prices, minQty))
-             && (items.size() < 41 || validateItem(items[40], prices, minQty))
-             && (items.size() < 42 || validateItem(items[41], prices, minQty))
-             && (items.size() < 43 || validateItem(items[42], prices, minQty))
-             && (items.size() < 44 || validateItem(items[43], prices, minQty))
-             && (items.size() < 45 || validateItem(items[44], prices, minQty))
-             && (items.size() < 46 || validateItem(items[45], prices, minQty))
-             && (items.size() < 47 || validateItem(items[46], prices, minQty))
-             && (items.size() < 48 || validateItem(items[47], prices, minQty))
-             && (items.size() < 49 || validateItem(items[48], prices, minQty))
-             && (items.size() < 50 || validateItem(items[49], prices, minQty));
+             && (items.size() < 1 || validateItem(items[0], sheet))
+             && (items.size() < 2 || validateItem(items[1], sheet))
+             && (items.size() < 3 || validateItem(items[2], sheet))
+             && (items.size() < 4 || validateItem(items[3], sheet))
+             && (items.size() < 5 || validateItem(items[4], sheet))
+             && (items.size() < 6 || validateItem(items[5], sheet))
+             && (items.size() < 7 || validateItem(items[6], sheet))
+             && (items.size() < 8 || validateItem(items[7], sheet))
+             && (items.size() < 9 || validateItem(items[8], sheet))
+             && (items.size() < 10 || validateItem(items[9], sheet))
+             && (items.size() < 11 || validateItem(items[10], sheet))
+             && (items.size() < 12 || validateItem(items[11], sheet))
+             && (items.size() < 13 || validateItem(items[12], sheet))
+             && (items.size() < 14 || validateItem(items[13], sheet))
+             && (items.size() < 15 || validateItem(items[14], sheet))
+             && (items.size() < 16 || validateItem(items[15], sheet))
+             && (items.size() < 17 || validateItem(items[16], sheet))
+             && (items.size() < 18 || validateItem(items[17], sheet))
+             && (items.size() < 19 || validateItem(items[18], sheet))
+             && (items.size() < 20 || validateItem(items[19], sheet))
+             && (items.size() < 21 || validateItem(items[20], sheet))
+             && (items.size() < 22 || validateItem(items[21], sheet))
+             && (items.size() < 23 || validateItem(items[22], sheet))
+             && (items.size() < 24 || validateItem(items[23], sheet))
+             && (items.size() < 25 || validateItem(items[24], sheet))
+             && (items.size() < 26 || validateItem(items[25], sheet))
+             && (items.size() < 27 || validateItem(items[26], sheet))
+             && (items.size() < 28 || validateItem(items[27], sheet))
+             && (items.size() < 29 || validateItem(items[28], sheet))
+             && (items.size() < 30 || validateItem(items[29], sheet))
+             && (items.size() < 31 || validateItem(items[30], sheet))
+             && (items.size() < 32 || validateItem(items[31], sheet))
+             && (items.size() < 33 || validateItem(items[32], sheet))
+             && (items.size() < 34 || validateItem(items[33], sheet))
+             && (items.size() < 35 || validateItem(items[34], sheet))
+             && (items.size() < 36 || validateItem(items[35], sheet))
+             && (items.size() < 37 || validateItem(items[36], sheet))
+             && (items.size() < 38 || validateItem(items[37], sheet))
+             && (items.size() < 39 || validateItem(items[38], sheet))
+             && (items.size() < 40 || validateItem(items[39], sheet))
+             && (items.size() < 41 || validateItem(items[40], sheet))
+             && (items.size() < 42 || validateItem(items[41], sheet))
+             && (items.size() < 43 || validateItem(items[42], sheet))
+             && (items.size() < 44 || validateItem(items[43], sheet))
+             && (items.size() < 45 || validateItem(items[44], sheet))
+             && (items.size() < 46 || validateItem(items[45], sheet))
+             && (items.size() < 47 || validateItem(items[46], sheet))
+             && (items.size() < 48 || validateItem(items[47], sheet))
+             && (items.size() < 49 || validateItem(items[48], sheet))
+             && (items.size() < 50 || validateItem(items[49], sheet));
     }
     // Delivery fee slab based on subtotal (in rupees).
     // Mirrors calculateDeliveryFee() in src/lib/delivery.ts — keep in
@@ -324,7 +322,15 @@ service cloud.firestore {
     match /products/{productId} {
       allow read: if true;
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (isSignedIn() && onlyStockChanged() && isStockChangeValid());
+      // ORDER MATTERS. isAdmin() costs exists()+get() on users/{uid} — two of
+      // the 20 document reads a transaction is allowed. Checkout decrements
+      // stock on every line in ONE transaction, so with isAdmin() first a
+      // 10-item cart spent 20 reads before the order was even looked at and
+      // every checkout died as "Missing or insufficient permissions". CEL
+      // short-circuits, so putting the read-free buyer branch first costs a
+      // buyer nothing; an admin simply falls through to isAdmin().
+      allow update: if (isSignedIn() && onlyStockChanged() && isStockChangeValid())
+                       || isAdmin();
     }
 
     // --- Coupons: public promo codes, admin-managed. World-readable so any
@@ -480,8 +486,12 @@ service cloud.firestore {
       // Buyers create their own auto-confirmed orders; admins (POS / phone desk) may
       // place an order on behalf of any buyer. Field whitelist prevents
       // injection of arbitrary keys (e.g. `discount`, `isAdmin`).
-      allow create: if isAdmin()
-                    || (isSignedIn()
+      // Buyer branch FIRST, for the same read-budget reason as the products
+      // rule above: isAdmin() costs two document reads, and this create shares
+      // its 20-read budget with every stock decrement in the same checkout
+      // transaction. An admin POS order fails the buyer branch harmlessly and
+      // falls through to isAdmin().
+      allow create: if (isSignedIn()
                         && hasOnlyOrderFields()
                         && request.resource.data.buyerId == request.auth.uid
                         && request.resource.data.status in ['CONFIRMED']
@@ -492,14 +502,12 @@ service cloud.firestore {
                         // buyer could write paymentStatus:'PAID' and receive
                         // goods without paying.
                         && request.resource.data.paymentStatus == 'UNPAID'
-                        && validateOrderItems(
-                             request.resource.data.items,
-                             priceSheetPrices(),
-                             priceSheetMinQty())
+                        && validateOrderItems(request.resource.data.items, priceSheetDoc())
                         && isOrderWeightValid(request.resource.data.items)
                         && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items)
                         && request.resource.data.deliveryFee == getExpectedDeliveryFee(request.resource.data.subtotal)
-                        && request.resource.data.total == request.resource.data.subtotal + request.resource.data.deliveryFee);
+                        && request.resource.data.total == request.resource.data.subtotal + request.resource.data.deliveryFee)
+                    || isAdmin();
       // Admin can advance to any status; a buyer may only cancel while the
       // order is still PENDING/CONFIRMED and may ONLY change `status`,
       // `updatedAt`, and `notes` (cannot tamper with items, totals, etc.).

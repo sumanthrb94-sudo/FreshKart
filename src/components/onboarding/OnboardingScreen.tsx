@@ -253,7 +253,7 @@ export function OnboardingScreen() {
         <>
           {/* pt-3 above and mb-2.5 below sit the heading in even space: the
               line box adds 1.5px under the glyphs, so 12 above ≈ 11.5 below. */}
-          <h2 className="mb-2.5 text-lg font-extrabold leading-tight text-fg">Sign in to continue</h2>
+          <h2 className="mb-3 text-2xl font-extrabold leading-tight text-fg">Sign in to continue</h2>
 
             {/* Demo login buttons (mock mode only) */}
             {usingMockBackend && (
@@ -369,6 +369,15 @@ export function OnboardingScreen() {
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs.current[i - 1]?.focus();
+                    // Enter submits, as it does on the number screen before it.
+                    // Six separate boxes are not a form, so nothing was
+                    // listening: typing the last digit and pressing Enter —
+                    // which is what an Android keyboard's ✓ key sends — did
+                    // nothing at all, and the code just sat there.
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleVerify();
+                    }
                   }}
                   className={cn(
                     "h-14 w-12 rounded-xl border text-center text-xl font-bold text-fg outline-none transition-colors",
