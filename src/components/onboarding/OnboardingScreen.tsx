@@ -3,41 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult } from "firebase/auth";
-import { Check, Loader2, ShieldCheck, Store, Sun, Moon } from "lucide-react";
+import { Check, Loader2, ShieldCheck, Store } from "lucide-react";
 import { api, usingMockBackend } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { isPlausibleIndianMobile } from "@/lib/format";
 import { sendOtp, toE164, resetRecaptcha, renderRecaptcha } from "@/lib/firebase/phone-auth";
 import { friendlyPhoneError } from "@/lib/firebase/friendly-phone-error";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
 import { AddressPicker, type PickedAddress } from "@/components/address/AddressPicker";
+import { BrandAuthScreen } from "@/components/ui/BrandAuthScreen";
 
 type Step = "mobile" | "verify" | "shop" | "done";
 
 const STEP_ORDER: Step[] = ["mobile", "verify", "shop"];
 const RECAPTCHA_ID = "recaptcha-container";
 
-// Produce that drifts around the hero, ricocheting off the edges (Onida/DVD
-// style). X and Y run on different periods so each item reverses at a different
-// wall and the paths look organic; looping + `alternate` = permanent motion.
-const FLOATERS = [
-  { e: "🍅", s: "text-3xl", dx: "8s", dy: "6s", ox: "0s", oy: "-2s" },
-  { e: "🥦", s: "text-2xl", dx: "7s", dy: "9s", ox: "-3s", oy: "-1s" },
-  { e: "🍇", s: "text-xl", dx: "9s", dy: "7s", ox: "-5s", oy: "-4s" },
-  { e: "🍋", s: "text-2xl", dx: "6.5s", dy: "8.5s", ox: "-2.5s", oy: "-6s" },
-  { e: "🍆", s: "text-2xl", dx: "8.5s", dy: "6.5s", ox: "-7s", oy: "-3s" },
-  { e: "🫑", s: "text-2xl", dx: "7.5s", dy: "9.5s", ox: "-1s", oy: "-5s" },
-  { e: "🧅", s: "text-2xl", dx: "9.5s", dy: "7.5s", ox: "-4s", oy: "-8s" },
-  { e: "🥔", s: "text-xl", dx: "6s", dy: "8s", ox: "-6s", oy: "-2.5s" },
-  { e: "🥕", s: "text-2xl", dx: "8s", dy: "7.5s", ox: "-3.5s", oy: "-7s" },
-];
-
 export function OnboardingScreen() {
   const router = useRouter();
   const { login, refreshUser } = useAuth();
-  const { theme, toggleTheme } = useTheme();
 
   const [step, setStep] = useState<Step>("mobile");
   const [phone, setPhone] = useState("");
@@ -262,69 +246,14 @@ export function OnboardingScreen() {
   // ---- Sign in (landing): branded animated hero + auth card ----
   if (step === "mobile") {
     return (
-      <div className="flex min-h-[100dvh] justify-center bg-canvas lg:items-center lg:p-6">
-        <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-gradient-to-b from-brand-500 via-brand-600 to-brand-700 shadow-xl lg:h-auto lg:max-h-[90vh] lg:max-w-2xl lg:rounded-3xl">
-          {/* Decorative orbs */}
-          <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-white/10" />
-          <div className="pointer-events-none absolute -left-12 top-28 h-44 w-44 rounded-full bg-brand-300/20 blur-2xl" />
-
-          {/* Theme toggle — top right corner */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white transition-colors hover:bg-black/55"
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
-
-          {/* Brand hero: a cart of produce, with fruit & veg floating around it */}
-          <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-7 text-center text-white">
-            {/* Produce ricocheting around the hero, off every edge, forever —
-                a continuous loop, drifting behind the wordmark */}
-            {FLOATERS.map((f, i) => (
-              <span
-                key={i}
-                className={cn(
-                  "pointer-events-none absolute opacity-80 drop-shadow motion-reduce:hidden",
-                  f.s
-                )}
-                style={{
-                  animationName: "driftX, driftY",
-                  animationDuration: `${f.dx}, ${f.dy}`,
-                  animationTimingFunction: "linear",
-                  animationIterationCount: "infinite",
-                  animationDirection: "alternate",
-                  animationDelay: `${f.ox}, ${f.oy}`,
-                  zIndex: 0,
-                }}
-              >
-                {f.e}
-              </span>
-            ))}
-
-            {/* Empty cart, bobbing gently */}
-            <span className="relative z-10 mb-2 animate-float-slow text-7xl drop-shadow-lg motion-reduce:animate-none">
-              🛒
-            </span>
-
-            <h1 className="relative z-10 text-5xl font-extrabold tracking-tight drop-shadow-sm">
-              Green Basket
-            </h1>
-            <p className="relative z-10 mt-2 text-sm font-semibold text-white/90">
-              Wholesale B2B · fresh produce, per kg
-            </p>
-            <p className="relative z-10 mt-1 text-xs text-white/70">
-              Order in bulk · live rates · next day delivery
-            </p>
-          </div>
-
-          {/* Auth card */}
-          <div className="relative z-10 rounded-t-[28px] bg-surface px-7 pb-9 pt-3 shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]">
-            {/* pt-3 above and mb-2.5 below sit the heading in even space: the
-                line box adds 1.5px under the glyphs, so 12 above ≈ 11.5 below. */}
-            <h2 className="mb-2.5 text-lg font-extrabold leading-tight text-fg">Sign in to continue</h2>
+      <BrandAuthScreen
+        tagline="Wholesale B2B · fresh produce, per kg"
+        subline="Order in bulk · live rates · next day delivery"
+      >
+        <>
+          {/* pt-3 above and mb-2.5 below sit the heading in even space: the
+              line box adds 1.5px under the glyphs, so 12 above ≈ 11.5 below. */}
+          <h2 className="mb-2.5 text-lg font-extrabold leading-tight text-fg">Sign in to continue</h2>
 
             {/* Demo login buttons (mock mode only) */}
             {usingMockBackend && (
@@ -391,9 +320,8 @@ export function OnboardingScreen() {
             <p className="mt-4 text-center text-2xs leading-relaxed text-fg-subtle">
               By continuing you agree to Green Basket&apos;s Terms &amp; Privacy Policy.
             </p>
-          </div>
-        </div>
-      </div>
+        </>
+      </BrandAuthScreen>
     );
   }
 

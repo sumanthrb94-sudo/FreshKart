@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, Truck } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Alert } from "@/components/ui/Alert";
 import { BrandSplash } from "@/components/ui/BrandSplash";
+import { BrandAuthScreen, StaffCredentialFields } from "@/components/ui/BrandAuthScreen";
 
 /** Usernames are held in Firebase Auth as addresses; the form asks for a
  *  plain username so it never reads like a mailbox. */
@@ -59,70 +60,25 @@ export function DriverLoginScreen() {
   if (authLoading || user?.role === "DRIVER") return <BrandSplash />;
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-canvas p-6">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-2xl border border-line bg-surface p-7 shadow-xl"
-      >
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 text-white">
-            <Truck className="h-5 w-5" />
-          </span>
-          <div>
-            <h1 className="text-lg font-extrabold text-fg">Delivery sign-in</h1>
-            <p className="text-xs text-fg-subtle">Green Basket executives</p>
-          </div>
-        </div>
+    <BrandAuthScreen
+      emblem="🚚"
+      tagline="Delivery executive"
+      subline="Your route · your stops · your cash"
+    >
+      <form onSubmit={handleSubmit}>
+        <h2 className="text-lg font-extrabold leading-tight text-fg">Executive login</h2>
+        <p className="mt-0.5 text-sm text-fg-subtle">Welcome — sign in and start delivering.</p>
 
-        <label
-          htmlFor="driver-username"
-          className="mt-6 block text-xs font-semibold uppercase tracking-wide text-fg-subtle"
-        >
-          Username
-        </label>
-        <input
-          id="driver-username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          placeholder="driver"
-          className="mt-1.5 h-12 w-full rounded-xl border border-line bg-transparent px-3.5 text-base font-semibold text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+        <StaffCredentialFields
+          idPrefix="driver"
+          username={username}
+          password={password}
+          usernamePlaceholder="executive01"
+          showPassword={showPassword}
+          onUsername={setUsername}
+          onPassword={setPassword}
+          onToggleReveal={() => setShowPassword((v) => !v)}
         />
-
-        <label
-          htmlFor="driver-password"
-          className="mt-4 block text-xs font-semibold uppercase tracking-wide text-fg-subtle"
-        >
-          Password
-        </label>
-        <div className="mt-1.5 flex items-center rounded-xl border border-line focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/30">
-          <input
-            id="driver-password"
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            // Revealing the password makes this a text field, and an Android
-            // keyboard will then capitalise and autocorrect it — silently
-            // turning a correct password into a wrong one.
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            placeholder="••••••••"
-            className="h-12 flex-1 bg-transparent px-3.5 text-base font-semibold text-fg outline-none"
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((v) => !v)}
-            aria-label={showPassword ? "Hide password" : "Show password"}
-            className="px-3 text-fg-subtle transition-colors hover:text-fg"
-          >
-            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
-        </div>
 
         <button
           type="submit"
@@ -139,6 +95,6 @@ export function DriverLoginScreen() {
           </Alert>
         )}
       </form>
-    </div>
+    </BrandAuthScreen>
   );
 }
