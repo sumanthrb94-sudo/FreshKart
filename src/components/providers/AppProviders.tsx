@@ -8,7 +8,6 @@ import { CartProvider } from "./CartProvider";
 import { ThemeProvider } from "./ThemeProvider";
 import { OrderTrackerProvider } from "./OrderTrackerProvider";
 import { NotificationProvider } from "./NotificationProvider";
-import { AiChatAgent } from "@/components/AiChatAgent";
 import { ToastContainer } from "@/components/ToastContainer";
 import { OrderTracker } from "@/components/OrderTracker";
 
@@ -25,7 +24,6 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
             <OrderTrackerProvider>
               <NotificationProvider>
                 {children}
-                <AiChatAgent />
                 <ToastContainer />
                 <OrderTracker />
               </NotificationProvider>

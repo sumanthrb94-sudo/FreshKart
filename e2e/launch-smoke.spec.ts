@@ -123,25 +123,11 @@ function runJourney(label: string, deviceViewport: { width: number; height: numb
       await gotoStable(page, "/admin/orders");
       await expect(page.getByText(/ORD-2026/i).filter({ visible: true }).first()).toBeVisible({ timeout: 10_000 });
 
-      // ========== SUPPORT CHAT: buyer escalates to a human ==========
-      await gotoStable(page, "/account");
-      await page.waitForTimeout(500);
-      const chatBtn = page.locator("[data-chat-button]");
-      if (await chatBtn.isVisible().catch(() => false)) {
-        await chatBtn.click();
-        await page.waitForTimeout(500);
-        const chatInput = page.locator('input[placeholder="Ask about orders, delivery..."]');
-        if (await chatInput.isVisible().catch(() => false)) {
-          await chatInput.fill("Talk to human");
-          await chatInput.press("Enter");
-          await expect(page.getByText(/connected to our support team/i)).toBeVisible({ timeout: 8_000 });
-        }
-      }
-
-      // ========== ADMIN: sees the escalated ticket ==========
-      await resetAndLogin(page, "Admin");
-      await gotoStable(page, "/admin/support");
-      await expect(page.getByText(/Support Chats|Buyer AI-chat|conversation/i).filter({ visible: true }).first()).toBeVisible({ timeout: 10_000 });
+      // The buyer support chat used to be exercised here — buyer escalates to
+      // a human, admin sees the ticket. It was removed: buyers reach the shop
+      // on the phone number at the foot of the orders page. The admin support
+      // inbox still exists and still receives driver escalations, which are
+      // raised from the delivery app rather than from a buyer.
 
       // No uncaught/console errors accumulated across the whole journey.
       expect(errors, `Console/page errors during ${label} journey:\n${errors.join("\n")}`).toEqual([]);

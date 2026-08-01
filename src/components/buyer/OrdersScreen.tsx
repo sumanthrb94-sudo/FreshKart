@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Headphones, Package } from "lucide-react";
+import { AlertTriangle, Package } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAsync, useRequireAuth } from "@/lib/hooks";
 import { useLang } from "@/lib/i18n";
@@ -15,8 +15,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { CallNowInline } from "@/components/CallNowInline";
-
-const SUPPORT_PHONE = "+917416620691";
 
 export function OrdersScreen() {
   const { t } = useLang();
@@ -77,25 +75,14 @@ export function OrdersScreen() {
             </div>
           )}
 
-          {/* Call Now support banner - placed in orders section */}
+          {/* The one way to reach us, at the end of the list where someone
+              looking at a problem order will already be. There used to be a
+              floating headset button here too, mirroring the chat bubble on
+              the other side — three routes to the same phone number, two of
+              them covering the page content. */}
           <CallNowInline />
         </div>
       </div>
-
-      {/* Subtle support button — left side, since the AI chat bubble already
-          occupies bottom-right on every non-home screen. Same bottom-20 /
-          md:bottom-8 offsets as AiChatAgent's button so the two sit at
-          exactly the same height, mirrored left/right. Mobile-only: on
-          desktop that same left edge is the sidebar, where this would sit
-          on top of its own logout button, and the CallNowInline banner in
-          the page body already covers "call support" there. */}
-      <a
-        href={`tel:${SUPPORT_PHONE}`}
-        aria-label={t("callSupport")}
-        className="fixed bottom-20 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-brand-500 shadow-card transition-all hover:scale-105 hover:shadow-card-hover active:scale-95 md:bottom-8 lg:hidden"
-      >
-        <Headphones className="h-5 w-5" />
-      </a>
     </AppShell>
   );
 }
