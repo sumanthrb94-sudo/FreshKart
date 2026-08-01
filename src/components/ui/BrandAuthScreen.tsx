@@ -102,15 +102,25 @@ export function BrandAuthScreen({
         </div>
 
         {/* Auth card.
-            The hero above takes flex-1, so without a floor under this card it
-            shrank to its contents and the sign-in field ended up around 70%
-            down a phone screen — a long reach on a big handset, and reading
-            as an afterthought under all that green. The floor claims the
-            bottom ~40% for the thing people came to do. Contents still sit at
-            the top of the card, so a taller card lifts the field rather than
-            centring it in more space. Mobile only: on desktop the panel is
-            already a centred dialog. */}
-        <div className="relative z-10 min-h-[40dvh] rounded-t-[28px] bg-surface px-7 pb-9 pt-3 shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)] lg:min-h-0">
+
+            Sized by its contents, with matching space above and below them.
+            It briefly had a min-h-[40dvh] floor, added to lift the field off
+            the bottom of the screen — but the card is a plain block, so the
+            contents stayed pinned to the top and the extra height became a
+            void under the terms line. Padding was lopsided too (12px above,
+            36px below), so even without the floor nothing sat evenly.
+
+            Deliberately NOT a flex container. Two of the three screens pass a
+            bare fragment — StaffCredentialFields alone is four unwrapped
+            siblings, and its password row carries no w-full — so any
+            flex/items-center here would turn each into its own flex item and
+            shrink that row to its content width. Normal block flow with even
+            padding gets the same look and breaks nothing.
+
+            The bottom padding takes a safe-area floor because the card now
+            ends at the screen edge, and the terms line must clear the gesture
+            bar. */}
+        <div className="relative z-10 rounded-t-[28px] bg-surface px-7 pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-7 shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]">
           {children}
         </div>
       </div>

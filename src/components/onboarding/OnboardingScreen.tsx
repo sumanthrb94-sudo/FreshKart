@@ -328,7 +328,9 @@ export function OnboardingScreen() {
         <>
           {/* pt-3 above and mb-2.5 below sit the heading in even space: the
               line box adds 1.5px under the glyphs, so 12 above ≈ 11.5 below. */}
-          <h2 className="mb-3 text-2xl font-extrabold leading-tight text-fg">Sign in to continue</h2>
+          <h2 className="mb-5 text-center text-2xl font-extrabold leading-tight text-fg">
+            Sign in to continue
+          </h2>
 
             {/* Demo login buttons (mock mode only) */}
             {usingMockBackend && (
@@ -385,7 +387,7 @@ export function OnboardingScreen() {
               type="button"
               disabled={phone.length < 10 || busy || demoBusy || !recaptchaReady}
               onClick={handleSendOtp}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
               {busy ? "Sending code…" : "Continue with mobile"}
@@ -393,7 +395,7 @@ export function OnboardingScreen() {
 
             {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}
 
-            <p className="mt-4 text-center text-2xs leading-relaxed text-fg-subtle">
+            <p className="mt-5 text-center text-2xs leading-relaxed text-fg-subtle">
               By continuing you agree to Green Basket&apos;s Terms &amp; Privacy Policy.
             </p>
         </>
