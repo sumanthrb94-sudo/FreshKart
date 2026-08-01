@@ -48,14 +48,18 @@ export function useAsync<T>(
  * and access is OK.
  */
 export function useRequireAuth(options?: { role?: "ADMIN" | "BUYER"; callbackUrl?: string }) {
-  const { user, loading } = useAuth();
+  const { user, loading, authKnown, firebaseSignedIn } = useAuth();
   const router = useRouter();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      router.replace("/");
+      // Only bounce somebody out when the auth layer has spoken AND says
+      // nobody is signed in. "No profile yet" is not "signed out": a slow or
+      // failed profile read used to land here and throw a perfectly valid
+      // session back to the sign-in screen.
+      if (authKnown && !firebaseSignedIn) router.replace("/");
       return;
     }
     if (options?.role && user.role !== options.role) {
@@ -64,7 +68,7 @@ export function useRequireAuth(options?: { role?: "ADMIN" | "BUYER"; callbackUrl
       return;
     }
     setReady(true);
-  }, [user, loading, router, options?.role, options?.callbackUrl]);
+  }, [user, loading, authKnown, firebaseSignedIn, router, options?.role, options?.callbackUrl]);
 
   return { ready, user };
 }

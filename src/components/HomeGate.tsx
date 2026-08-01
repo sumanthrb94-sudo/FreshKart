@@ -12,9 +12,15 @@ import { BrandSplash } from "@/components/ui/BrandSplash";
  * signed-in user gets the shop.
  */
 export function HomeGate() {
-  const { user, loading } = useAuth();
+  const { user, loading, firebaseSignedIn } = useAuth();
 
   if (loading) return <BrandSplash />;
+
+  // Signed in at the auth layer, but the profile hasn't arrived — keep
+  // waiting rather than offering to sign in. Showing the sign-in screen to
+  // somebody who never signed out is the whole bug this guards against; the
+  // subscription is still retrying underneath.
+  if (!user && firebaseSignedIn) return <BrandSplash />;
 
   return user ? <ShopScreen /> : <OnboardingScreen />;
 }

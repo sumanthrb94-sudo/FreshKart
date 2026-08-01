@@ -57,6 +57,18 @@ export interface DataSource {
    */
   completeProfile?(input: ProfileSetupInput): Promise<User>;
   /**
+   * Optional: is the auth layer itself holding a signed-in user, regardless of
+   * whether their profile has loaded yet?
+   *
+   * Deliberately separate from subscribeAuth. That one answers "who is signed
+   * in", which needs a profile read over the network and so can be slow or
+   * fail; this answers "is anybody signed in", which is local and instant.
+   * The app needs the second to avoid treating "still loading" as "logged
+   * out" — the two are not the same, and confusing them shows the sign-in
+   * screen to somebody who never signed out.
+   */
+  subscribeAuthPresence?(cb: (signedIn: boolean) => void): () => void;
+  /**
    * Optional: email/password sign-in (used by mock/demo mode). Returns the
    * authenticated user profile.
    */
