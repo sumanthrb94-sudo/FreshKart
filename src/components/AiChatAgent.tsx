@@ -244,7 +244,17 @@ export function AiChatAgent() {
   // bubble would sit right on top of it, hiding the Send arrow and hijacking
   // the tap (opening the bot instead of sending). Hide the bubble there.
   const isReturnThread = /^\/returns\/[^/]+$/.test(pathname ?? "");
-  const shouldShowChat = isAuthenticated && !isLoginPage && !isAdminPage && !isReturnThread;
+  // Not for delivery executives. This is BUYER support: it opens a ticket as
+  // the signed-in user and answers questions about orders, prices and
+  // delivery. An executive raising one would file a customer complaint
+  // against the shop from himself, into the same inbox the office uses to
+  // answer real customers. What he actually needs is already on the screen —
+  // the office's number on every stop, and the escalation flow for a
+  // door-side rejection. Checked by role AND by route, because the bubble
+  // must not appear for the second it takes a profile to load.
+  const isDriver = user?.role === "DRIVER" || pathname?.startsWith("/driver");
+  const shouldShowChat =
+    isAuthenticated && !isLoginPage && !isAdminPage && !isReturnThread && !isDriver;
 
   if (!shouldShowChat) return null;
 
