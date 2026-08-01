@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult } from "firebase/auth";
 import { Check, Loader2, ShieldCheck, Store } from "lucide-react";
@@ -19,6 +19,18 @@ type Step = "mobile" | "verify" | "shop" | "done";
 const STEP_ORDER: Step[] = ["mobile", "verify", "shop"];
 const RECAPTCHA_ID = "recaptcha-container";
 
+/** Who buys wholesale produce. Optional, but it tells the office what a
+ *  customer is before anyone picks up the phone. */
+const BUSINESS_TYPES = [
+  "Kirana store",
+  "Restaurant",
+  "Hotel",
+  "Caterer",
+  "Cloud kitchen",
+  "Canteen / mess",
+  "Other",
+];
+
 export function OnboardingScreen() {
   const router = useRouter();
   const { login, refreshUser } = useAuth();
@@ -31,9 +43,59 @@ export function OnboardingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
+  // The profile the rest of the app reads: the Account screen, the admin's
+  // customer list, every packing slip and every invoice all show these.
+  const [contactName, setContactName] = useState("");
+  const [shopName, setShopName] = useState("");
+  const [shopType, setShopType] = useState("");
 
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
   const confirmation = useRef<ConfirmationResult | null>(null);
+  const phoneRef = useRef<HTMLInputElement | null>(null);
+  const caretRef = useRef<number | null>(null);
+
+  /**
+   * Keep the caret where the typist left it.
+   *
+   * The field strips non-digits and caps at ten, so whenever what the user
+   * typed differs from what we store — a space (which phone keypads insert
+   * while formatting), any letter, or one digit too many — React rewrites
+   * the input's value and the browser drops the caret at the end. Editing the
+   * middle of a number became impossible: one keystroke and you are back at
+   * the end.
+   *
+   * The caret is recorded in DIGITS-BEFORE-IT rather than characters, since
+   * that is the one measure the stripping preserves, then restored before the
+   * browser paints so there is no visible jump.
+   */
+  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.currentTarget.value;
+    const caret = e.currentTarget.selectionStart ?? raw.length;
+    const cleaned = raw.replace(/\D/g, "").slice(0, 10);
+    const digitsBefore = raw.slice(0, caret).replace(/\D/g, "").length;
+    const pos = Math.min(digitsBefore, cleaned.length);
+    caretRef.current = pos;
+    setPhone(cleaned);
+
+    // Restore here as well as in the layout effect below. When the typed
+    // character is dropped entirely — a letter, a space — the cleaned value
+    // EQUALS the current state, so React bails out of re-rendering and the
+    // effect never runs; but React still rewrites the input's value to match
+    // the prop, which parks the caret at the end. This path covers that.
+    const el = e.currentTarget;
+    requestAnimationFrame(() => {
+      if (document.activeElement === el) el.setSelectionRange(pos, pos);
+    });
+  }
+
+  // Covers the ordinary case, before the browser paints, so there is no
+  // visible jump when the value really did change.
+  useLayoutEffect(() => {
+    const el = phoneRef.current;
+    if (!el || caretRef.current === null) return;
+    if (document.activeElement === el) el.setSelectionRange(caretRef.current, caretRef.current);
+    caretRef.current = null;
+  }, [phone]);
 
   useEffect(() => () => resetRecaptcha(), []);
 
@@ -168,12 +230,25 @@ export function OnboardingScreen() {
       setError("Auth backend not available.");
       return;
     }
+    if (!contactName.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
+    if (!shopName.trim()) {
+      setError("Please enter your shop or business name.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      // Phone already came from the OTP verification above — nothing else to
-      // collect here besides the delivery address.
+      // Phone came from the OTP above. The name and shop name are collected
+      // on this same screen: without them the profile fell back to using the
+      // phone number as the person's name, so the Account screen, the admin's
+      // customer list and every invoice read "9700144003".
       await api.completeProfile({
+        name: contactName.trim(),
+        businessName: shopName.trim(),
+        businessType: shopType || undefined,
         address: addr.address,
         city: addr.city,
         pincode: addr.pincode,
@@ -293,9 +368,10 @@ export function OnboardingScreen() {
                 +91
               </span>
               <input
+                ref={phoneRef}
                 inputMode="numeric"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                onChange={handlePhoneChange}
                 onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
                 placeholder="98765 43210"
                 aria-label="Mobile number"
@@ -428,15 +504,70 @@ export function OnboardingScreen() {
 
         {step === "shop" && (
           <div className="flex flex-1 flex-col overflow-y-auto pb-8">
-            <h1 className="text-2xl font-extrabold text-fg">Set up your address</h1>
+            <h1 className="text-2xl font-extrabold text-fg">Tell us about your shop</h1>
             <p className="mt-2 text-sm text-fg-subtle">
+              This is what we call you by on orders, invoices and at the door.
+            </p>
+
+            <label
+              htmlFor="ob-name"
+              className="mt-5 block text-xs font-semibold uppercase tracking-wide text-fg-subtle"
+            >
+              Your name
+            </label>
+            <input
+              id="ob-name"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              autoComplete="name"
+              placeholder="Suresh Kumar"
+              className="mt-1.5 h-12 w-full rounded-xl border border-line bg-transparent px-3.5 text-base font-semibold text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+            />
+
+            <label
+              htmlFor="ob-shop"
+              className="mt-4 block text-xs font-semibold uppercase tracking-wide text-fg-subtle"
+            >
+              Shop / business name
+            </label>
+            <input
+              id="ob-shop"
+              value={shopName}
+              onChange={(e) => setShopName(e.target.value)}
+              autoComplete="organization"
+              placeholder="Suresh Kirana Store"
+              className="mt-1.5 h-12 w-full rounded-xl border border-line bg-transparent px-3.5 text-base font-semibold text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+            />
+
+            <label
+              htmlFor="ob-type"
+              className="mt-4 block text-xs font-semibold uppercase tracking-wide text-fg-subtle"
+            >
+              What kind of business? <span className="font-normal normal-case">(optional)</span>
+            </label>
+            <select
+              id="ob-type"
+              value={shopType}
+              onChange={(e) => setShopType(e.target.value)}
+              className="mt-1.5 h-12 w-full rounded-xl border border-line bg-transparent px-3 text-base font-semibold text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+            >
+              <option value="">Select…</option>
+              {BUSINESS_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+
+            <h2 className="mt-7 text-lg font-extrabold text-fg">Where do we deliver?</h2>
+            <p className="mt-1 text-sm text-fg-subtle">
               Pin your delivery location — used at checkout.
             </p>
 
-            <div className="mt-5">
+            <div className="mt-4">
               <AddressPicker
                 busy={busy}
-                confirmLabel="Save address & continue"
+                confirmLabel="Finish & start ordering"
                 onConfirm={handleSaveAddress}
               />
             </div>
