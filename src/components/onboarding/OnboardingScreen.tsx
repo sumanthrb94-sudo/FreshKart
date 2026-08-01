@@ -323,7 +323,6 @@ export function OnboardingScreen() {
           {/* Auth card */}
           <div className="relative z-10 rounded-t-[28px] bg-surface px-7 pb-9 pt-7 shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]">
             <h2 className="text-lg font-extrabold text-fg">Sign in to continue</h2>
-            <p className="mt-1 text-sm text-fg-subtle">Use whichever&apos;s easiest for your shop.</p>
 
             {/* Demo login buttons (mock mode only) */}
             {usingMockBackend && (
