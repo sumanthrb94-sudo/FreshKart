@@ -321,8 +321,8 @@ export function OnboardingScreen() {
           </div>
 
           {/* Auth card */}
-          <div className="relative z-10 rounded-t-[28px] bg-surface px-7 pb-9 pt-7 shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]">
-            <h2 className="text-lg font-extrabold text-fg">Sign in to continue</h2>
+          <div className="relative z-10 rounded-t-[28px] bg-surface px-7 pb-9 pt-5 shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]">
+            <h2 className="text-lg font-extrabold leading-tight text-fg">Sign in to continue</h2>
 
             {/* Demo login buttons (mock mode only) */}
             {usingMockBackend && (
