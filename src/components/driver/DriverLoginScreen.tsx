@@ -20,7 +20,7 @@ const USERNAME_DOMAIN = "@green-basket.in";
  */
 export function DriverLoginScreen() {
   const router = useRouter();
-  const { user, loading: authLoading, login } = useAuth();
+  const { user, loading: authLoading, profileStalled, retryProfile, login } = useAuth();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -57,7 +57,8 @@ export function DriverLoginScreen() {
     }
   }
 
-  if (authLoading || user?.role === "DRIVER") return <BrandSplash />;
+  if (authLoading || user?.role === "DRIVER")
+    return <BrandSplash stalled={profileStalled} onRetry={retryProfile} />;
 
   return (
     <BrandAuthScreen

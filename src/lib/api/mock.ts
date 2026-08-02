@@ -52,14 +52,27 @@ export class MockDataSource implements DataSource {
   private authListeners = new Set<(user: User | null) => void>();
   private presenceListeners = new Set<(signedIn: boolean) => void>();
 
-  private readSession(): User | null {
+  /**
+   * The auth layer's answer: who this browser is signed in AS, whether or not
+   * a profile exists for them. Deliberately separate from readSession() below,
+   * because Firebase draws exactly this line — the session lives in Auth, the
+   * profile lives in Firestore, and a session with no profile is a real state
+   * (sign-up abandoned after the OTP). Collapsing the two here made that state
+   * impossible to reproduce in demo mode, which is how it shipped broken.
+   */
+  private readSessionId(): string | null {
     try {
-      const id = window.localStorage.getItem(this.sessionKey);
-      if (!id) return null;
-      return store.get().users.find((u) => u.id === id) ?? null;
+      return window.localStorage.getItem(this.sessionKey);
     } catch {
       return null;
     }
+  }
+
+  /** The profile, if the signed-in id has one. */
+  private readSession(): User | null {
+    const id = this.readSessionId();
+    if (!id) return null;
+    return store.get().users.find((u) => u.id === id) ?? null;
   }
 
   private setSession(user: User | null) {
@@ -84,8 +97,8 @@ export class MockDataSource implements DataSource {
 
   subscribeAuthPresence(cb: (signedIn: boolean) => void): () => void {
     this.presenceListeners.add(cb);
-    const current = this.readSession();
-    queueMicrotask(() => cb(Boolean(current)));
+    const signedIn = Boolean(this.readSessionId());
+    queueMicrotask(() => cb(signedIn));
     return () => this.presenceListeners.delete(cb);
   }
 

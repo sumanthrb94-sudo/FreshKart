@@ -23,7 +23,7 @@ const USERNAME_DOMAIN = "@green-basket.in";
  */
 export function AdminLoginScreen() {
   const router = useRouter();
-  const { user, loading: authLoading, login } = useAuth();
+  const { user, loading: authLoading, profileStalled, retryProfile, login } = useAuth();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -64,7 +64,8 @@ export function AdminLoginScreen() {
   // is in flight — otherwise an admin opening their bookmarked link sees the
   // sign-in card flash before being let through, which reads as "it logged
   // me out again".
-  if (authLoading || user?.role === "ADMIN") return <BrandSplash />;
+  if (authLoading || user?.role === "ADMIN")
+    return <BrandSplash stalled={profileStalled} onRetry={retryProfile} />;
 
   return (
     <BrandAuthScreen

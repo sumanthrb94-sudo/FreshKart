@@ -48,18 +48,21 @@ export function useAsync<T>(
  * and access is OK.
  */
 export function useRequireAuth(options?: { role?: "ADMIN" | "BUYER"; callbackUrl?: string }) {
-  const { user, loading, authKnown, firebaseSignedIn } = useAuth();
+  const { user, loading, authKnown } = useAuth();
   const router = useRouter();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      // Only bounce somebody out when the auth layer has spoken AND says
-      // nobody is signed in. "No profile yet" is not "signed out": a slow or
-      // failed profile read used to land here and throw a perfectly valid
-      // session back to the sign-in screen.
-      if (authKnown && !firebaseSignedIn) router.replace("/");
+      // `loading` is already false, so the auth layer has finished speaking:
+      // there is either nobody signed in, or somebody signed in who never
+      // finished onboarding. Both belong at "/", which picks the right screen
+      // — and neither can be a slow profile read any more, because the loader
+      // is held for the whole of one. Gating this on "signed out" as well used
+      // to look safer; it just meant a profile-less account sat on a protected
+      // screen that never became ready.
+      if (authKnown) router.replace("/");
       return;
     }
     if (options?.role && user.role !== options.role) {
@@ -68,7 +71,7 @@ export function useRequireAuth(options?: { role?: "ADMIN" | "BUYER"; callbackUrl
       return;
     }
     setReady(true);
-  }, [user, loading, authKnown, firebaseSignedIn, router, options?.role, options?.callbackUrl]);
+  }, [user, loading, authKnown, router, options?.role, options?.callbackUrl]);
 
   return { ready, user };
 }

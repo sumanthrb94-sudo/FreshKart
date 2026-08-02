@@ -174,7 +174,22 @@ async function withFreshTokenRetry<T>(op: () => Promise<T>): Promise<T> {
   // and an unbounded call here could outlive the loader the app is showing —
   // which is exactly how a live session ended up looking like a signed-out
   // one. A refresh that cannot finish in 5s is a refresh worth retrying.
-  if (fbUser) await withTimeout(fbUser.getIdToken(), 5000).catch(() => {});
+  if (fbUser) {
+    try {
+      await withTimeout(fbUser.getIdToken(), 5000);
+    } catch (e) {
+      // A timeout or a dropped connection here is not fatal: the cached token
+      // is usually still good, `op()` below may well succeed on it, and the
+      // permission-denied retry covers the case where it doesn't.
+      //
+      // An auth-layer verdict is different. auth/user-disabled and
+      // auth/user-token-expired mean the session is over, and swallowing them
+      // turned a clear "this account is disabled" into a confusing
+      // permission error from whatever write happened to run next.
+      const code = (e as { code?: string })?.code ?? "";
+      if (code.startsWith("auth/") && code !== "auth/network-request-failed") throw e;
+    }
+  }
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       return await op();
