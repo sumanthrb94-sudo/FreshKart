@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AlertTriangle, Clock, MapPin, Navigation, Truck } from "lucide-react";
 import type { Order, User } from "@/lib/types";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, telHref } from "@/lib/format";
 import { formatKm, type ServiceArea } from "@/lib/service-area";
 import { openRuns, sinceLabel, type RunProgress } from "@/lib/run-progress";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -158,7 +158,7 @@ export function AdminRunProgressCard({
                     </span>
                   )}
                   <a
-                    href={`tel:${run.driver.phone}`}
+                    href={telHref(run.driver.phone)}
                     className="font-semibold text-brand-500"
                   >
                     Call {run.driver.phone}

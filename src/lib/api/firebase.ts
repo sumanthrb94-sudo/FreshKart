@@ -52,7 +52,7 @@ import type { Coupon } from "@/lib/coupons";
 import type { ServiceArea } from "@/lib/service-area";
 import { radiusOf } from "@/lib/service-area";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
-import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
+import { generateOrderNumber, MAX_ORDER_TOTAL_QTY, toLocalMobile } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { effectiveOverride, getStoreStatus, nextStoreClose } from "@/lib/store-hours";
@@ -78,8 +78,19 @@ const COL = {
 } as const;
 
 
+/**
+ * Every profile read in the app funnels through here, which makes it the one
+ * place that can heal a stored phone number without a migration.
+ *
+ * Accounts created before this were written with Firebase Auth's E.164 value,
+ * "+918639766053". Every phone field draws its own "+91", so that rendered as
+ * "+91 | +918639766053", failed the 10-digit check, and blocked checkout.
+ * Normalising on read fixes those accounts the moment they next load, and the
+ * next profile write persists the clean value.
+ */
 function snapToUser(snap: DocumentSnapshot<DocumentData>): User {
-  return { ...(snap.data() as Omit<User, "id">), id: snap.id };
+  const data = snap.data() as Omit<User, "id">;
+  return { ...data, phone: toLocalMobile(data.phone), id: snap.id };
 }
 
 /** Reject if a promise doesn't settle within `ms` — so a stalled Firestore
@@ -372,7 +383,9 @@ export class FirebaseDataSource implements DataSource {
     // uniqueness claim is needed (unlike the old Google flow, where a
     // manually-typed, unverified phone needed an index doc to enforce
     // one-account-per-number; that whole mechanism is gone along with Google).
-    const phone = fb.phoneNumber || "";
+    // Stored as the 10 local digits, never E.164: the country code is drawn
+    // by the field, and baking it into the value double-prefixes it.
+    const phone = toLocalMobile(fb.phoneNumber);
 
     // Force a fresh ID token before the write below — right after sign-in,
     // Firestore's client can briefly lag behind Auth (worse on browsers with
@@ -427,11 +440,15 @@ export class FirebaseDataSource implements DataSource {
     const fb = auth.currentUser;
     if (!fb) throw new ApiError("Not signed in.", 401);
 
-    const phone = fb.phoneNumber || "";
-    if (!isAdminPhone(phone)) {
+    // The allowlist is checked against the token's E.164 value, which is the
+    // one Firebase Auth verified. Only the value we STORE is the local form —
+    // never weaken the authorization check to match a display convention.
+    const e164 = fb.phoneNumber || "";
+    if (!isAdminPhone(e164)) {
       await signOut(auth);
       throw new ApiError("This number isn't authorized for admin access.", 403);
     }
+    const phone = toLocalMobile(e164);
 
     await fb.getIdToken();
     const db = getDb();

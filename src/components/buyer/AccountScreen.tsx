@@ -26,6 +26,7 @@ import {
   isValidPhoneDigits,
   sanitizePincodeDigits,
   isValidPincodeDigits,
+  toLocalMobile,
 } from "@/lib/format";
 
 export function AccountScreen() {
@@ -37,7 +38,7 @@ export function AccountScreen() {
   const [form, setForm] = useState({
     name: user?.name ?? "",
     businessName: user?.businessName ?? "",
-    phone: user?.phone ?? "",
+    phone: toLocalMobile(user?.phone),
     gstin: user?.gstin ?? "",
     address: user?.address ?? "",
     city: user?.city ?? "",
@@ -54,7 +55,7 @@ export function AccountScreen() {
     setForm({
       name: user.name ?? "",
       businessName: user.businessName ?? "",
-      phone: user.phone ?? "",
+      phone: toLocalMobile(user.phone),
       gstin: user.gstin ?? "",
       address: user.address ?? "",
       city: user.city ?? "",
@@ -288,7 +289,7 @@ export function AccountScreen() {
                 </div>
                 <div>
                   <p className="text-xs text-fg-subtle">Phone</p>
-                  <p className="font-semibold text-fg">{user.phone ? `+91 ${user.phone}` : "—"}</p>
+                  <p className="font-semibold text-fg">{user.phone ? `+91 ${toLocalMobile(user.phone)}` : "—"}</p>
                 </div>
                 <div>
                   <p className="text-xs text-fg-subtle">GSTIN</p>

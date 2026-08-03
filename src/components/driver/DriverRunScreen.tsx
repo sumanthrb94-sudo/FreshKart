@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import type { AdjustmentLine, Order } from "@/lib/types";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, telHref } from "@/lib/format";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useAsync } from "@/lib/hooks";
 import {
@@ -459,7 +459,7 @@ function VisitScreen({
         </p>
         <div className="mt-2 flex items-center justify-between gap-2">
           <a
-            href={`tel:${visit.phone}`}
+            href={telHref(visit.phone)}
             className="flex items-center gap-2 text-sm font-semibold text-brand-500"
           >
             <Phone className="h-4 w-4" aria-hidden />
@@ -724,7 +724,7 @@ function DeliveryStop({
         )}
         <div className="mt-2 flex items-center justify-between gap-2">
           <a
-            href={`tel:${order.delivery.phone}`}
+            href={telHref(order.delivery.phone)}
             className="flex items-center gap-2 text-sm font-semibold text-brand-500"
           >
             <Phone className="h-4 w-4" aria-hidden />
