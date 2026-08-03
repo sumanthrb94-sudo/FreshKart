@@ -11,6 +11,7 @@ import {
 } from "react";
 import type { User } from "@/lib/types";
 import { api } from "@/lib/api";
+import { shouldHoldLoaderOnSignIn } from "@/lib/auth-gate";
 
 interface AuthContextValue {
   user: User | null;
@@ -68,6 +69,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(next);
   }, []);
 
+  // Has this page ever settled as signed-out? If so, any sign-in from here on
+  // was triggered by the onboarding screen the person is currently looking at,
+  // and that screen must be left alone to finish. See shouldHoldLoaderOnSignIn.
+  const sawSignedOutRef = useRef(false);
+
   // Is the auth layer holding a user? Answered locally and instantly, so it
   // is known long before the profile read finishes.
   useEffect(() => {
@@ -82,17 +88,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Signed out at the auth layer is the one thing that definitely ends
         // the session — clear immediately rather than waiting on a profile
         // read that will never come.
+        sawSignedOutRef.current = true;
         persist(null);
         setLoading(false);
         setProfileStalled(false);
-      } else if (!userRef.current) {
-        // Somebody just signed in and we have no profile for them yet. Hold
-        // the loader until subscribeAuth answers: `loading` is the ONLY thing
-        // now distinguishing "profile hasn't arrived" from "signed in, but
-        // never finished onboarding", and the screens act very differently on
-        // the two. Without this, the moment between OTP and profile read
-        // renders as the second — i.e. the sign-up form, to somebody who just
-        // signed in.
+      } else if (
+        shouldHoldLoaderOnSignIn({
+          hasProfile: !!userRef.current,
+          sawSignedOut: sawSignedOutRef.current,
+        })
+      ) {
+        // Cold start with a live session: hold the loader until the profile
+        // read answers. `loading` is the ONLY thing distinguishing "profile
+        // hasn't arrived" from "signed in, but never finished onboarding", and
+        // the screens act very differently on the two.
         setLoading(true);
         setProfileStalled(false);
       }

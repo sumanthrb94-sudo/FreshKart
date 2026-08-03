@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConfirmationResult } from "firebase/auth";
-import { Check, Loader2, ShieldCheck, Store } from "lucide-react";
+import { Check, ChevronDown, Loader2, ShieldCheck, Store } from "lucide-react";
 import { api, usingMockBackend } from "@/lib/api";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { isPlausibleIndianMobile } from "@/lib/format";
@@ -21,6 +21,23 @@ const RECAPTCHA_ID = "recaptcha-container";
 
 /** Who buys wholesale produce. Optional, but it tells the office what a
  *  customer is before anyone picks up the phone. */
+/**
+ * Every text control on this screen.
+ *
+ * Two rules it exists to keep, both learned the hard way on a real iPhone:
+ *
+ *  - **16px minimum.** Safari zooms the whole page in when you focus a field
+ *    whose text is smaller, which shoves the field off-screen mid-typing and
+ *    reads as "I can't type in it".
+ *  - **Padding, not a fixed height.** `h-12` with no line-height let the
+ *    glyphs clip against the border — worst on the select, whose closed value
+ *    Safari lays out with its own metrics. Vertical padding plus an explicit
+ *    line box cannot clip whatever the platform does.
+ */
+const FIELD_BASE =
+  "w-full rounded-xl border border-line bg-transparent px-3.5 py-3.5 text-base font-semibold leading-6 text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30";
+const FIELD = `mt-1.5 ${FIELD_BASE}`;
+
 const BUSINESS_TYPES = [
   "Kirana store",
   "Restaurant",
@@ -554,7 +571,7 @@ export function OnboardingScreen() {
               onChange={(e) => setContactName(e.target.value)}
               autoComplete="name"
               placeholder="Suresh Kumar"
-              className="mt-1.5 h-12 w-full rounded-xl border border-line bg-transparent px-3.5 text-base font-semibold text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+              className={FIELD}
             />
 
             <label
@@ -569,7 +586,7 @@ export function OnboardingScreen() {
               onChange={(e) => setShopName(e.target.value)}
               autoComplete="organization"
               placeholder="Suresh Kirana Store"
-              className="mt-1.5 h-12 w-full rounded-xl border border-line bg-transparent px-3.5 text-base font-semibold text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+              className={FIELD}
             />
 
             <label
@@ -578,19 +595,29 @@ export function OnboardingScreen() {
             >
               What kind of business? <span className="font-normal normal-case">(optional)</span>
             </label>
-            <select
-              id="ob-type"
-              value={shopType}
-              onChange={(e) => setShopType(e.target.value)}
-              className="mt-1.5 h-12 w-full rounded-xl border border-line bg-transparent px-3 text-base font-semibold text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
-            >
-              <option value="">Select…</option>
-              {BUSINESS_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+            {/* Native select, deliberately — iOS gives it a full-height wheel
+                picker that no custom dropdown matches on a phone. Only its
+                chrome is replaced: the browser's own arrow sat cramped against
+                the border, and with a fixed height the closed value clipped. */}
+            <div className="relative mt-1.5">
+              <select
+                id="ob-type"
+                value={shopType}
+                onChange={(e) => setShopType(e.target.value)}
+                className={cn(FIELD_BASE, "mt-0 appearance-none pr-11")}
+              >
+                <option value="">Select…</option>
+                {BUSINESS_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                aria-hidden
+                className="pointer-events-none absolute right-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-fg-subtle"
+              />
+            </div>
 
             <h2 className="mt-7 text-lg font-extrabold text-fg">Where do we deliver?</h2>
             <p className="mt-1 text-sm text-fg-subtle">
@@ -600,7 +627,7 @@ export function OnboardingScreen() {
             <div className="mt-4">
               <AddressPicker
                 busy={busy}
-                confirmLabel="Finish & start ordering"
+                confirmLabel="Save & start ordering"
                 onConfirm={handleSaveAddress}
               />
             </div>

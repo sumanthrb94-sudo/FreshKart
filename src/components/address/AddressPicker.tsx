@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Circle, Map as LeafletMap } from "leaflet";
-import { Crosshair, Loader2, MapPin, Minus, Plus, Search } from "lucide-react";
+import { CheckCircle2, Crosshair, Loader2, MapPin, Minus, Plus, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface PickedAddress {
@@ -213,6 +213,26 @@ export function AddressPicker({
     }
   }
 
+  /**
+   * Does the pin on screen differ from what is actually stored on the account?
+   *
+   * Compared on COORDINATES, not on the address text. The reverse geocoder
+   * returns a slightly different display name for the same point from one
+   * call to the next, so a text comparison would announce "not saved" the
+   * instant an untouched saved address finished re-geocoding itself.
+   *
+   * `houseLine` starts empty every mount and is folded into the saved address
+   * on confirm, so anything typed into it is by definition unsaved.
+   */
+  const dirty =
+    initial?.lat == null ||
+    initial?.lng == null ||
+    !initial?.address ||
+    Math.abs(center.lat - initial.lat) > 1e-6 ||
+    Math.abs(center.lng - initial.lng) > 1e-6 ||
+    (initial.label ?? "Home") !== label ||
+    houseLine.trim().length > 0;
+
   function handleConfirm() {
     if (!addr.address) {
       setError("Move the map to position the pin on your address.");
@@ -238,7 +258,7 @@ export function AddressPicker({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search area, street, landmark…"
-          className="h-11 w-full rounded-xl border border-line bg-surface pl-9 pr-3 text-sm text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+          className="w-full rounded-xl border border-line bg-surface py-3 pl-10 pr-3 text-base leading-6 text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
         />
       </form>
 
@@ -320,12 +340,15 @@ export function AddressPicker({
         </div>
       </div>
 
-      {/* House / flat / landmark */}
+      {/* House / flat / landmark.
+          Padding rather than a fixed height, and never under 16px: Safari
+          zooms the page in on a smaller field and shoves it off-screen the
+          moment you start typing. */}
       <input
         value={houseLine}
         onChange={(e) => setHouseLine(e.target.value)}
         placeholder="Flat / House no. / Building / Landmark"
-        className="h-11 w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+        className="w-full rounded-xl border border-line bg-surface px-3.5 py-3 text-base leading-6 text-fg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
       />
 
       {/* Label */}
@@ -348,6 +371,46 @@ export function AddressPicker({
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {/* Save state.
+          Panning a map changes nothing on the account until the button below
+          is pressed, and nothing on screen used to say so — people pinned
+          their shop, saw the address appear in the read-out, and left
+          believing it was stored. */}
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm",
+          busy
+            ? "border-brand-500/40 bg-brand-500/10 text-fg"
+            : dirty
+              ? "border-amber-500/40 bg-amber-500/10 text-fg"
+              : "border-line bg-raised text-fg-muted"
+        )}
+        role="status"
+      >
+        {busy ? (
+          <>
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-brand-500" />
+            <span>Saving this address to your account…</span>
+          </>
+        ) : dirty ? (
+          <>
+            <span
+              aria-hidden
+              className="h-2 w-2 shrink-0 rounded-full bg-amber-500"
+            />
+            <span>
+              <strong className="font-semibold">Not saved yet.</strong> Tap{" "}
+              {confirmLabel} to store this location on your account.
+            </span>
+          </>
+        ) : (
+          <>
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-500" />
+            <span>Saved to your account — used on every order.</span>
+          </>
+        )}
+      </div>
 
       <button
         type="button"

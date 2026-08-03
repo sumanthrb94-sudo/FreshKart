@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { authGateView } from "../auth-gate";
+import { authGateView, shouldHoldLoaderOnSignIn } from "../auth-gate";
 
 describe("the / gate", () => {
   it("waits while auth is settling", () => {
@@ -61,5 +61,71 @@ describe("the / gate", () => {
         expect(["onboarding", "app"]).toContain(view);
       }
     }
+  });
+});
+
+/**
+ * The two sign-in sequences, replayed through the same decisions the provider
+ * makes. The second one is what reached real customers: a brand-new buyer
+ * confirmed their OTP and the gate replaced the sign-up flow with a splash
+ * that never resolved.
+ */
+describe("signing in", () => {
+  /** Replays a page's auth events and reports what "/" showed at each step. */
+  function replay(events: Array<{ presence: boolean } | { profile: "none" | "found" }>) {
+    let loading = true;
+    let hasProfile = false;
+    let sawSignedOut = false;
+    const views: string[] = [];
+
+    for (const e of events) {
+      if ("presence" in e) {
+        if (!e.presence) {
+          sawSignedOut = true;
+          hasProfile = false;
+          loading = false;
+        } else if (shouldHoldLoaderOnSignIn({ hasProfile, sawSignedOut })) {
+          loading = true;
+        }
+      } else {
+        hasProfile = e.profile === "found";
+        loading = false;
+      }
+      views.push(authGateView({ loading, profileStalled: false, hasProfile }));
+    }
+    return views;
+  }
+
+  it("holds the loader on a cold start with a live session", () => {
+    // Nothing is known yet — this could be a returning customer one read away
+    // from their shop. Showing them the sign-in screen in that gap is the
+    // "it asks me to log in every time" bug.
+    expect(replay([{ presence: true }, { profile: "found" }])).toEqual(["loading", "app"]);
+  });
+
+  it("sends a cold start with a live session but no profile to onboarding", () => {
+    // Sign-up abandoned after the OTP on a previous visit.
+    expect(replay([{ presence: true }, { profile: "none" }])).toEqual(["loading", "onboarding"]);
+  });
+
+  it("never leaves a brand-new buyer's sign-up for a splash", () => {
+    // THE PRODUCTION BUG. Signed out, onboarding on screen, OTP confirmed,
+    // no profile yet. The gate must not take the flow away — the screen is
+    // already correct and owns its own step. A "loading" anywhere after the
+    // first event means the sign-up form was unmounted mid-flow.
+    const views = replay([{ presence: false }, { presence: true }, { profile: "none" }]);
+    expect(views).toEqual(["onboarding", "onboarding", "onboarding"]);
+  });
+
+  it("keeps the screen steady when a returning buyer signs back in", () => {
+    // Same shape, but the profile exists. Still no splash in the middle.
+    const views = replay([{ presence: false }, { presence: true }, { profile: "found" }]);
+    expect(views).toEqual(["onboarding", "onboarding", "app"]);
+  });
+
+  it("holds the loader again on the next cold start, having signed in", () => {
+    // sawSignedOut is per page load, not sticky across reloads — a fresh page
+    // with a live session must still wait rather than flash the sign-in form.
+    expect(replay([{ presence: true }, { profile: "found" }])).toEqual(["loading", "app"]);
   });
 });
