@@ -1,0 +1,971 @@
+<title>Green Basket — Flow &amp; SOP</title>
+
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Tokens. The palette is the product's own (src/app/globals.css):
+   green-cast neutrals, emerald accent. Roles get their own hues
+   because attributing an action to buyer / office / executive is
+   the primary reading task in this document.
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --canvas:#eef4f0; --surface:#fbfdfc; --raised:#e4eee8; --line:#cfe0d5;
+  --ink:#111815; --muted:#5a655e; --faint:#7d8a83;
+  --brand:#047857; --brand-soft:#d1fae5; --brand-line:#6ee7b7;
+  --buyer:#047857;  --buyer-soft:#d5f0e4;
+  --office:#4338ca; --office-soft:#e0e2fb;
+  --exec:#0e7490;   --exec-soft:#d3eef4;
+  --caution:#b45309; --caution-soft:#fbeddb;
+  --blocked:#be123c; --blocked-soft:#fbdfe5;
+  --shadow:0 1px 2px rgb(6 40 26 / .05), 0 8px 24px -16px rgb(6 40 26 / .28);
+
+  --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas:#0a110d; --surface:#111c16; --raised:#18261e; --line:#25352c;
+    --ink:#eef2ef; --muted:#93a09a; --faint:#6f7d76;
+    --brand:#34d399; --brand-soft:#123227; --brand-line:#1d5943;
+    --buyer:#34d399;  --buyer-soft:#122f24;
+    --office:#a5b4fc; --office-soft:#1c2140;
+    --exec:#22d3ee;   --exec-soft:#0d2a33;
+    --caution:#fbbf24; --caution-soft:#33260c;
+    --blocked:#fb7185; --blocked-soft:#39131e;
+    --shadow:0 1px 2px rgb(0 0 0 / .4), 0 8px 24px -16px rgb(0 0 0 / .8);
+  }
+}
+:root[data-theme="light"] {
+  --canvas:#eef4f0; --surface:#fbfdfc; --raised:#e4eee8; --line:#cfe0d5;
+  --ink:#111815; --muted:#5a655e; --faint:#7d8a83;
+  --brand:#047857; --brand-soft:#d1fae5; --brand-line:#6ee7b7;
+  --buyer:#047857;  --buyer-soft:#d5f0e4;
+  --office:#4338ca; --office-soft:#e0e2fb;
+  --exec:#0e7490;   --exec-soft:#d3eef4;
+  --caution:#b45309; --caution-soft:#fbeddb;
+  --blocked:#be123c; --blocked-soft:#fbdfe5;
+  --shadow:0 1px 2px rgb(6 40 26 / .05), 0 8px 24px -16px rgb(6 40 26 / .28);
+}
+:root[data-theme="dark"] {
+  --canvas:#0a110d; --surface:#111c16; --raised:#18261e; --line:#25352c;
+  --ink:#eef2ef; --muted:#93a09a; --faint:#6f7d76;
+  --brand:#34d399; --brand-soft:#123227; --brand-line:#1d5943;
+  --buyer:#34d399;  --buyer-soft:#122f24;
+  --office:#a5b4fc; --office-soft:#1c2140;
+  --exec:#22d3ee;   --exec-soft:#0d2a33;
+  --caution:#fbbf24; --caution-soft:#33260c;
+  --blocked:#fb7185; --blocked-soft:#39131e;
+  --shadow:0 1px 2px rgb(0 0 0 / .4), 0 8px 24px -16px rgb(0 0 0 / .8);
+}
+
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--canvas); color:var(--ink);
+  font-family:var(--sans); font-size:17px; line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap { max-width:1140px; margin:0 auto; padding:0 24px 96px; }
+.col  { max-width:68ch; }
+
+/* ── Masthead ─────────────────────────────────────────────── */
+.mast { padding:64px 0 40px; border-bottom:1px solid var(--line); }
+.eyebrow {
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--brand); font-weight:600;
+}
+h1 {
+  font-size:clamp(2.4rem,6vw,3.9rem); line-height:1.02; letter-spacing:-.035em;
+  font-weight:800; margin:16px 0 0; text-wrap:balance;
+}
+.standfirst { font-size:1.16rem; color:var(--muted); margin:20px 0 0; max-width:56ch; }
+.stamp {
+  font-family:var(--mono); font-size:12px; color:var(--faint);
+  margin-top:28px; display:flex; flex-wrap:wrap; gap:8px 20px;
+}
+
+/* ── Section nav ──────────────────────────────────────────── */
+nav.toc {
+  position:sticky; top:0; z-index:30; background:color-mix(in srgb, var(--canvas) 92%, transparent);
+  backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+  margin:0 -24px; padding:0 24px;
+}
+nav.toc ol {
+  list-style:none; display:flex; gap:2px; margin:0; padding:0;
+  overflow-x:auto; scrollbar-width:thin;
+}
+nav.toc a {
+  display:block; white-space:nowrap; padding:13px 12px; text-decoration:none;
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--faint); font-weight:600;
+  border-bottom:2px solid transparent;
+}
+nav.toc a:hover, nav.toc a:focus-visible { color:var(--ink); border-bottom-color:var(--brand); }
+
+/* ── Sections ─────────────────────────────────────────────── */
+section { padding-top:72px; scroll-margin-top:56px; }
+h2 {
+  font-size:clamp(1.6rem,3.4vw,2.1rem); letter-spacing:-.025em; font-weight:800;
+  margin:0 0 6px; text-wrap:balance;
+}
+h2 .num {
+  font-family:var(--mono); font-size:.55em; font-weight:600; color:var(--faint);
+  letter-spacing:.06em; margin-right:.7em; vertical-align:.18em;
+}
+h3 {
+  font-size:1.08rem; font-weight:750; letter-spacing:-.008em; margin:36px 0 8px;
+}
+.lede { color:var(--muted); margin:0 0 8px; max-width:64ch; }
+p { margin:14px 0; }
+a { color:var(--brand); }
+
+/* ── Role chips + inline data ─────────────────────────────── */
+.role {
+  display:inline-block; font-family:var(--mono); font-size:11px; font-weight:700;
+  letter-spacing:.1em; text-transform:uppercase; padding:3px 8px; border-radius:4px;
+  vertical-align:.1em;
+}
+.r-buyer  { color:var(--buyer);  background:var(--buyer-soft); }
+.r-office { color:var(--office); background:var(--office-soft); }
+.r-exec   { color:var(--exec);   background:var(--exec-soft); }
+.r-auto   { color:var(--faint);  background:var(--raised); }
+
+code, .m {
+  font-family:var(--mono); font-size:.87em; font-variant-numeric:tabular-nums;
+  background:var(--raised); padding:1.5px 5px; border-radius:4px; color:var(--ink);
+}
+.t { font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:650; letter-spacing:-.01em; }
+
+/* ── The day: the document's spine ────────────────────────── */
+.day { margin:32px 0 8px; border-top:1px solid var(--line); }
+.slot {
+  display:grid; grid-template-columns:104px 1fr; gap:0 24px;
+  padding:20px 0; border-bottom:1px solid var(--line); align-items:start;
+}
+.slot > .when {
+  font-family:var(--mono); font-size:13.5px; font-weight:700; letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums; color:var(--ink); padding-top:2px;
+}
+.slot > .when small { display:block; font-weight:500; color:var(--faint); letter-spacing:.06em; font-size:10.5px; text-transform:uppercase; margin-top:3px; }
+.slot .what { min-width:0; }
+.slot .what strong { font-weight:700; }
+.slot .what p { margin:5px 0 0; color:var(--muted); font-size:.94rem; }
+.slot .tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:7px; }
+.slot.shut { background:linear-gradient(90deg, var(--raised), transparent 70%); }
+
+/* ── Diagram frames ───────────────────────────────────────── */
+figure { margin:28px 0; }
+.frame {
+  border:1px solid var(--line); border-radius:10px; background:var(--surface);
+  box-shadow:var(--shadow); overflow-x:auto; padding:20px 16px;
+}
+.frame pre.mermaid { margin:0; background:none; text-align:center; min-width:min-content; }
+figcaption {
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.05em; color:var(--faint);
+  margin-top:10px; text-transform:uppercase; font-weight:600;
+}
+
+/* ── Tables ───────────────────────────────────────────────── */
+.tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--surface); box-shadow:var(--shadow); margin:24px 0; }
+table { border-collapse:collapse; width:100%; font-size:.92rem; min-width:520px; }
+th, td { text-align:left; padding:11px 16px; border-bottom:1px solid var(--line); vertical-align:top; }
+thead th {
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--faint); font-weight:700; background:var(--raised);
+}
+tbody tr:last-child td { border-bottom:none; }
+td.num, th.num { font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+/* ── Steps ────────────────────────────────────────────────── */
+ol.steps { list-style:none; counter-reset:s; padding:0; margin:20px 0; }
+ol.steps > li {
+  counter-increment:s; position:relative; padding:0 0 22px 46px; margin:0;
+}
+ol.steps > li::before {
+  content:counter(s,decimal-leading-zero); position:absolute; left:0; top:1px;
+  font-family:var(--mono); font-size:12px; font-weight:700; color:var(--accent-role, var(--faint));
+  letter-spacing:.02em;
+}
+ol.steps > li::after {
+  content:""; position:absolute; left:11px; top:24px; bottom:2px; width:1px;
+  background:var(--line);
+}
+ol.steps > li:last-child::after { display:none; }
+ol.steps > li > strong { display:block; font-weight:700; margin-bottom:2px; }
+ol.steps > li > p { margin:4px 0 0; color:var(--muted); font-size:.95rem; }
+.sop-office { --accent-role:var(--office); }
+.sop-exec   { --accent-role:var(--exec); }
+
+/* ── Callouts ─────────────────────────────────────────────── */
+.note {
+  border-left:3px solid var(--accent-note, var(--brand)); background:var(--surface);
+  padding:14px 18px; margin:22px 0; border-radius:0 8px 8px 0;
+  box-shadow:var(--shadow); font-size:.95rem;
+}
+.note p { margin:6px 0; }
+.note p:first-child { margin-top:0; }
+.note p:last-child { margin-bottom:0; }
+.note .h {
+  font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  font-weight:700; color:var(--accent-note, var(--brand)); display:block; margin-bottom:5px;
+}
+.note.caution { --accent-note:var(--caution); }
+.note.blocked { --accent-note:var(--blocked); }
+
+/* ── Role cards ───────────────────────────────────────────── */
+.cards { display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); margin:28px 0; }
+.card {
+  border:1px solid var(--line); border-top:3px solid var(--card-hue, var(--brand));
+  border-radius:8px; background:var(--surface); padding:18px 20px; box-shadow:var(--shadow);
+}
+.card h4 { margin:0 0 3px; font-size:1rem; font-weight:750; letter-spacing:-.01em; }
+.card .sub { font-family:var(--mono); font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--card-hue, var(--brand)); font-weight:650; }
+.card ul { margin:12px 0 0; padding-left:17px; font-size:.92rem; color:var(--muted); }
+.card li { margin:5px 0; }
+.card li::marker { color:var(--card-hue); }
+.c-buyer  { --card-hue:var(--buyer); }
+.c-office { --card-hue:var(--office); }
+.c-exec   { --card-hue:var(--exec); }
+
+/* ── Footer ───────────────────────────────────────────────── */
+footer {
+  margin-top:80px; padding-top:24px; border-top:1px solid var(--line);
+  font-family:var(--mono); font-size:12px; color:var(--faint); line-height:1.8;
+}
+
+:focus-visible { outline:2px solid var(--brand); outline-offset:3px; border-radius:3px; }
+@media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+@media (max-width:640px) {
+  body { font-size:16px; }
+  .wrap { padding:0 18px 72px; }
+  nav.toc { margin:0 -18px; padding:0 18px; }
+  .slot { grid-template-columns:1fr; gap:8px; }
+  .slot > .when small { display:inline; margin-left:8px; }
+}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">Green Basket · Wholesale B2B produce</div>
+  <h1>How the day runs</h1>
+  <p class="standfirst">
+    The whole application, end to end — what the buyer does, what the office does,
+    what the delivery executive does, and the fixed daily clock all three run on.
+  </p>
+  <div class="stamp">
+    <span>AS-BUILT FROM COMMIT 479A00C</span>
+    <span>2 AUG 2026</span>
+    <span>ALL TIMES IST / UTC+5:30</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <ol>
+    <li><a href="#day">The day</a></li>
+    <li><a href="#map">System map</a></li>
+    <li><a href="#roles">Who does what</a></li>
+    <li><a href="#order">Order lifecycle</a></li>
+    <li><a href="#journey">Order to door</a></li>
+    <li><a href="#office">Office SOP</a></li>
+    <li><a href="#exec">Executive SOP</a></li>
+    <li><a href="#door">Money at the door</a></li>
+    <li><a href="#run">The run</a></li>
+    <li><a href="#access">Access</a></li>
+    <li><a href="#open">Open items</a></li>
+  </ol>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════ 1 -->
+<section id="day">
+  <div class="col">
+    <h2><span class="num">01</span>The day</h2>
+    <p class="lede">
+      Everything else in this document hangs off this clock. An order taken on Monday
+      is delivered Tuesday morning — the app never promises same-day.
+    </p>
+  </div>
+
+  <div class="day">
+
+    <div class="slot shut">
+      <div class="when">06:30–07:30<small>Shop shut</small></div>
+      <div class="what">
+        <div class="tags"><span class="role r-office">Office</span></div>
+        <strong>Price update window</strong>
+        <p>
+          Back from the mandi, the admin enters today's rates on <code>/admin/prices</code> and
+          publishes. Ordering is blocked for this hour even if the shop is otherwise open, so
+          nobody buys at yesterday's price while the sheet is half-entered.
+        </p>
+      </div>
+    </div>
+
+    <div class="slot">
+      <div class="when">08:00<small>Opens</small></div>
+      <div class="what">
+        <div class="tags"><span class="role r-auto">Automatic</span></div>
+        <strong>Shop opens · yesterday's van leaves</strong>
+        <p>
+          Two things share this hour. The catalogue goes live for today's buyers, and the
+          van loaded overnight departs on <em>yesterday's</em> run. That is why
+          <span class="m">08:00</span> — not the <span class="m">21:00</span> cart close — is the
+          boundary that decides which run a newly assigned order joins.
+        </p>
+      </div>
+    </div>
+
+    <div class="slot">
+      <div class="when">08:00–09:00<small>Delivering</small></div>
+      <div class="what">
+        <div class="tags"><span class="role r-exec">Executive</span></div>
+        <strong>Yesterday's orders reach the door</strong>
+        <p>
+          The executive works their stops in sequence, takes rejections at the door, and
+          collects cash. The office closes the run when the van is back and the cash is counted.
+        </p>
+      </div>
+    </div>
+
+    <div class="slot">
+      <div class="when">08:00–21:00<small>Trading</small></div>
+      <div class="what">
+        <div class="tags"><span class="role r-buyer">Buyer</span><span class="role r-office">Office</span></div>
+        <strong>Today's orders come in</strong>
+        <p>
+          Buyers order for tomorrow morning. The office watches <code>/admin/orders</code> live,
+          takes phone orders through <code>/admin/pos</code>, and can start assigning executives
+          at any point in the day — an assignment is not something to save for the evening.
+        </p>
+      </div>
+    </div>
+
+    <div class="slot shut">
+      <div class="when">21:00<small>Cart closes</small></div>
+      <div class="what">
+        <div class="tags"><span class="role r-auto">Automatic</span></div>
+        <strong>The day's orders are final</strong>
+        <p>
+          Checkout shuts. Nothing further can be added to tomorrow morning's van.
+        </p>
+      </div>
+    </div>
+
+    <div class="slot">
+      <div class="when">21:00–08:00<small>Overnight</small></div>
+      <div class="what">
+        <div class="tags"><span class="role r-office">Office</span></div>
+        <strong>Pick, pack, assign, load</strong>
+        <p>
+          Pull the consolidated pick list from <code>/admin/reports</code> → Packing, mark the
+          batch <span class="m">PACKED</span>, assign every order to an executive, print slips,
+          load. Packing crosses midnight on purpose: an order assigned at
+          <span class="m">23:00</span> and one assigned at <span class="m">01:00</span> are the
+          same van.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="col">
+    <div class="note">
+      <span class="h">Overriding the clock</span>
+      <p>
+        <code>/admin/settings</code> can force the shop <span class="m">OPEN</span> or
+        <span class="m">CLOSED</span> regardless of the hour — a holiday, no stock, a demo, a
+        late run. An override expires automatically at the next <span class="m">21:00</span>,
+        so a forgotten toggle cannot silently leave the shop trading for days.
+      </p>
+    </div>
+    <div class="note caution">
+      <span class="h">If prices are not published</span>
+      <p>
+        Buyers see "getting best live prices for you" instead of the catalogue. A publish counts
+        as today's if it lands on today's IST calendar date — a <span class="m">06:30</span>
+        publish is valid, it does not have to be after <span class="m">07:00</span>. Yesterday's
+        sheet never counts.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 2 -->
+<section id="map">
+  <div class="col">
+    <h2><span class="num">02</span>System map</h2>
+    <p class="lede">
+      Three apps against one database. There is no application server in the request path —
+      browsers talk to Firestore directly, and Firestore's security rules are the authorization layer.
+    </p>
+  </div>
+
+  <figure>
+    <div class="frame">
+<pre class="mermaid">
+flowchart LR
+  subgraph B["Buyer · phone OTP"]
+    B1["/ shop"]
+    B2["/orders · tracking"]
+    B3["/account"]
+  end
+  subgraph O["Office · /admin-login"]
+    O1["/admin overview"]
+    O2["/admin/prices"]
+    O3["/admin/orders + packing"]
+    O4["/admin/deliveries"]
+    O5["/admin/returns · approvals"]
+    O6["/admin/pos · phone orders"]
+    O7["/admin/reports"]
+  end
+  subgraph D["Executive · /driver-login"]
+    D1["/driver · the run"]
+  end
+
+  FS[("Firestore<br/>users · products · orders<br/>settings · coupons · tickets")]
+  RULES{{"Security rules<br/>the only gate"}}
+
+  B1 --> RULES
+  B2 --> RULES
+  B3 --> RULES
+  O1 --> RULES
+  O2 --> RULES
+  O3 --> RULES
+  O4 --> RULES
+  O5 --> RULES
+  O6 --> RULES
+  O7 --> RULES
+  D1 --> RULES
+  RULES --> FS
+  FS -. "live updates" .-> B2
+  FS -. "live updates" .-> O3
+  FS -. "live updates" .-> D1
+</pre>
+    </div>
+    <figcaption>Fig. 1 — Every write passes the rules. A client cannot go around them.</figcaption>
+  </figure>
+
+  <div class="col">
+    <p>
+      Because there is no server in the middle, the rules carry weight the UI cannot. They check
+      that an order belongs to the buyer creating it, that the delivery fee matches the slab, that
+      payment starts <span class="m">UNPAID</span>, that the total weight is within
+      <span class="m">500 kg</span>, and that only an executive assigned to a stop can touch it.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 3 -->
+<section id="roles">
+  <div class="col">
+    <h2><span class="num">03</span>Who does what</h2>
+    <p class="lede">
+      Four roles exist in the data model — <span class="m">BUYER</span>,
+      <span class="m">ADMIN</span>, <span class="m">DRIVER</span>, <span class="m">SELLER</span>.
+      Three are in use.
+    </p>
+  </div>
+
+  <div class="cards">
+    <div class="card c-buyer">
+      <div class="sub">Buyer</div>
+      <h4>The shop owner ordering</h4>
+      <ul>
+        <li>Signs in with a mobile number and an OTP. No password ever.</li>
+        <li>Orders per kg against today's published rates.</li>
+        <li>Can cancel until an executive is assigned — after that the crates are on the van and they must call the office.</li>
+        <li>Inspects at the door and refuses what they don't want, before paying.</li>
+        <li>Downloads an invoice once delivered.</li>
+      </ul>
+    </div>
+    <div class="card c-office">
+      <div class="sub">Office / Admin</div>
+      <h4>Runs the day</h4>
+      <ul>
+        <li>Signs in at <code>/admin-login</code> with a username and password.</li>
+        <li>Publishes the daily price sheet.</li>
+        <li>Packs, assigns, prints slips, closes runs.</li>
+        <li>Decides the rejections too large for an executive to settle alone.</li>
+        <li>Takes phone orders on behalf of a customer through the POS screen.</li>
+      </ul>
+    </div>
+    <div class="card c-exec">
+      <div class="sub">Delivery executive</div>
+      <h4>Works the stops</h4>
+      <ul>
+        <li>Signs in at <code>/driver-login</code>, same credential style as the office.</li>
+        <li>Sees only their own run — never anyone else's, by rule as well as by screen.</li>
+        <li>Records what the buyer refuses, with photos.</li>
+        <li>Collects cash at the adjusted figure.</li>
+        <li>Hands a stop back when a door cannot be worked.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 4 -->
+<section id="order">
+  <div class="col">
+    <h2><span class="num">04</span>Order lifecycle</h2>
+    <p class="lede">
+      One forward-only status chain, plus cancellation. Assignment to an executive is deliberately
+      <em>not</em> a status — it is a separate field, which is why the cancellation rule has to
+      check both.
+    </p>
+  </div>
+
+  <figure>
+    <div class="frame">
+<pre class="mermaid">
+stateDiagram-v2
+  direction LR
+  [*] --> CONFIRMED: checkout, auto-confirmed
+  CONFIRMED --> PACKED: office packs the batch
+  PACKED --> SHIPPED: see note
+  SHIPPED --> DELIVERED
+  PACKED --> DELIVERED: office bulk-marks / executive at the door
+  CONFIRMED --> CANCELLED: buyer, while unassigned
+  PACKED --> CANCELLED: office only
+  DELIVERED --> [*]: invoice available
+  CANCELLED --> [*]
+</pre>
+    </div>
+    <figcaption>Fig. 2 — Forward-only. Nothing walks back up the chain.</figcaption>
+  </figure>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Status</th><th>Buyer sees</th><th>Set by</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="num">PENDING</td><td>Order placed</td><td><span class="role r-auto">System</span></td><td>Defined but never used — checkout writes <span class="m">CONFIRMED</span> directly.</td></tr>
+        <tr><td class="num">CONFIRMED</td><td>Confirmed</td><td><span class="role r-auto">System</span></td><td>The real starting state. Stock is reserved in the same transaction.</td></tr>
+        <tr><td class="num">PACKED</td><td>Packed &amp; ready</td><td><span class="role r-office">Office</span></td><td>Set in bulk overnight from the orders screen.</td></tr>
+        <tr><td class="num">SHIPPED</td><td>Out for delivery</td><td><span class="role r-office">Office</span></td><td>Reachable only one order at a time. Nothing sets it in the normal flow — see <a href="#open">Open items</a>.</td></tr>
+        <tr><td class="num">DELIVERED</td><td>Delivered</td><td><span class="role r-exec">Executive</span> <span class="role r-office">Office</span></td><td>Unlocks the invoice. COD orders must be marked paid first.</td></tr>
+        <tr><td class="num">CANCELLED</td><td>Cancelled</td><td><span class="role r-buyer">Buyer</span> <span class="role r-office">Office</span></td><td>Buyer only while unassigned. After that, the office.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <h3>What checkout enforces</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Rule</th><th class="num">Value</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Maximum order weight</td><td class="num">500 kg</td><td>One van, one customer. Enforced in the app and again in the rules.</td></tr>
+          <tr><td>Maximum lines per order</td><td class="num">50</td><td>A technical ceiling on rule evaluation, not a business limit. The catalogue is 45 products, so it cannot bite.</td></tr>
+          <tr><td>Quantity per line</td><td class="num">unlimited</td><td>Steps by the product's minimum order quantity. No cap.</td></tr>
+          <tr><td>Delivery fee — under ₹1,000</td><td class="num">₹50</td><td rowspan="3">Recomputed by the security rules and rejected if it does not match to the rupee.</td></tr>
+          <tr><td>Delivery fee — ₹1,000 to ₹3,000</td><td class="num">₹25</td></tr>
+          <tr><td>Delivery fee — above ₹3,000</td><td class="num">Free</td></tr>
+          <tr><td>Payment at creation</td><td class="num">UNPAID</td><td>A client cannot mark its own order paid.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 5 -->
+<section id="journey">
+  <div class="col">
+    <h2><span class="num">05</span>Order to door</h2>
+    <p class="lede">One order, across the full 24 hours and all three roles.</p>
+  </div>
+
+  <figure>
+    <div class="frame">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant B as Buyer
+  participant A as Office
+  participant S as System
+  participant D as Executive
+
+  A->>S: publish today's rates (before 08:00)
+  S-->>B: catalogue goes live
+  B->>S: place order (08:00-21:00)
+  S-->>S: reserve stock, status CONFIRMED
+  S-->>A: new order appears live on the board
+  Note over S: 21:00 cart closes
+  A->>S: pull consolidated pick list
+  A->>S: mark batch PACKED
+  A->>S: assign executive (stamps tomorrow's date)
+  A->>A: print packing slips, load van
+  Note over D: 08:00 next morning
+  D->>S: open the run, stops in sequence
+  D->>B: hand over goods
+  B->>D: inspect, refuse what is not wanted
+  D->>S: record rejection with photos
+  alt within executive's authority
+    S-->>D: settled, collect adjusted amount
+  else above the limit
+    S-->>A: escalate, do not collect
+    A->>S: approve or reject
+    S-->>D: released, collect
+  end
+  D->>S: mark DELIVERED and paid
+  S-->>B: invoice available
+  A->>S: close the run, count the cash
+</pre>
+    </div>
+    <figcaption>Fig. 3 — The full cycle, roughly 24 hours from rate to invoice.</figcaption>
+  </figure>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 6 -->
+<section id="office">
+  <div class="col">
+    <h2><span class="num">06</span>Office SOP</h2>
+    <p class="lede">
+      Four blocks a day. The morning one is the only one with a hard deadline —
+      miss it and the shop cannot trade.
+    </p>
+
+    <h3><span class="role r-office">Morning</span> &nbsp;Publish the rates · <span class="t">by 08:00</span></h3>
+    <ol class="steps sop-office">
+      <li><strong>Sign in at <code>/admin-login</code></strong>
+        <p>Username and password. The buyer app never links here.</p></li>
+      <li><strong>Open <code>/admin/prices</code> and enter today's rates</strong>
+        <p>Every active product. Yesterday's figures are shown for reference.</p></li>
+      <li><strong>Publish</strong>
+        <p>One tap. Until this happens, buyers see a waiting message instead of the catalogue — so if the shop looks empty at 08:15, this is the first thing to check.</p></li>
+      <li><strong>Check stock on <code>/admin/products</code></strong>
+        <p>Anything you cannot supply today, set inactive or set its stock to zero. It is cheaper than cancelling the order tonight.</p></li>
+    </ol>
+
+    <h3><span class="role r-office">Through the day</span> &nbsp;Watch the board · <span class="t">08:00–21:00</span></h3>
+    <ol class="steps sop-office">
+      <li><strong>Keep <code>/admin/orders</code> open</strong>
+        <p>It updates live and chimes on a new order. No refreshing.</p></li>
+      <li><strong>Take phone orders on <code>/admin/pos</code></strong>
+        <p>Search the customer or create one, build the cart, choose cash or online. The order behaves exactly like one the buyer placed themselves.</p></li>
+      <li><strong>Answer support threads on <code>/admin/support</code></strong>
+        <p>Anything a buyer escalates lands here and is flagged for a human.</p></li>
+      <li><strong>Clear rejection approvals immediately</strong>
+        <p>An escalated adjustment means an executive is standing in a shop, unable to collect, waiting on you. This queue leads <code>/admin/returns</code> for that reason.</p></li>
+      <li><strong>Assign executives as you go</strong>
+        <p>Assignment is allowed at any hour and does not need to wait for the evening. Anything assigned from 08:00 onwards joins tomorrow morning's run.</p></li>
+    </ol>
+
+    <h3><span class="role r-office">Overnight</span> &nbsp;Pack and load · <span class="t">21:00–08:00</span></h3>
+    <ol class="steps sop-office">
+      <li><strong>Pull the pick list — <code>/admin/reports</code> → Packing</strong>
+        <p>One consolidated line per product across every order of the day. Pick against this, not against individual orders.</p></li>
+      <li><strong>Select the day's orders and mark them <span class="m">PACKED</span></strong>
+        <p>One bulk action from the orders screen.</p></li>
+      <li><strong>Assign every remaining order to an executive</strong>
+        <p><code>/admin/deliveries</code> lists what is still unassigned. Anything left unassigned simply does not go out.</p></li>
+      <li><strong>Print the packing slips</strong>
+        <p>One slip per customer per address — multiple orders to the same shop merge into a single crate.</p></li>
+      <li><strong>Load in stop order</strong>
+        <p>The run screen sequences stops nearest-first from the depot, so loading in reverse of that order puts the first drop at the tailgate.</p></li>
+    </ol>
+
+    <h3><span class="role r-office">Next morning</span> &nbsp;Close the run · <span class="t">from 09:00</span></h3>
+    <ol class="steps sop-office">
+      <li><strong>Wait for the van</strong>
+        <p>Watch progress live on <code>/admin/deliveries</code>. The board shows stops done, cash expected and anything handed back.</p></li>
+      <li><strong>Count the cash against the run summary</strong>
+        <p>The figure shown is the adjusted total — rejections at the door are already deducted. Nothing to reconcile by hand.</p></li>
+      <li><strong>Press Close run</strong>
+        <p>This is a deliberate act and nothing does it automatically. It is the moment the cash is accounted for.</p></li>
+      <li><strong>Deal with what came back</strong>
+        <p>Closing releases every undelivered stop to the unassigned pool. Reassign it to today's van or cancel it — it will not ride along invisibly.</p></li>
+    </ol>
+
+    <div class="note caution">
+      <span class="h">If a run is not closed</span>
+      <p>
+        It stays on the board and is marked overdue in amber. That is intentional — an old run is
+        never quietly folded into today's numbers. If yesterday's run is still showing, it has not
+        been closed.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 7 -->
+<section id="exec">
+  <div class="col">
+    <h2><span class="num">07</span>Delivery executive SOP</h2>
+    <p class="lede">
+      One screen, one run, one direction. The executive never sees another executive's stops.
+    </p>
+
+    <h3><span class="role r-exec">At the depot</span> &nbsp;<span class="t">08:00</span></h3>
+    <ol class="steps sop-exec">
+      <li><strong>Sign in at <code>/driver-login</code></strong>
+        <p>Username and password. The session persists — you should not have to sign in every morning.</p></li>
+      <li><strong>Check the run against the crates</strong>
+        <p>The screen lists every stop with its order numbers. Anything on the screen that is not on the van, or the reverse, is a question for the office before you leave.</p></li>
+    </ol>
+
+    <h3><span class="role r-exec">On the road</span></h3>
+    <ol class="steps sop-exec">
+      <li><strong>Work the stops in the order shown</strong>
+        <p>They are already sequenced nearest-first. Each stop has a Navigate button that opens maps, and a Call button for the shop.</p></li>
+      <li><strong>Hand over and let the buyer inspect</strong>
+        <p>This is the only moment ground truth exists. Do not leave before they have looked.</p></li>
+      <li><strong>Record anything refused, before money changes hands</strong>
+        <p>Enter the refused quantity per item and photograph it. The payable amount drops on the spot. See <a href="#door">Money at the door</a>.</p></li>
+      <li><strong>Collect and mark the stop delivered</strong>
+        <p>Take the adjusted amount for a cash order. Prepaid orders need no collection. Marking delivered records the payment at the same time.</p></li>
+      <li><strong>Hand a stop back if the door cannot be worked</strong>
+        <p>Shop shut, nobody there, wrong address — hand it back with the reason. It returns to the office's unassigned pool. Do not carry it to tomorrow.</p></li>
+    </ol>
+
+    <h3><span class="role r-exec">Back at the depot</span></h3>
+    <ol class="steps sop-exec">
+      <li><strong>Hand the cash in against the run summary</strong>
+        <p>The office has the expected figure on screen, already net of rejections.</p></li>
+      <li><strong>Flag anything delivered but unpaid</strong>
+        <p>The summary lists these separately — they are the ones to explain.</p></li>
+    </ol>
+
+    <div class="note blocked">
+      <span class="h">Never do this</span>
+      <p>
+        <strong>Do not collect on an escalated rejection.</strong> If a refusal is over your limit
+        the screen says so and holds the amount. Collecting the full figure and sorting it out later
+        means money has to move twice, and the second move usually does not happen.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 8 -->
+<section id="door">
+  <div class="col">
+    <h2><span class="num">08</span>Money at the door</h2>
+    <p class="lede">
+      There is no post-delivery return. Produce is inspected at handover and the bill drops before
+      cash moves — so money changes hands exactly once, and there is never a refund to reverse.
+    </p>
+  </div>
+
+  <figure>
+    <div class="frame">
+<pre class="mermaid">
+flowchart TD
+  A["Buyer refuses part of the delivery"] --> B["Executive records quantities + photos"]
+  B --> C{"Refund vs limit:<br/>greater of ₹500<br/>or 10% of the order"}
+  C -->|within limit| D["Settled on the spot"]
+  D --> E["Collect the adjusted amount"]
+  C -->|over the limit| F["Escalated to the office"]
+  F --> G["DO NOT COLLECT"]
+  G --> H{"Office decides"}
+  H -->|approved: produce was bad| I["Written off, stock not returned"]
+  H -->|rejected: produce was saleable| J["Returned to stock, no loss recorded"]
+  I --> E
+  J --> E
+  E --> K["Mark delivered and paid"]
+</pre>
+    </div>
+    <figcaption>Fig. 4 — Either outcome bills the buyer only for what they kept. The difference is internal.</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>What an executive can settle alone</h3>
+    <p>
+      The allowance is the <strong>greater</strong> of a flat floor and a share of the order. A flat cap
+      alone would send every trivial rejection on a large order for approval; a percentage alone
+      would leave small orders with almost no headroom.
+    </p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th class="num">Order total</th><th class="num">10% of it</th><th class="num">Executive may settle</th></tr></thead>
+        <tbody>
+          <tr><td class="num">₹300</td><td class="num">₹30</td><td class="num">₹500</td></tr>
+          <tr><td class="num">₹2,000</td><td class="num">₹200</td><td class="num">₹500</td></tr>
+          <tr><td class="num">₹5,000</td><td class="num">₹500</td><td class="num">₹500</td></tr>
+          <tr><td class="num">₹12,000</td><td class="num">₹1,200</td><td class="num">₹1,200</td></tr>
+          <tr><td class="num">₹40,000</td><td class="num">₹4,000</td><td class="num">₹4,000</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="h">Why the limit exists at all</span>
+      <p>
+        A delivery run that stalls every time nobody answers the phone is worse than the occasional
+        small write-off. Routine rejections settle at the door; only genuinely material ones wait
+        for a decision.
+      </p>
+    </div>
+
+    <h3>Cash reconciliation</h3>
+    <p>
+      What an executive should be carrying is <em>derived</em> from the orders, never typed in and
+      stored: the adjusted total of every delivered cash order on that run. Prepaid orders never
+      pass through their hands and are listed separately, as is anything delivered but still
+      showing unpaid. A counted-cash figure that can drift from the orders is worse than no figure,
+      because it looks authoritative.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 9 -->
+<section id="run">
+  <div class="col">
+    <h2><span class="num">09</span>The run</h2>
+    <p class="lede">
+      A run is <strong>one executive plus one delivery date</strong> — not "everything ever assigned
+      to them". Without the date, a run finished on Friday still showed as in progress on Saturday
+      and merged its totals into Saturday's first assignment.
+    </p>
+  </div>
+
+  <figure>
+    <div class="frame">
+<pre class="mermaid">
+stateDiagram-v2
+  direction LR
+  [*] --> Unassigned: order confirmed
+  Unassigned --> Assigned: office assigns
+  note right of Assigned
+    Assigned before 08:00 = this morning's run
+    Assigned 08:00 or later = tomorrow's run
+  end note
+  Assigned --> Delivered: handed over at the door
+  Assigned --> Unassigned: executive hands the stop back
+  Delivered --> Closed: office closes the run
+  Assigned --> Unassigned: released by closing the run
+  Closed --> [*]
+</pre>
+    </div>
+    <figcaption>Fig. 5 — Closing is deliberate. Nothing closes a run automatically.</figcaption>
+  </figure>
+
+  <div class="col">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Event</th><th>Effect on the order</th><th>Effect on the board</th></tr></thead>
+        <tbody>
+          <tr><td>Assign</td><td>Executive recorded, delivery date stamped. Status unchanged.</td><td>Joins that morning's run. Buyer can no longer self-cancel.</td></tr>
+          <tr><td>Hand back a stop</td><td>Executive and date cleared, with the reason.</td><td>Returns to the unassigned list for the office to decide on.</td></tr>
+          <tr><td>Close the run</td><td>Delivered stops are settled. Undelivered ones are released.</td><td>The run leaves the board entirely.</td></tr>
+          <tr><td>Run not closed by the next day</td><td>No change.</td><td>Stays visible, marked overdue in amber. Never counted as today's work.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>How stops are sequenced</h3>
+    <p>
+      Orders going to the same customer at the same address merge into one visit — one crate, one
+      door, one conversation. Visits are then ordered nearest-first from the depot by straight-line
+      distance. It is a sensible loading and driving order, not a solved shortest route, and an
+      executive who knows the area should trust their own judgement over it. The service area
+      defaults to a <span class="m">15 km</span> radius plus an explicit list of served pincodes.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 10 -->
+<section id="access">
+  <div class="col">
+    <h2><span class="num">10</span>Access</h2>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Role</th><th>Where</th><th>How</th><th>Can see</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="role r-buyer">Buyer</span></td>
+            <td class="num">/</td>
+            <td>Mobile number + OTP</td>
+            <td>Their own orders and profile. Nobody else's.</td>
+          </tr>
+          <tr>
+            <td><span class="role r-office">Admin</span></td>
+            <td class="num">/admin-login</td>
+            <td>Username + password</td>
+            <td>Everything.</td>
+          </tr>
+          <tr>
+            <td><span class="role r-exec">Executive</span></td>
+            <td class="num">/driver-login</td>
+            <td>Username + password</td>
+            <td>Only the orders assigned to them.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="col">
+      <h3>Staying signed in</h3>
+      <p>
+        A session survives closing the tab, reopening on another tab, following a deep link, and
+        coming back days later. It ends on one thing only: signing out. Nobody should be asked for
+        a mobile number twice.
+      </p>
+      <p>
+        Someone who verifies their number and then abandons sign-up before entering their details is
+        a real state, not a broken one — they come back to the details step with their number already
+        verified, and a way out if it was the wrong number.
+      </p>
+      <p>
+        Neither staff URL is linked from the buyer app. They are bookmarks.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 11 -->
+<section id="open">
+  <div class="col">
+    <h2><span class="num">11</span>Open items</h2>
+    <p class="lede">
+      Where the software does not yet match the process described above. Stated plainly so nobody
+      plans around a screen that is not doing what it appears to.
+    </p>
+
+    <div class="note caution">
+      <span class="h">Out for delivery never lights up</span>
+      <p>
+        <span class="m">SHIPPED</span> exists and the buyer's tracker has a stage for it, but neither
+        the overnight bulk action nor the executive's app ever sets it — orders jump from
+        <span class="m">PACKED</span> straight to <span class="m">DELIVERED</span>. A buyer watching
+        the tracker gets no signal that the van has left. Setting it when a run starts would close
+        the gap.
+      </p>
+    </div>
+
+    <div class="note caution">
+      <span class="h">Three of four report tabs show demo data</span>
+      <p>
+        On <code>/admin/reports</code>, only <strong>Packing</strong> reads live orders.
+        <strong>Inventory</strong>, <strong>Purchase</strong> and <strong>Invoices</strong> are wired
+        to the demo seed dataset and will show invented figures in production. Do not order stock or
+        reconcile against them.
+      </p>
+    </div>
+
+    <div class="note caution">
+      <span class="h">Line prices are trusted from the browser</span>
+      <p>
+        The security rules check the order's weight, its fee, its total derivation and its ownership,
+        but not each line's unit price against the catalogue — that check was removed because it made
+        orders past three products fail outright. Restoring it needs a small server-side route, which
+        also needs the service-account credential added to the hosting environment.
+      </p>
+    </div>
+
+    <div class="note blocked">
+      <span class="h">Housekeeping still outstanding</span>
+      <p>
+        Four service-account keys were shared during development and are still valid — revoke them in
+        the Firebase console. The staff-provisioning route also needs its service-account
+        environment variable set before new executives can be created from the admin screen.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  GREEN BASKET · OPERATIONS<br>
+  Source: <code>docs/operations-sop.html</code> — edit it there, not here, so the manual ships with the code it describes.<br>
+  Describes the application as built at commit <code>479a00c</code>, 2 August 2026.
+</footer>
+
+</div>

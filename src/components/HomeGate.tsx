@@ -4,6 +4,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { OnboardingScreen } from "@/components/onboarding/OnboardingScreen";
 import { ShopScreen } from "@/components/buyer/ShopScreen";
 import { BrandSplash } from "@/components/ui/BrandSplash";
+import { authGateView } from "@/lib/auth-gate";
 
 /**
  * The "/" experience. Auth is resolved IN PLACE so the URL stays "/" — no
@@ -12,15 +13,19 @@ import { BrandSplash } from "@/components/ui/BrandSplash";
  * signed-in user gets the shop.
  */
 export function HomeGate() {
-  const { user, loading, firebaseSignedIn } = useAuth();
+  const { user, loading, profileStalled, retryProfile } = useAuth();
 
-  if (loading) return <BrandSplash />;
-
-  // Signed in at the auth layer, but the profile hasn't arrived — keep
-  // waiting rather than offering to sign in. Showing the sign-in screen to
-  // somebody who never signed out is the whole bug this guards against; the
-  // subscription is still retrying underneath.
-  if (!user && firebaseSignedIn) return <BrandSplash />;
-
-  return user ? <ShopScreen /> : <OnboardingScreen />;
+  // See lib/auth-gate.ts for why this is a table and not a chain of guards.
+  // In short: an account signed in with no profile is a REAL state, not a
+  // pending one, and must reach onboarding rather than a splash.
+  switch (authGateView({ loading, profileStalled, hasProfile: !!user })) {
+    case "loading":
+      return <BrandSplash />;
+    case "stalled":
+      return <BrandSplash stalled onRetry={retryProfile} />;
+    case "onboarding":
+      return <OnboardingScreen />;
+    case "app":
+      return <ShopScreen />;
+  }
 }
