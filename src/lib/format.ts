@@ -52,6 +52,52 @@ export function isValidPhoneDigits(value: string): boolean {
   return value.replace(/\D/g, "").length === PHONE_DIGIT_LENGTH;
 }
 
+/**
+ * The 10 local digits of an Indian mobile, whatever shape it arrives in.
+ *
+ * Every phone field in the app draws its own "+91" prefix, so the value
+ * behind it must be the bare national number. Firebase Auth hands back E.164
+ * ("+918639766053"), and storing that verbatim put the country code INSIDE
+ * the field: checkout rendered "+91 | +918639766053", validation counted 12
+ * digits and refused to place the order, and backspacing through the "+91"
+ * fought the sanitiser on every keystroke.
+ *
+ * A prefix is only stripped at a length that cannot be a real mobile — 12
+ * digits led by 91, or 11 led by a trunk 0. At 10 or fewer the digits are
+ * taken as typed, so a number legitimately beginning 91 survives, and typing
+ * an 11th digit is ignored rather than silently shifting the whole number
+ * along (which is what taking the last 10 would do).
+ */
+export function toLocalMobile(value: string | null | undefined): string {
+  const digits = (value ?? "").replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
+  return digits.slice(0, PHONE_DIGIT_LENGTH);
+}
+
+/**
+ * A `tel:` target for a stored number.
+ *
+ * Numbers are held as 10 local digits, which dials fine from an Indian
+ * handset but not from a roaming one — and old records still hold E.164. Put
+ * the country code back on at the point of dialling, where it belongs, and
+ * leave anything already carrying one alone.
+ *
+ * Gated on `isPlausibleIndianMobile`, NOT on `toLocalMobile` alone. The two
+ * disagree on purpose: the normaliser is forgiving because it is reshaping
+ * something a person is looking at, while this is choosing what a phone will
+ * actually dial. Trusting the normaliser here turned the landline
+ * "040 2345 6789" into "+91 40 2345 6789" — the trunk zero stripped, the STD
+ * code read as the start of a mobile, and a stranger's number dialled.
+ */
+export function telHref(phone: string | null | undefined): string {
+  const raw = (phone ?? "").trim();
+  if (!raw) return "tel:";
+  if (raw.startsWith("+")) return `tel:${raw.replace(/[^\d+]/g, "")}`;
+  if (isPlausibleIndianMobile(raw)) return `tel:+91${toLocalMobile(raw)}`;
+  return `tel:${raw.replace(/\D/g, "")}`;
+}
+
 /** Indian PIN codes are exactly 6 digits. Every address is normally captured
  *  via the map-based AddressPicker (reverse-geocoded, already well-formed),
  *  but AccountScreen's profile-edit form also lets a buyer retype it

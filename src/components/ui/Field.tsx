@@ -1,8 +1,9 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useLayoutEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toLocalMobile } from "@/lib/format";
 
 /**
  * Two input flavors from the brief §4.2:
@@ -105,35 +106,90 @@ export interface PhoneInputProps
   flavor?: Flavor;
 }
 
-/** A free-text 10-digit phone field with a fixed "+91" prefix — same visual
- *  treatment as the sign-in OTP phone field, so the country code is always
- *  visible instead of implicit in a bare 10-digit box. Purely a display
- *  affordance: this does NOT check the number against other accounts (see
- *  isPlausibleIndianMobile / phoneIndex for that — reserved for the sign-in
- *  linking step). Pair with sanitizePhoneDigits/isValidPhoneDigits as usual. */
+/**
+ * A 10-digit Indian mobile field behind a fixed "+91".
+ *
+ * The prefix is drawn by the component, so the VALUE must never contain a
+ * country code — see `toLocalMobile`. Anything pasted or prefilled with one
+ * is reduced here as well as at the source, so a field can never display
+ * "+91 | +91…".
+ *
+ * It also keeps the caret where the typist left it. The field strips
+ * non-digits and caps at ten, so the moment what was typed differs from what
+ * is stored — a space, a letter, the eleventh digit, backspacing through a
+ * pasted "+91" — React rewrites the input's value and the browser drops the
+ * caret at the end. Editing the middle of a number became impossible: one
+ * keystroke and you were back at the end. The position is recorded in
+ * DIGITS-BEFORE-IT rather than characters, since that is the one measure the
+ * stripping preserves.
+ *
+ * `onChange` receives the already-normalised value on `e.target.value`, so
+ * call sites can store it directly.
+ */
 export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(
-  ({ flavor = "input", className, ...props }, ref) => (
-    <div
-      className={cn(
-        "flex items-center gap-2 rounded-lg px-3.5 py-2.5 transition-colors focus-within:ring-2 focus-within:ring-brand-500/30",
-        flavor === "input"
-          ? "bg-surface border border-line focus-within:border-brand-500"
-          : "bg-raised border border-line focus-within:bg-surface",
-        className
-      )}
-    >
-      <span className="shrink-0 border-r border-line pr-2 text-base font-semibold leading-6 text-fg-subtle lg:text-sm lg:leading-6">
-        +91
-      </span>
-      <input
-        ref={ref}
-        type="tel"
-        inputMode="numeric"
-        className="w-full min-w-0 flex-1 bg-transparent text-base leading-6 text-fg outline-none placeholder:text-fg-subtle disabled:cursor-not-allowed disabled:text-fg-subtle lg:text-sm lg:leading-6"
-        {...props}
-      />
-    </div>
-  )
+  ({ flavor = "input", className, value, onChange, ...props }, ref) => {
+    const innerRef = useRef<HTMLInputElement | null>(null);
+    const caretRef = useRef<number | null>(null);
+
+    function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+      const el = e.currentTarget;
+      const raw = el.value;
+      const caret = el.selectionStart ?? raw.length;
+      const cleaned = toLocalMobile(raw);
+      const pos = Math.min(raw.slice(0, caret).replace(/\D/g, "").length, cleaned.length);
+      caretRef.current = pos;
+
+      // Hand the parent the normalised value rather than the raw keystrokes.
+      el.value = cleaned;
+      onChange?.(e);
+
+      // Also restore here, not only in the layout effect below. When the
+      // typed character is dropped entirely, the cleaned value EQUALS the
+      // current state, so React bails out of re-rendering and the effect
+      // never runs — but it still rewrites the input's value to match the
+      // prop, parking the caret at the end. This path covers that.
+      requestAnimationFrame(() => {
+        if (document.activeElement === el) el.setSelectionRange(pos, pos);
+      });
+    }
+
+    // The ordinary case, before the browser paints, so there is no visible jump.
+    useLayoutEffect(() => {
+      const el = innerRef.current;
+      if (!el || caretRef.current === null) return;
+      if (document.activeElement === el) el.setSelectionRange(caretRef.current, caretRef.current);
+      caretRef.current = null;
+    }, [value]);
+
+    return (
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-lg px-3.5 py-2.5 transition-colors focus-within:ring-2 focus-within:ring-brand-500/30",
+          flavor === "input"
+            ? "bg-surface border border-line focus-within:border-brand-500"
+            : "bg-raised border border-line focus-within:bg-surface",
+          className
+        )}
+      >
+        <span className="shrink-0 border-r border-line pr-2 text-base font-semibold leading-6 text-fg-subtle lg:text-sm lg:leading-6">
+          +91
+        </span>
+        <input
+          ref={(el) => {
+            innerRef.current = el;
+            if (typeof ref === "function") ref(el);
+            else if (ref) ref.current = el;
+          }}
+          type="tel"
+          inputMode="numeric"
+          value={toLocalMobile(String(value ?? ""))}
+          onChange={handleChange}
+          className="w-full min-w-0 flex-1 bg-transparent text-base leading-6 text-fg outline-none placeholder:text-fg-subtle disabled:cursor-not-allowed disabled:text-fg-subtle lg:text-sm lg:leading-6"
+          {...props}
+        />
+      </div>
+    );
+  }
 );
 PhoneInput.displayName = "PhoneInput";
 

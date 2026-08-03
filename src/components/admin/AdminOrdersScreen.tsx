@@ -27,6 +27,7 @@ import {
   PAYMENT_LABELS,
   STATUS_FLOW,
   unitLabel,
+  telHref,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AdminShell } from "./AdminShell";
@@ -314,7 +315,7 @@ function OrderDetail({
           <div className="rounded-xl border border-line bg-surface px-3.5 py-3">
             <p className="text-sm font-semibold text-fg">{order.delivery.name}</p>
             <a
-              href={`tel:${order.delivery.phone}`}
+              href={telHref(order.delivery.phone)}
               className="mt-1 flex items-center gap-1.5 text-sm text-brand-300"
             >
               <Phone className="h-3.5 w-3.5" aria-hidden />
