@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -29,6 +29,13 @@ export function AdminLoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
+  /**
+   * Has the person in front of us already pressed the button?
+   *
+   * A ref, not state: it must be readable in the very same render that `user`
+   * arrives, before any effect runs, or the splash flashes anyway.
+   */
+  const submitted = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   // Already signed in as an admin (e.g. opening the bookmarked link on a
@@ -45,6 +52,7 @@ export function AdminLoginScreen() {
       setError("Enter your username and password.");
       return;
     }
+    submitted.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -64,7 +72,14 @@ export function AdminLoginScreen() {
   // is in flight — otherwise an admin opening their bookmarked link sees the
   // sign-in card flash before being let through, which reads as "it logged
   // me out again".
-  if (authLoading || user?.role === "ADMIN")
+  // The splash is a BOOT screen — right when somebody opens their bookmark and
+  // we do not yet know who they are. It was ALSO firing the instant a sign-in
+  // succeeded, because `user` becomes ADMIN while router.replace is still in
+  // flight. Combined with the route-level loader and the console's own gate,
+  // signing in drew three loading screens in a row. Once the form has been
+  // submitted this screen stays put with its button spinning, and the
+  // navigation owns the wait.
+  if (!submitted.current && (authLoading || user?.role === "ADMIN"))
     return <BrandSplash stalled={profileStalled} onRetry={retryProfile} />;
 
   return (
