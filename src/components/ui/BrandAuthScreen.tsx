@@ -67,13 +67,15 @@ export function BrandAuthScreen({
         </button>
 
         <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-7 text-center text-white">
+          {/* The drifting wrapper fills the hero so its translate percentages
+              are container-relative; the produce rides at its top-left. See
+              the driftX/driftY comment in globals.css for why this is a
+              wrapper rather than the emoji itself. */}
           {FLOATERS.map((f, i) => (
             <span
               key={i}
-              className={cn(
-                "pointer-events-none absolute opacity-80 drop-shadow motion-reduce:hidden",
-                f.s
-              )}
+              aria-hidden
+              className="pointer-events-none absolute inset-0 motion-reduce:hidden"
               style={{
                 animationName: "driftX, driftY",
                 animationDuration: `${f.dx}, ${f.dy}`,
@@ -84,7 +86,9 @@ export function BrandAuthScreen({
                 zIndex: 0,
               }}
             >
-              {f.e}
+              <span className={cn("absolute left-0 top-0 opacity-80 drop-shadow", f.s)}>
+                {f.e}
+              </span>
             </span>
           ))}
 

@@ -1,12 +1,5 @@
 import type { Order } from "./types";
-import { payableTotal, describeAdjustment } from "./delivery-adjustment";
-import {
-  formatCurrency,
-  formatDate,
-  isInvoiceProvisional,
-  ORDER_STATUS_META,
-  PAYMENT_LONG,
-} from "./format";
+import { buildInvoiceModel, SELLER } from "./invoice-model";
 
 /**
  * The invoice, as a self-contained HTML document.
@@ -15,8 +8,9 @@ import {
  * packing-slip-html.ts is: this is the only document a buyer keeps, and it
  * should be checkable without opening a browser.
  *
- * Green Basket is not registered under GST, so this is a plain bill — no
- * GSTIN, no tax line, and it is never called a "Tax Invoice".
+ * WHAT the invoice says lives in invoice-model.ts and is shared with the PDF
+ * renderer. This file only decides how it LOOKS in HTML — and owns escaping,
+ * which is specific to this target.
  */
 
 export function buildInvoiceHTML(
@@ -29,62 +23,38 @@ export function buildInvoiceHTML(
   options: { embedded?: boolean } = {}
 ): string {
   const embedded = options.embedded === true;
-  const itemsHtml = order.items
+  const doc = buildInvoiceModel(order);
+
+  const itemsHtml = doc.items
     .map(
-      (item, i) => `
+      (item) => `
     <tr>
-      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#6b7280;font-size:13px;">${i + 1}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#6b7280;font-size:13px;">${item.index}</td>
       <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#111827;font-weight:500;">${escapeHtml(item.name)}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#6b7280;font-size:13px;">${item.qty} ${item.unit}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;color:#111827;">Rs. ${item.price.toLocaleString("en-IN")}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;color:#111827;font-weight:600;">Rs. ${item.lineTotal.toLocaleString("en-IN")}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#6b7280;font-size:13px;">${escapeHtml(item.qty)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;color:#111827;">${item.unitPrice}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;color:#111827;font-weight:600;">${item.amount}</td>
     </tr>`
     )
     .join("");
 
-  const now = new Date();
-  const invoiceDate = now.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  // Only a SETTLED adjustment changes the bill. One still awaiting an admin
-  // decision must not reduce the invoice — nothing has been agreed yet.
-  const settledAdjustment =
-    order.adjustment && order.adjustment.status !== "PENDING" ? order.adjustment : null;
+  const totalsHtml = doc.totals
+    .map(
+      (t) => `
+          <div class="total-row${t.grand ? " grand" : ""}">
+            <span>${t.label}</span>
+            <span${t.credit ? ` style="color:#059669;font-weight:600;"` : ""}>${t.value}</span>
+          </div>`
+    )
+    .join("");
 
-  /**
-   * A deduction produces a NEW invoice, not a quiet edit of the old one.
-   *
-   * The buyer has already filed the original against the order — that is the
-   * whole point of issuing it at order time. If the revised copy came back
-   * carrying the same number but a smaller total, their books would hold two
-   * different documents claiming to be the same invoice, and no way to tell
-   * which is current. The revision suffix makes the replacement identifiable,
-   * and the header says what it supersedes.
-   *
-   * Derived rather than stored: it is a pure function of the adjustment that
-   * is already on the order, so it cannot drift out of sync with the amount
-   * printed beside it, and no extra write (or Firestore rule) is needed at
-   * the doorstep. A stored adjustedInvoiceNumber still wins if one is ever
-   * set, so an externally-issued number can override this.
-   */
-  const originalNumber = `INV-${order.orderNumber.replace("ORD-", "")}`;
-  const revised = Boolean(settledAdjustment);
   // Escaped once here — these are system-generated, but they still flow into
   // the invoice's HTML (title + header), so escape as defense-in-depth
   // alongside the buyer-controlled delivery fields below.
-  const invoiceNumber = escapeHtml(
-    order.adjustedInvoiceNumber || (revised ? `${originalNumber}-R1` : originalNumber)
-  );
-  const supersedes = revised && !order.adjustedInvoiceNumber ? escapeHtml(originalNumber) : null;
-  const orderNumber = escapeHtml(order.orderNumber);
-  // The invoice is issued when the order is placed, so for most of its life
-  // the amount on it is not yet final: the buyer inspects at the door and
-  // refuses what they don't want, and a settled adjustment reduces the bill.
-  // Saying so on the document is the difference between a figure that later
-  // drops and a figure that later drops WITHOUT WARNING.
-  const provisional = isInvoiceProvisional(order.status);
+  const invoiceNumber = escapeHtml(doc.invoiceNumber);
+  const orderNumber = escapeHtml(doc.orderNumber);
+  const supersedes = doc.supersedes ? escapeHtml(doc.supersedes) : null;
+  const provisional = doc.provisional;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -259,15 +229,15 @@ export function buildInvoiceHTML(
     <!-- Header -->
     <div class="header">
       <div class="header-left">
-        <h1>Green Basket</h1>
-        <p>Wholesale B2B — Fresh Produce, Per Kg</p>
-        <p style="margin-top:8px;font-size:11px;opacity:0.7;">Near Venkateswara Temple, Yerraboda, Upperpally, Hyderabad, Telangana — 500048</p>
-        <p style="font-size:11px;opacity:0.7;">Phone: +91 74166 20691</p>
+        <h1>${SELLER.name}</h1>
+        <p>${SELLER.tagline}</p>
+        <p style="margin-top:8px;font-size:11px;opacity:0.7;">${SELLER.address}</p>
+        <p style="font-size:11px;opacity:0.7;">${SELLER.phone}</p>
       </div>
       <div class="header-right">
-        <div class="badge">${provisional ? "Provisional Invoice" : revised ? "Revised Invoice" : "Invoice"}</div>
+        <div class="badge">${escapeHtml(doc.docLabel)}</div>
         <p style="margin-top:12px;font-size:20px;font-weight:700;">${invoiceNumber}</p>
-        <p style="font-size:12px;opacity:0.85;margin-top:2px;">Date: ${invoiceDate}</p>
+        <p style="font-size:12px;opacity:0.85;margin-top:2px;">Date: ${escapeHtml(doc.invoiceDate)}</p>
         <p style="font-size:12px;opacity:0.85;">Order: ${orderNumber}</p>
         ${supersedes ? `<p style="font-size:12px;opacity:0.85;">Replaces: ${supersedes}</p>` : ""}
       </div>
@@ -280,28 +250,25 @@ export function buildInvoiceHTML(
         <div>
           <p class="section-title">Billed To</p>
           <div class="info-block">
-            <p><strong>${escapeHtml(order.delivery.name)}</strong></p>
-            <p>${escapeHtml(order.delivery.address)}</p>
-            <p>${escapeHtml(order.delivery.city)} — ${escapeHtml(order.delivery.pincode)}</p>
-            <p>Phone: ${escapeHtml(order.delivery.phone)}</p>
+            <p><strong>${escapeHtml(doc.billedToName)}</strong></p>
+            ${doc.billedToLines.map((l) => `<p>${escapeHtml(l)}</p>`).join("")}
           </div>
         </div>
         <div>
           <p class="section-title">Delivery Details</p>
           <div class="info-block">
-            <p><strong>Status:</strong> ${ORDER_STATUS_META[order.status].label}</p>
-            ${provisional ? `<p style="margin-top:6px;color:#b45309;font-size:12px;">Amount is not final until delivery — anything refused at the door is deducted.</p>` : ""}
-            <p><strong>Payment:</strong> ${PAYMENT_LONG[order.paymentMethod]} (${order.paymentStatus === "PAID" ? "Paid" : "Unpaid"})</p>
-            <p><strong>Ordered:</strong> ${formatDate(order.createdAt)}</p>
+            <p><strong>${doc.deliveryRows[0].label}:</strong> ${escapeHtml(doc.deliveryRows[0].value)}</p>
+            ${doc.provisionalNote ? `<p style="margin-top:6px;color:#b45309;font-size:12px;">${escapeHtml(doc.provisionalNote)}</p>` : ""}
+            ${doc.deliveryRows.slice(1).map((r) => `<p><strong>${r.label}:</strong> ${escapeHtml(r.value)}</p>`).join("")}
           </div>
         </div>
       </div>
 
-      ${order.notes ? `
+      ${doc.notes ? `
       <div class="section">
         <p class="section-title">Notes</p>
         <div class="info-block">
-          <p>${escapeHtml(order.notes)}</p>
+          <p>${escapeHtml(doc.notes)}</p>
         </div>
       </div>
       ` : ""}
@@ -325,36 +292,19 @@ export function buildInvoiceHTML(
         </table>
 
         <!-- Totals -->
-        <div class="totals">
-          <div class="total-row">
-            <span>Subtotal</span>
-            <span>Rs. ${order.subtotal.toLocaleString("en-IN")}</span>
-          </div>
-          <div class="total-row">
-            <span>Delivery Fee</span>
-            <span>${order.deliveryFee > 0 ? `Rs. ${order.deliveryFee.toLocaleString("en-IN")}` : "FREE"}</span>
-          </div>
-          ${settledAdjustment ? `
-          <div class="total-row">
-            <span>Refused at delivery</span>
-            <span style="color:#059669;font-weight:600;">-Rs. ${settledAdjustment.totalRefund.toLocaleString("en-IN")}</span>
-          </div>` : ""}
-          <div class="total-row grand">
-            <span>Grand Total</span>
-            <span>Rs. ${payableTotal(order).toLocaleString("en-IN")}</span>
-          </div>
+        <div class="totals">${totalsHtml}
         </div>
       </div>
 
-      ${settledAdjustment ? `
+      ${doc.adjustment ? `
       <!-- Adjustment note: quality is settled at the door, before payment,
            so this invoice is issued for the adjusted amount rather than a
            credit note being raised against a wrong one. -->
       <div class="section" style="margin-top:24px;padding:16px;background:#ecfdf5;border-radius:8px;">
         <p class="section-title" style="color:#065f46;">Delivery Adjustment</p>
         <div class="info-block">
-          <p>${escapeHtml(describeAdjustment(settledAdjustment))}</p>
-          <p style="margin-top:6px;">Rs. ${settledAdjustment.totalRefund.toLocaleString("en-IN")} was taken off this bill at handover on ${formatDate(settledAdjustment.raisedAt)}. You were charged only for the goods you accepted.</p>
+          <p>${escapeHtml(doc.adjustment.headline)}</p>
+          <p style="margin-top:6px;">${escapeHtml(doc.adjustment.detail)}</p>
         </div>
       </div>` : ""}
 
@@ -362,18 +312,15 @@ export function buildInvoiceHTML(
       <div class="section" style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;">
         <p class="section-title">Terms & Conditions</p>
         <div class="info-block">
-          <p>1. All prices are in Indian Rupees (Rs.). No tax is charged — Green Basket is not registered under GST, so this bill carries no GST component and no input tax credit is available on it.</p>
-          <p>2. Goods are checked with the driver at handover. Anything refused there is deducted from this bill; nothing is taken back or exchanged afterwards.</p>
-          <p>3. For disputes, contact: support@green-basket.in</p>
+          ${doc.terms.map((t) => `<p>${escapeHtml(t)}</p>`).join("")}
         </div>
       </div>
     </div>
 
     <!-- Footer -->
     <div class="footer">
-      <p class="brand">Green Basket</p>
-      <p style="margin-top:4px;">Thank you for your business!</p>
-      <p style="margin-top:4px;">This is a computer-generated invoice and does not require a signature.</p>
+      <p class="brand">${SELLER.name}</p>
+      ${doc.footer.map((f) => `<p style="margin-top:4px;">${escapeHtml(f)}</p>`).join("")}
     </div>
   </div>
 

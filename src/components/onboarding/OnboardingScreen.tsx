@@ -11,7 +11,7 @@ import { sendOtp, toE164, resetRecaptcha, renderRecaptcha } from "@/lib/firebase
 import { friendlyPhoneError } from "@/lib/firebase/friendly-phone-error";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { cn } from "@/lib/utils";
-import { AddressPicker, type PickedAddress } from "@/components/address/AddressPicker";
+import { AddressPicker, type PickedAddress } from "@/components/address/LazyAddressPicker";
 import { BrandAuthScreen } from "@/components/ui/BrandAuthScreen";
 
 type Step = "mobile" | "verify" | "shop" | "done";

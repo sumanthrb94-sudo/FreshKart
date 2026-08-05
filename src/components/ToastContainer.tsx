@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { X, CheckCircle2, AlertTriangle, AlertCircle, Info } from "lucide-react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { subscribeToasts, dismissToast, playNotificationSound } from "@/lib/toast";
 import type { Toast } from "@/lib/toast";
@@ -30,15 +31,22 @@ const ICON_COLORS = {
   info: "text-blue-500",
 };
 
-function ToastItem({ toast: t }: { toast: Toast }) {
+function ToastItem({ toast: t, reduced }: { toast: Toast; reduced: boolean }) {
   const Icon = ICONS[t.type];
   return (
-    <div
+    <m.div
+      layout={!reduced}
       className={cn(
-        "flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 shadow-lg transition-all",
+        "pointer-events-auto flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 shadow-lg",
         STYLES[t.type]
       )}
       role="alert"
+      initial={reduced ? { opacity: 0 } : { opacity: 0, x: 24, scale: 0.96 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      // Leaves the way it came in, and `layout` closes the gap it leaves
+      // behind so the toasts below slide up rather than jumping.
+      exit={reduced ? { opacity: 0 } : { opacity: 0, x: 24, scale: 0.96 }}
+      transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 34 }}
     >
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", ICON_COLORS[t.type])} />
       <div className="min-w-0 flex-1">
@@ -51,13 +59,14 @@ function ToastItem({ toast: t }: { toast: Toast }) {
       >
         <X className="h-3.5 w-3.5" />
       </button>
-    </div>
+    </m.div>
   );
 }
 
 export function ToastContainer() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const prevLengthRef = useRef(0);
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     return subscribeToasts((newToasts) => {
@@ -70,13 +79,16 @@ export function ToastContainer() {
     });
   }, []);
 
-  if (toasts.length === 0) return null;
-
+  // Deliberately NOT unmounted when empty: AnimatePresence can only animate a
+  // toast out if it is still inside a mounted tree. `pointer-events-none` on
+  // the empty stack keeps it from swallowing taps.
   return (
-    <div className="fixed top-16 right-3 z-[60] flex w-[calc(100vw-1.5rem)] max-w-[360px] flex-col gap-2">
-      {toasts.map((t) => (
-        <ToastItem key={t.id} toast={t} />
-      ))}
+    <div className="pointer-events-none fixed right-3 top-16 z-[60] flex w-[calc(100vw-1.5rem)] max-w-[360px] flex-col gap-2">
+      <AnimatePresence initial={false}>
+        {toasts.map((t) => (
+          <ToastItem key={t.id} toast={t} reduced={!!reduced} />
+        ))}
+      </AnimatePresence>
     </div>
   );
 }

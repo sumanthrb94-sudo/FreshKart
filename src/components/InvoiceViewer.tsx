@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Loader2, X } from "lucide-react";
+import { AnimatePresence, m, useDragControls, useReducedMotion, type PanInfo } from "motion/react";
 import { buildInvoiceHTML } from "@/lib/invoice-html";
 import type { Order } from "@/lib/types";
 
@@ -42,6 +43,8 @@ export function InvoiceViewer({
   const [ready, setReady] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [fit, setFit] = useState({ scale: 1, offset: 0, stageHeight: 0 });
+  const reduced = useReducedMotion();
+  const dragControls = useDragControls();
   /** The document's own height, read once it has laid out at paper width. */
   const [docHeight, setDocHeight] = useState<number | null>(null);
 
@@ -97,33 +100,64 @@ export function InvoiceViewer({
         ? Math.max(docHeight, fit.stageHeight / fit.scale)
         : docHeight;
 
-  if (!open) return null;
+  function handleDragEnd(_: unknown, info: PanInfo) {
+    // Same throw-to-dismiss thresholds as Sheet, so the two full-screen
+    // surfaces in the app behave identically under the thumb.
+    if (info.offset.y > 110 || info.velocity.y > 520) onClose();
+  }
 
-  function handleDownload() {
-    const frame = frameRef.current;
-    if (!frame?.contentWindow) return;
+  async function handleDownload() {
     setPrinting(true);
     try {
-      // Printing the FRAME, not the page: the browser's own "Save as PDF"
-      // destination is the only way to a real PDF here, and it renders the
-      // document far better than any bundled generator would.
-      frame.contentWindow.focus();
-      frame.contentWindow.print();
+      // A real vector PDF, generated on demand. The library is ~128 KB gzipped
+      // and is imported inside this call, so it costs nothing until pressed.
+      const { downloadInvoicePdf } = await import("@/lib/invoice-pdf");
+      await downloadInvoicePdf(order);
     } catch {
-      // Some in-app browsers block a programmatic print. Falling back to a
-      // real tab at least leaves the buyer somewhere they can use the
-      // browser's own share/print menu, rather than a dead button.
-      const blob = new Blob([buildInvoiceHTML(order)], { type: "text/html" });
-      window.open(URL.createObjectURL(blob), "_blank");
+      // Never leave the button dead. If PDF generation fails — an old browser,
+      // a blocked download — fall back to printing the frame, which is what
+      // this button did before and still reaches Save as PDF.
+      try {
+        frameRef.current?.contentWindow?.focus();
+        frameRef.current?.contentWindow?.print();
+      } catch {
+        const blob = new Blob([buildInvoiceHTML(order)], { type: "text/html" });
+        window.open(URL.createObjectURL(blob), "_blank");
+      }
     } finally {
       setPrinting(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-canvas lg:left-[var(--sidebar-width)]">
-      {/* Title bar */}
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3">
+    <AnimatePresence>
+      {open && (
+    <m.div
+      className="fixed inset-0 z-[60] flex flex-col bg-canvas lg:left-[var(--sidebar-width)]"
+      initial={reduced ? { opacity: 0 } : { y: "100%" }}
+      animate={reduced ? { opacity: 1 } : { y: 0 }}
+      exit={reduced ? { opacity: 0 } : { y: "100%" }}
+      transition={
+        reduced ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 38, mass: 0.9 }
+      }
+      drag={reduced ? false : "y"}
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={{ top: 0, bottom: 0.55 }}
+      onDragEnd={handleDragEnd}
+      // A drag can only be STARTED from the title bar. Left to listen on the
+      // whole surface it would fight the document's own scrolling, and a buyer
+      // reading down a two-page invoice would keep throwing it away by
+      // accident.
+      dragListener={false}
+      dragControls={dragControls}
+    >
+      {/* Title bar — also the drag handle. */}
+      <div
+        onPointerDown={(e) => {
+          if (!reduced) dragControls.start(e);
+        }}
+        className="flex shrink-0 touch-none items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3"
+      >
         <div className="min-w-0">
           <p className="truncate text-base font-bold text-fg">Invoice</p>
           <p className="truncate text-xs text-fg-subtle">{order.orderNumber}</p>
@@ -201,6 +235,8 @@ export function InvoiceViewer({
           Download PDF
         </button>
       </div>
-    </div>
+    </m.div>
+      )}
+    </AnimatePresence>
   );
 }

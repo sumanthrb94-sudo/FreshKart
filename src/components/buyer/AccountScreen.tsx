@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { Sheet } from "@/components/ui/Sheet";
-import { AddressPicker, type PickedAddress } from "@/components/address/AddressPicker";
+import { AddressPicker, type PickedAddress } from "@/components/address/LazyAddressPicker";
 import {
   sanitizePhoneDigits,
   isValidPhoneDigits,

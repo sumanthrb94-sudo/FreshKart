@@ -24,7 +24,7 @@ import {
   AddressPicker,
   AddressMapPreview,
   type PickedAddress,
-} from "@/components/address/AddressPicker";
+} from "@/components/address/LazyAddressPicker";
 import { cn } from "@/lib/utils";
 
 /** COD-only for buyer self-checkout — the app has no live payment gateway.

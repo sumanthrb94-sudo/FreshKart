@@ -42,13 +42,16 @@ export function ShopHero({
         strokeWidth={1}
       />
 
+      {/* Wrapper fills the banner so the drift percentages are banner-relative
+          — see driftX/driftY in globals.css. The per-item left/top that used
+          to sit here were dead anyway: the keyframes animated the same two
+          properties and overrode them on the first frame. */}
       {FLOATERS.map((f, i) => (
         <span
           key={i}
-          className={cn("pointer-events-none absolute opacity-40 drop-shadow motion-reduce:hidden", f.size)}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 motion-reduce:hidden"
           style={{
-            left: `${18 + i * 28}%`,
-            top: `${8 + (i % 2) * 10}%`,
             animationName: "driftX, driftY",
             animationDuration: `${f.dx}, ${f.dy}`,
             animationTimingFunction: "linear",
@@ -57,7 +60,7 @@ export function ShopHero({
             animationDelay: `${f.ox}, ${f.oy}`,
           }}
         >
-          {f.e}
+          <span className={cn("absolute left-0 top-0 opacity-40 drop-shadow", f.size)}>{f.e}</span>
         </span>
       ))}
 

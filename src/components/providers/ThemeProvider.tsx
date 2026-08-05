@@ -5,6 +5,9 @@ import { useAuth } from "@/components/providers/AuthProvider";
 
 type Theme = "dark" | "light";
 
+/** Must match --theme-duration in globals.css. */
+const THEME_FADE_MS = 250;
+
 interface ThemeContextValue {
   theme: Theme;
   toggleTheme: () => void;
@@ -47,6 +50,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme, mounted]);
 
   const toggleTheme = useCallback(() => {
+    // Arm the cross-fade for the length of the swap, then disarm it.
+    //
+    // The colour transition used to live on `*` permanently, which meant every
+    // element in the document carried a six-property 250 ms transition for the
+    // entire session — paid on every hover, every focus ring, every price
+    // update, to serve one button nobody presses twice a day. It is now opt-in
+    // for exactly as long as the theme is changing.
+    const root = document.documentElement;
+    root.classList.add("theme-anim");
+    window.setTimeout(() => root.classList.remove("theme-anim"), THEME_FADE_MS + 60);
+
     setTheme((prev) => {
       const next: Theme = prev === "dark" ? "light" : "dark";
       if (user) updateProfile({ theme: next }).catch(() => {});
