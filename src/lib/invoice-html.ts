@@ -19,7 +19,16 @@ import {
  * GSTIN, no tax line, and it is never called a "Tax Invoice".
  */
 
-export function buildInvoiceHTML(order: Order): string {
+export function buildInvoiceHTML(
+  order: Order,
+  /** Rendered inside the app's own invoice viewer rather than a bare browser
+   *  tab. The viewer supplies the title bar and the Download/Close buttons, so
+   *  the document drops the "press Ctrl+P" hint and the page chrome around
+   *  it — that advice is wrong on a phone, where the viewer's own button is
+   *  what the reader should press. */
+  options: { embedded?: boolean } = {}
+): string {
+  const embedded = options.embedded === true;
   const itemsHtml = order.items
     .map(
       (item, i) => `
@@ -217,6 +226,10 @@ export function buildInvoiceHTML(order: Order): string {
     .print-hint {
       display: none;
     }
+    ${embedded ? `
+    body { background: #ffffff; }
+    .page { box-shadow: none; margin: 0; border-radius: 0; max-width: 100%; }
+    ` : ""}
     @media print {
       body { background: white; }
       .page { box-shadow: none; margin: 0; border-radius: 0; max-width: 100%; }
@@ -365,9 +378,9 @@ export function buildInvoiceHTML(order: Order): string {
   </div>
 
   <!-- Print hint (screen only) -->
-  <div class="print-hint no-print">
+  ${embedded ? "" : `<div class="print-hint no-print">
     <strong>Save as PDF:</strong> Press <strong>Ctrl+P</strong> (or <strong>Cmd+P</strong> on Mac) and select <strong>"Save as PDF"</strong> as the destination.
-  </div>
+  </div>`}
 </body>
 </html>`;
 }
