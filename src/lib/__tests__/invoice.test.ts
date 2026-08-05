@@ -278,3 +278,45 @@ describe("the revised invoice after a deduction", () => {
     expect(html).not.toContain("-R1");
   });
 });
+
+/**
+ * Rendered inside the app's own viewer, the document must not carry advice
+ * meant for a bare browser tab. "Press Ctrl+P" is wrong on a phone, and wrong
+ * anywhere the viewer supplies its own Download button.
+ */
+describe("the embedded invoice", () => {
+  it("drops the press-Ctrl+P hint", () => {
+    const plain = buildInvoiceHTML(order());
+    const embedded = buildInvoiceHTML(order(), { embedded: true });
+    expect(plain).toContain("Ctrl+P");
+    expect(embedded).not.toContain("Ctrl+P");
+  });
+
+  it("still contains the bill itself", () => {
+    // The only difference is chrome — the numbers must be identical.
+    const embedded = buildInvoiceHTML(order(), { embedded: true });
+    expect(embedded).toContain("INV-20260729-ABC123");
+    expect(embedded).toContain("430");
+    expect(embedded).toContain("Tomato");
+  });
+
+  it("escapes buyer-supplied fields exactly as the plain one does", () => {
+    // The viewer renders this in a script-free sandbox, but the escaping is
+    // the primary defence and must not be weakened by the embedded path.
+    const embedded = buildInvoiceHTML(
+      order({
+        delivery: {
+          name: '<script>alert("x")</script>',
+          phone: "9812345678",
+          city: "Hyderabad",
+          address: "12, Sarojini Devi Road",
+          pincode: "500028",
+        },
+      }),
+      { embedded: true }
+    );
+    expect(embedded).not.toContain("<script>alert");
+    expect(embedded).toContain("&lt;script&gt;");
+  });
+});
+

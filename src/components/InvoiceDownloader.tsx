@@ -1,16 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { FileText, CheckCircle2, Ban } from "lucide-react";
+import { useState } from "react";
+import { FileText, Ban } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import {
-  formatCurrency,
-  formatDate,
-  PAYMENT_LONG,
-  ORDER_STATUS_META,
-  canDownloadInvoice,
-} from "@/lib/format";
-import { buildInvoiceHTML } from "@/lib/invoice-html";
+import { canDownloadInvoice } from "@/lib/format";
+import { InvoiceViewer } from "@/components/InvoiceViewer";
 import type { Order } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -21,11 +15,15 @@ interface InvoiceDownloaderProps {
   className?: string;
 }
 
-/** Generates a PDF invoice using browser print-to-PDF.
+/**
+ * Opens the invoice in the app's own viewer.
  *
- *  Opens a styled invoice in a new tab; the user hits Ctrl+P / Cmd+P and
- *  selects "Save as PDF".  No heavy libraries needed — works on every
- *  browser and keeps the bundle lean.
+ * It used to open a blank tab and fire the OS print sheet 400ms later, which
+ * on a phone meant the buyer's first sight of their bill was "Printer: Not
+ * selected". It also depended on a popup surviving the browser's blocker, and
+ * apologised with an alert() when it didn't. Showing the document in place
+ * removes both problems: nothing is printed until Download is pressed, and
+ * there is no popup to block.
  */
 export function InvoiceDownloader({
   order,
@@ -33,30 +31,7 @@ export function InvoiceDownloader({
   fullWidth = false,
   className,
 }: InvoiceDownloaderProps) {
-  const [status, setStatus] = useState<"idle" | "generating" | "done">("idle");
-
-  const openInvoice = useCallback(() => {
-    setStatus("generating");
-
-    const invoiceHTML = buildInvoiceHTML(order);
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      setStatus("idle");
-      alert("Please allow popups to view the invoice.");
-      return;
-    }
-
-    printWindow.document.write(invoiceHTML);
-    printWindow.document.close();
-
-    // Auto-trigger print dialog after a short delay for styles to load
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-      setStatus("done");
-      setTimeout(() => setStatus("idle"), 3000);
-    }, 400);
-  }, [order]);
+  const [open, setOpen] = useState(false);
 
   // No invoice for a cancelled order — there's nothing to bill.
   if (order.status === "CANCELLED") {
@@ -78,28 +53,17 @@ export function InvoiceDownloader({
   if (!canDownloadInvoice(order.status)) return null;
 
   return (
-    <Button
-      variant={variant}
-      fullWidth={fullWidth}
-      className={cn(className)}
-      loading={status === "generating"}
-      disabled={status !== "idle"}
-      leadingIcon={
-        status === "done" ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-        ) : (
-          <FileText className="h-4 w-4" />
-        )
-      }
-      onClick={openInvoice}
-    >
-      {status === "generating"
-        ? "Opening invoice…"
-        : status === "done"
-          ? "Invoice opened"
-          : "Download Invoice"}
-    </Button>
+    <>
+      <Button
+        variant={variant}
+        fullWidth={fullWidth}
+        className={cn(className)}
+        leadingIcon={<FileText className="h-4 w-4" />}
+        onClick={() => setOpen(true)}
+      >
+        View invoice
+      </Button>
+      <InvoiceViewer order={order} open={open} onClose={() => setOpen(false)} />
+    </>
   );
 }
-
-/** Builds a self-contained, print-optimized HTML invoice. */
