@@ -39,14 +39,36 @@ export function buildInvoiceHTML(order: Order): string {
     month: "long",
     year: "numeric",
   });
-  // Escaped once here — invoiceNumber/orderNumber are system-generated, but
-  // they still flow into the invoice's HTML (title + header), so escape as
-  // defense-in-depth alongside the buyer-controlled delivery fields below.
-  const invoiceNumber = escapeHtml(order.adjustedInvoiceNumber || `INV-${order.orderNumber.replace("ORD-", "")}`);
   // Only a SETTLED adjustment changes the bill. One still awaiting an admin
   // decision must not reduce the invoice — nothing has been agreed yet.
   const settledAdjustment =
     order.adjustment && order.adjustment.status !== "PENDING" ? order.adjustment : null;
+
+  /**
+   * A deduction produces a NEW invoice, not a quiet edit of the old one.
+   *
+   * The buyer has already filed the original against the order — that is the
+   * whole point of issuing it at order time. If the revised copy came back
+   * carrying the same number but a smaller total, their books would hold two
+   * different documents claiming to be the same invoice, and no way to tell
+   * which is current. The revision suffix makes the replacement identifiable,
+   * and the header says what it supersedes.
+   *
+   * Derived rather than stored: it is a pure function of the adjustment that
+   * is already on the order, so it cannot drift out of sync with the amount
+   * printed beside it, and no extra write (or Firestore rule) is needed at
+   * the doorstep. A stored adjustedInvoiceNumber still wins if one is ever
+   * set, so an externally-issued number can override this.
+   */
+  const originalNumber = `INV-${order.orderNumber.replace("ORD-", "")}`;
+  const revised = Boolean(settledAdjustment);
+  // Escaped once here — these are system-generated, but they still flow into
+  // the invoice's HTML (title + header), so escape as defense-in-depth
+  // alongside the buyer-controlled delivery fields below.
+  const invoiceNumber = escapeHtml(
+    order.adjustedInvoiceNumber || (revised ? `${originalNumber}-R1` : originalNumber)
+  );
+  const supersedes = revised && !order.adjustedInvoiceNumber ? escapeHtml(originalNumber) : null;
   const orderNumber = escapeHtml(order.orderNumber);
   // The invoice is issued when the order is placed, so for most of its life
   // the amount on it is not yet final: the buyer inspects at the door and
@@ -230,10 +252,11 @@ export function buildInvoiceHTML(order: Order): string {
         <p style="font-size:11px;opacity:0.7;">Phone: +91 74166 20691</p>
       </div>
       <div class="header-right">
-        <div class="badge">${provisional ? "Provisional Invoice" : "Invoice"}</div>
+        <div class="badge">${provisional ? "Provisional Invoice" : revised ? "Revised Invoice" : "Invoice"}</div>
         <p style="margin-top:12px;font-size:20px;font-weight:700;">${invoiceNumber}</p>
         <p style="font-size:12px;opacity:0.85;margin-top:2px;">Date: ${invoiceDate}</p>
         <p style="font-size:12px;opacity:0.85;">Order: ${orderNumber}</p>
+        ${supersedes ? `<p style="font-size:12px;opacity:0.85;">Replaces: ${supersedes}</p>` : ""}
       </div>
     </div>
 
