@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { FileText, CheckCircle2, Clock, Ban } from "lucide-react";
+import { FileText, CheckCircle2, Ban } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import {
   formatCurrency,
@@ -73,20 +73,9 @@ export function InvoiceDownloader({
     );
   }
 
-  // Invoices are only issued once the order is actually delivered.
-  if (!canDownloadInvoice(order.status)) {
-    return (
-      <div
-        className={cn(
-          "flex items-center justify-center gap-2 rounded-lg border border-line bg-raised px-3 py-2.5 text-xs font-medium text-fg-subtle",
-          className
-        )}
-      >
-        <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        Invoice available after delivery
-      </div>
-    );
-  }
+  // Belt and braces — canDownloadInvoice only excludes CANCELLED, which the
+  // branch above already handled. Kept so the two can never drift apart.
+  if (!canDownloadInvoice(order.status)) return null;
 
   return (
     <Button

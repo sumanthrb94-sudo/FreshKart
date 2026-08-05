@@ -1,6 +1,12 @@
 import type { Order } from "./types";
 import { payableTotal, describeAdjustment } from "./delivery-adjustment";
-import { formatCurrency, formatDate, ORDER_STATUS_META, PAYMENT_LONG } from "./format";
+import {
+  formatCurrency,
+  formatDate,
+  isInvoiceProvisional,
+  ORDER_STATUS_META,
+  PAYMENT_LONG,
+} from "./format";
 
 /**
  * The invoice, as a self-contained HTML document.
@@ -42,6 +48,12 @@ export function buildInvoiceHTML(order: Order): string {
   const settledAdjustment =
     order.adjustment && order.adjustment.status !== "PENDING" ? order.adjustment : null;
   const orderNumber = escapeHtml(order.orderNumber);
+  // The invoice is issued when the order is placed, so for most of its life
+  // the amount on it is not yet final: the buyer inspects at the door and
+  // refuses what they don't want, and a settled adjustment reduces the bill.
+  // Saying so on the document is the difference between a figure that later
+  // drops and a figure that later drops WITHOUT WARNING.
+  const provisional = isInvoiceProvisional(order.status);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -218,7 +230,7 @@ export function buildInvoiceHTML(order: Order): string {
         <p style="font-size:11px;opacity:0.7;">Phone: +91 74166 20691</p>
       </div>
       <div class="header-right">
-        <div class="badge">Invoice</div>
+        <div class="badge">${provisional ? "Provisional Invoice" : "Invoice"}</div>
         <p style="margin-top:12px;font-size:20px;font-weight:700;">${invoiceNumber}</p>
         <p style="font-size:12px;opacity:0.85;margin-top:2px;">Date: ${invoiceDate}</p>
         <p style="font-size:12px;opacity:0.85;">Order: ${orderNumber}</p>
@@ -242,6 +254,7 @@ export function buildInvoiceHTML(order: Order): string {
           <p class="section-title">Delivery Details</p>
           <div class="info-block">
             <p><strong>Status:</strong> ${ORDER_STATUS_META[order.status].label}</p>
+            ${provisional ? `<p style="margin-top:6px;color:#b45309;font-size:12px;">Amount is not final until delivery — anything refused at the door is deducted.</p>` : ""}
             <p><strong>Payment:</strong> ${PAYMENT_LONG[order.paymentMethod]} (${order.paymentStatus === "PAID" ? "Paid" : "Unpaid"})</p>
             <p><strong>Ordered:</strong> ${formatDate(order.createdAt)}</p>
           </div>

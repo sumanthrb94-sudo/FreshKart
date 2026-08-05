@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import { buildInvoiceHTML } from "../invoice-html";
+import { canDownloadInvoice, isInvoiceProvisional } from "../format";
 import type { Order } from "../types";
 
 const order = (over: Partial<Order> = {}): Order =>
@@ -120,5 +121,104 @@ describe("what the invoice charges", () => {
     );
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
+  });
+});
+
+/**
+ * The invoice is issued when the order is placed, not when it is delivered.
+ * A wholesale buyer records the purchase against it on the day they order —
+ * waiting for the van left them with nothing for ~24 hours.
+ *
+ * The catch is that the amount is not final until the door, because the buyer
+ * inspects and refuses what they don't want. The document has to say so.
+ */
+describe("when the invoice is available", () => {
+  it("exists from the moment the order is placed", () => {
+    expect(canDownloadInvoice("CONFIRMED")).toBe(true);
+    expect(canDownloadInvoice("PACKED")).toBe(true);
+    expect(canDownloadInvoice("SHIPPED")).toBe(true);
+    expect(canDownloadInvoice("DELIVERED")).toBe(true);
+  });
+
+  it("does not exist for a cancelled order — there is nothing to bill", () => {
+    expect(canDownloadInvoice("CANCELLED")).toBe(false);
+  });
+
+  it("marks itself provisional until the goods are handed over", () => {
+    expect(isInvoiceProvisional("CONFIRMED")).toBe(true);
+    expect(isInvoiceProvisional("PACKED")).toBe(true);
+    expect(isInvoiceProvisional("DELIVERED")).toBe(false);
+  });
+
+  it("warns on the document itself while the amount can still change", () => {
+    const html = buildInvoiceHTML(order({ status: "CONFIRMED" }));
+    expect(html).toContain("Provisional Invoice");
+    expect(html).toContain("not final until delivery");
+  });
+
+  it("drops the warning once delivered", () => {
+    const html = buildInvoiceHTML(order({ status: "DELIVERED" }));
+    expect(html).not.toContain("Provisional Invoice");
+    expect(html).not.toContain("not final until delivery");
+  });
+
+  it("bills the adjusted amount once a door-side refusal is settled", () => {
+    // The whole point of reissuing rather than withholding: the same document
+    // prints the current figure. 5 kg of a 20 kg line refused at Rs. 19 = 95
+    // off a Rs. 430 bill.
+    const html = buildInvoiceHTML(
+      order({
+        status: "DELIVERED",
+        adjustment: {
+          status: "AUTO_APPROVED",
+          reason: "Bruised",
+          photos: [],
+          lines: [
+            {
+              productId: "tomato",
+              name: "Tomato",
+              unit: "kg",
+              rejectedQty: 5,
+              unitPrice: 19,
+              lineRefund: 95,
+            },
+          ],
+          totalRefund: 95,
+          raisedBy: "d1",
+          raisedByName: "Ravi",
+          raisedAt: "2026-07-30T03:00:00.000Z",
+        },
+      } as Partial<Order>)
+    );
+    expect(html).toContain("335"); // 430 - 95
+  });
+
+  it("ignores an adjustment still waiting on the office", () => {
+    // Nothing has been agreed yet, so the bill must not drop.
+    const html = buildInvoiceHTML(
+      order({
+        status: "DELIVERED",
+        adjustment: {
+          status: "PENDING",
+          reason: "Bruised",
+          photos: [],
+          lines: [
+            {
+              productId: "tomato",
+              name: "Tomato",
+              unit: "kg",
+              rejectedQty: 5,
+              unitPrice: 19,
+              lineRefund: 95,
+            },
+          ],
+          totalRefund: 95,
+          raisedBy: "d1",
+          raisedByName: "Ravi",
+          raisedAt: "2026-07-30T03:00:00.000Z",
+        },
+      } as Partial<Order>)
+    );
+    expect(html).toContain("430");
   });
 });
