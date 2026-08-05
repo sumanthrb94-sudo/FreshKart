@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Seg = { t: string; em?: boolean };
 
@@ -31,10 +31,57 @@ export function BrandSplash({
   onRetry?: () => void;
 } = {}) {
   const [i, setI] = useState(0);
+  const lineRef = useRef<HTMLParagraphElement | null>(null);
 
+  /**
+   * One timeline drives the whole cycle: hold, fade the line out, swap the
+   * words, fade the next one in.
+   *
+   * It used to be a bare `setInterval` swapping the text while a re-keyed CSS
+   * class faded it in — two independent clocks, so the fade restarted from
+   * whatever phase it happened to be in and the OLD line was never faded out
+   * at all; it was simply replaced mid-sentence. A timeline sequences the
+   * three steps against one clock, which is the thing CSS keyframes cannot do
+   * across a React state change.
+   *
+   * anime.js is imported on demand — this is a loading screen, and blocking it
+   * on a 15 KB animation library would be absurd. Until it lands the line just
+   * sits still, which is exactly what a splash did before.
+   */
   useEffect(() => {
-    const id = setInterval(() => setI((n) => (n + 1) % TAGLINES.length), 2400);
-    return () => clearInterval(id);
+    if (typeof window === "undefined") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    let cancelled = false;
+    let scope: { revert: () => void } | null = null;
+
+    import("animejs")
+      .then(({ createTimeline, createScope }) => {
+        if (cancelled || !lineRef.current) return;
+        scope = createScope({ root: lineRef }).add(() => {
+          createTimeline({ loop: true })
+            .add(lineRef.current!, { opacity: [1, 1], duration: 2000 })
+            .add(lineRef.current!, {
+              opacity: 0,
+              translateY: -8,
+              duration: 260,
+              ease: "inQuad",
+              onComplete: () => setI((n) => (n + 1) % TAGLINES.length),
+            })
+            .add(lineRef.current!, {
+              opacity: [0, 1],
+              translateY: [8, 0],
+              duration: 340,
+              ease: "outQuad",
+            });
+        }) as unknown as { revert: () => void };
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      scope?.revert();
+    };
   }, []);
 
   const showRetry = stalled && !!onRetry;
@@ -49,7 +96,7 @@ export function BrandSplash({
             connection looks slow.
           </p>
         ) : (
-          <p key={i} className="animate-fade text-lg font-medium leading-snug text-gray-500">
+          <p ref={lineRef} className="text-lg font-medium leading-snug text-gray-500">
             {TAGLINES[i].map((s, idx) => (
               <span key={idx} className={s.em ? "font-bold text-gray-100" : undefined}>
                 {s.t}

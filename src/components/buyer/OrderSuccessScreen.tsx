@@ -13,6 +13,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader } from "@/components/ui/Spinner";
+import { CountUp } from "@/components/ui/CountUp";
 import { PackageX } from "lucide-react";
 
 export function OrderSuccessScreen({ id }: { id: string }) {
@@ -115,9 +116,12 @@ export function OrderSuccessScreen({ id }: { id: string }) {
             <div className="my-3 border-t border-dashed border-line" />
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-fg">Total paid</span>
-              <span className="text-base font-extrabold text-fg">
-                {formatCurrency(order.total)}
-              </span>
+              {/* The one number this screen exists to show. */}
+              <CountUp
+                value={order.total}
+                prefix="₹"
+                className="text-base font-extrabold text-fg"
+              />
             </div>
             <p className="mt-1 text-xs text-fg-subtle">{paymentLine}</p>
           </CardBody>

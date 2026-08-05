@@ -130,38 +130,23 @@ body {
   color: theme("colors.fg.DEFAULT");
 }
 
-/* Smooth theme transitions on all color-aware elements */
-*,
-*::before,
-*::after {
+/* Cross-fade the whole document when the theme is swapped — and ONLY then.
+   ThemeProvider adds .theme-anim for the length of the swap and removes it.
+
+   This rule used to apply to `*` unconditionally, so every element in the
+   document carried a six-property 250ms transition for the whole session.
+   That is charged on every hover, every focus ring, and every live price
+   update, on phones that can least afford it — all to serve one button. It
+   also needed a growing opt-out list, because anything genuinely animated had
+   to fight it. Scoped like this, the app has no global transition at rest and
+   the opt-out list is unnecessary. */
+.theme-anim,
+.theme-anim *,
+.theme-anim *::before,
+.theme-anim *::after {
   transition-property: background-color, border-color, color, fill, stroke, box-shadow;
   transition-duration: var(--theme-duration);
   transition-timing-function: ease-in-out;
-}
-
-/* Disable transition on transform and opacity (used for animations) */
-html:not(.light) *,
-html:not(.light) *::before,
-html:not(.light) *::after {
-  transition-delay: 0ms;
-}
-
-/* Allow instant state changes for interactive feedback */
-button:active,
-a:active {
-  transition-duration: 50ms !important;
-}
-
-/* No transition on progress bars, spinners, and animation elements */
-.animate-spin,
-.animate-bounce,
-.animate-pulse,
-.animate-float,
-.animate-float-slow,
-.animate-pop,
-.animate-rise,
-.animate-fade {
-  transition-property: none !important;
 }
 
 /* Hide scrollbars inside the app column / sheets for an app-like feel */
@@ -201,20 +186,63 @@ input[type="number"] {
 
 /* Decorative "bounce around the box" drift for the sign-in produce
    (Onida / DVD-logo style). X and Y animate on different periods with
-   `alternate`, so each item ricochets off all four edges and loops forever. */
+   `alternate`, so each item ricochets off all four edges and loops forever.
+
+   Animates TRANSFORM, not left/top. The original animated the box offsets,
+   which forces layout and paint on every frame — nine of these run on the
+   sign-in screen, the first thing every user sees, and three more behind the
+   shop hero, all `infinite`. Twelve elements relaying out sixty times a
+   second, forever, on a budget Android. Transforms are handled by the
+   compositor and cost the main thread nothing.
+
+   Applied to a wrapper that FILLS its container (inset-0), with the produce
+   pinned to the wrapper's top-left corner. Translate percentages resolve
+   against the animated element's own box, so a container-sized wrapper makes
+   them container-relative — the geometry is identical to the left/top version
+   it replaces, rather than re-tuned in viewport units that would mean one set
+   of numbers for the full-height sign-in hero and another for the short shop
+   banner.
+
+   X uses `transform` and Y the independent `translate` property, because two
+   animations cannot drive the same property; the two compose. */
 @keyframes driftX {
   from {
-    left: 3%;
+    transform: translateX(3%);
   }
   to {
-    left: 84%;
+    transform: translateX(84%);
   }
 }
 @keyframes driftY {
   from {
-    top: 4%;
+    translate: 0 4%;
   }
   to {
-    top: 82%;
+    translate: 0 82%;
+  }
+}
+
+/* Respect the OS setting.
+   
+   Three `motion-reduce:` variants on decorative produce was the whole of it
+   before; the sheets, the toasts, the splash crossfade, the install banner and
+   the drifting produce all animated regardless of what the user had asked for.
+   
+   Spinners are deliberately exempt. A frozen spinner does not communicate
+   "reduced motion", it communicates "this has hung" — the one thing a loading
+   indicator must never say. They are slowed rather than stopped. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-spin {
+    animation-duration: 1.6s !important;
+    animation-iteration-count: infinite !important;
   }
 }

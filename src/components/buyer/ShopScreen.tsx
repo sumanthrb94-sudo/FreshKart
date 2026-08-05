@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Clock, Search, SearchX } from "lucide-react";
@@ -22,7 +23,13 @@ import { ShopHero } from "./ShopHero";
 import { ProductListItem } from "./ProductListItem";
 import { StickyCartBar } from "./StickyCartBar";
 import { BuyerBottomNav } from "./BuyerBottomNav";
-import { CheckoutSheet } from "./CheckoutSheet";
+// Deferred: nobody sees checkout until they have a cart and tap it, and it is
+// the heaviest thing on this screen — the address map, the coupon field, the
+// payment block and the animated sheet all hang off it. Keeping it out of the
+// first load is what pays for Motion elsewhere.
+const CheckoutSheet = dynamic(() => import("./CheckoutSheet").then((m) => m.CheckoutSheet), {
+  ssr: false,
+});
 import { SuccessOverlay } from "./SuccessOverlay";
 
 export function ShopScreen() {

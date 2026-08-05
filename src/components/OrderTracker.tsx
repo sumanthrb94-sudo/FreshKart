@@ -14,6 +14,10 @@ import {
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import { useOrderTracker, STATUS_FLOW, STAGE_DURATIONS } from "@/components/providers/OrderTrackerProvider";
+
+/** How often the percentage readout updates. The bar's CSS transition is set
+ *  a touch longer so it is always still gliding when the next tick lands. */
+const PROGRESS_TICK_MS = 250;
 import type { OrderStatus } from "@/lib/types";
 
 const STAGE_META: Record<
@@ -93,12 +97,18 @@ export function OrderTracker() {
     }
     setProgress(0);
     const start = Date.now();
+    // Ticks 4×/s, not 20×/s. The old 50ms interval re-rendered this whole
+    // component twenty times a second for the entire stage, on the screen a
+    // buyer leaves open while they wait. The bar itself is interpolated by a
+    // CSS transition matched to this interval, so it still moves smoothly —
+    // only the percentage readout needs React, and nobody reads a number that
+    // changes twenty times a second.
     const interval = setInterval(() => {
       const elapsed = Date.now() - start;
       const pct = Math.min((elapsed / duration) * 100, 100);
       setProgress(pct);
       if (pct >= 100) clearInterval(interval);
-    }, 50);
+    }, PROGRESS_TICK_MS);
     return () => clearInterval(interval);
   }, [tracked?.currentStage, currentStatus]);
 
@@ -131,7 +141,7 @@ export function OrderTracker() {
         <div className="h-1 w-full bg-raised">
           <div
             className={cn(
-              "h-full transition-all duration-100 ease-linear",
+              "h-full transition-[width] duration-300 ease-linear",
               currentStatus === "DELIVERED"
                 ? "bg-emerald-500"
                 : "bg-brand-500"

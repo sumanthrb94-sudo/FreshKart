@@ -58,6 +58,13 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
+
+  experimental: {
+    // Icons are imported by name in ~70 files. Without this hint the whole
+    // lucide-react barrel is walked on every one of them; with it, Next
+    // rewrites each to a direct module import.
+    optimizePackageImports: ["lucide-react"],
+  },
   // Don't advertise the framework/version in responses.
   poweredByHeader: false,
   images: {
