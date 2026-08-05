@@ -342,10 +342,35 @@ export function canBuyerCancel(status: OrderStatus, driverId?: string | null): b
   return status === "PENDING" || status === "CONFIRMED";
 }
 
-/** Invoices are only issued once an order has actually been delivered —
- *  never for a cancelled order, which has nothing to invoice. */
+/**
+ * An invoice exists from the moment the order is placed.
+ *
+ * It used to wait for delivery, which left a buyer with nothing to give their
+ * accounts department for the ~24 hours between ordering and the van
+ * arriving — on a wholesale order that is the document the purchase is
+ * recorded against, and it was simply missing.
+ *
+ * The bill is not final until the door, because the buyer inspects and
+ * refuses what they don't want and a settled adjustment reduces the amount.
+ * That is handled by the invoice regenerating from the order every time it is
+ * opened rather than by withholding it: the same URL prints the current
+ * figure, and the document says so while the outcome is still open.
+ *
+ * A cancelled order is the one case with nothing to bill.
+ */
 export function canDownloadInvoice(status: OrderStatus): boolean {
-  return status === "DELIVERED";
+  return status !== "CANCELLED";
+}
+
+/**
+ * Is the amount on the invoice still open to change?
+ *
+ * True until the goods are handed over, since the buyer may refuse produce at
+ * the door. Once delivered the figure is settled — including any adjustment
+ * made at the door, which is already reflected in it.
+ */
+export function isInvoiceProvisional(status: OrderStatus): boolean {
+  return status !== "DELIVERED" && status !== "CANCELLED";
 }
 
 // 5-stage buyer tracking timeline (brief §9.3)
