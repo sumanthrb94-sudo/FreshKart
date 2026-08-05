@@ -222,3 +222,59 @@ describe("when the invoice is available", () => {
     expect(html).toContain("430");
   });
 });
+
+/**
+ * A deduction produces a NEW invoice. The buyer filed the original against
+ * the order the day they placed it; a revised copy carrying the same number
+ * but a smaller total would leave two documents in their books claiming to be
+ * the same invoice.
+ */
+describe("the revised invoice after a deduction", () => {
+  const settled = {
+    status: "AUTO_APPROVED",
+    reason: "Bruised",
+    photos: [],
+    lines: [
+      { productId: "tomato", name: "Tomato", unit: "kg", rejectedQty: 5, unitPrice: 19, lineRefund: 95 },
+    ],
+    totalRefund: 95,
+    raisedBy: "d1",
+    raisedByName: "Ravi",
+    raisedAt: "2026-07-30T03:00:00.000Z",
+  };
+
+  it("issues a new number and says what it replaces", () => {
+    const html = buildInvoiceHTML(order({ status: "DELIVERED", adjustment: settled } as Partial<Order>));
+    expect(html).toContain("INV-20260729-ABC123-R1");
+    expect(html).toContain("Replaces: INV-20260729-ABC123");
+    expect(html).toContain("Revised Invoice");
+  });
+
+  it("leaves the number alone when nothing was deducted", () => {
+    const html = buildInvoiceHTML(order({ status: "DELIVERED" }));
+    expect(html).toContain("INV-20260729-ABC123");
+    expect(html).not.toContain("-R1");
+    expect(html).not.toContain("Replaces:");
+  });
+
+  it("does not renumber for an adjustment still awaiting the office", () => {
+    // Nothing agreed, nothing deducted, so nothing superseded.
+    const html = buildInvoiceHTML(
+      order({ status: "DELIVERED", adjustment: { ...settled, status: "PENDING" } } as Partial<Order>)
+    );
+    expect(html).not.toContain("-R1");
+    expect(html).toContain("430");
+  });
+
+  it("honours an explicitly stored invoice number over the derived one", () => {
+    const html = buildInvoiceHTML(
+      order({
+        status: "DELIVERED",
+        adjustment: settled,
+        adjustedInvoiceNumber: "INV-MANUAL-7",
+      } as Partial<Order>)
+    );
+    expect(html).toContain("INV-MANUAL-7");
+    expect(html).not.toContain("-R1");
+  });
+});
