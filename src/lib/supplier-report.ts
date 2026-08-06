@@ -1,5 +1,6 @@
 import type { Order, Product } from "./types";
 import { store } from "./api/mock-store";
+import { csvRow } from "./csv";
 
 /** A single line item that needs to be ordered from a supplier. */
 export interface SupplierOrderLine {
@@ -190,10 +191,13 @@ export function reportToCSV(report: SupplierReport): string {
     "Min Order Qty",
   ];
 
+  // Previously each of these was wrapped in literal quotes by hand, which both
+  // failed to escape an embedded quote and left every cell open to formula
+  // injection. `csvRow` does the quoting and the neutralising.
   const rows = report.lines.map((l) => [
-    `"${l.productName}"`,
+    l.productName,
     l.category,
-    `"${l.origin}"`,
+    l.origin,
     l.unit,
     l.currentStock,
     l.stockStatus,
@@ -204,7 +208,7 @@ export function reportToCSV(report: SupplierReport): string {
     l.minOrderQty,
   ]);
 
-  const summaryRows = [
+  const summaryRows: (string | number)[][] = [
     [],
     ["Report Summary"],
     ["Report ID", report.reportId],
@@ -217,7 +221,7 @@ export function reportToCSV(report: SupplierReport): string {
     ["Total Pending Order Qty", report.summary.totalPendingOrderQty],
   ];
 
-  return [headers.join(","), ...rows.map((r) => r.join(",")), ...summaryRows.map((r) => r.join(","))].join("\n");
+  return [csvRow(headers), ...rows.map(csvRow), ...summaryRows.map(csvRow)].join("\n");
 }
 
 /** Convert report to a human-readable text format. */
