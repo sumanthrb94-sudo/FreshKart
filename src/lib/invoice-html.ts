@@ -29,11 +29,11 @@ export function buildInvoiceHTML(
     .map(
       (item) => `
     <tr>
-      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#6b7280;font-size:13px;">${item.index}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#6b7280;font-size:13px;">${escapeHtml(String(item.index))}</td>
       <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#111827;font-weight:500;">${escapeHtml(item.name)}</td>
       <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#6b7280;font-size:13px;">${escapeHtml(item.qty)}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;color:#111827;">${item.unitPrice}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;color:#111827;font-weight:600;">${item.amount}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;color:#111827;">${escapeHtml(item.unitPrice)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;color:#111827;font-weight:600;">${escapeHtml(item.amount)}</td>
     </tr>`
     )
     .join("");
@@ -42,8 +42,8 @@ export function buildInvoiceHTML(
     .map(
       (t) => `
           <div class="total-row${t.grand ? " grand" : ""}">
-            <span>${t.label}</span>
-            <span${t.credit ? ` style="color:#059669;font-weight:600;"` : ""}>${t.value}</span>
+            <span>${escapeHtml(t.label)}</span>
+            <span${t.credit ? ` style="color:#059669;font-weight:600;"` : ""}>${escapeHtml(t.value)}</span>
           </div>`
     )
     .join("");

@@ -80,7 +80,33 @@ export interface InvoiceModel {
   fileName: string;
 }
 
-const rupees = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
+/**
+ * Money, as text — and never anything but text that came from a number.
+ *
+ * `n` is typed `number`, but TypeScript is not there at runtime and this data
+ * comes off Firestore, which the browser writes to directly. `firestore.rules`
+ * does arithmetic on `qty`, `subtotal` and `total`, so a non-numeric value
+ * there is rejected before it is stored — but it never touches `items[].price`
+ * or `items[].lineTotal` (per-item price validation was moved to the server for
+ * read-budget reasons, see the comment in firestore.rules). A hostile buyer can
+ * therefore store a STRING in those two fields, and `String.prototype`
+ * has its own `toLocaleString` that hands the string straight back. That string
+ * then reached the invoice's HTML unescaped.
+ *
+ * The renderers escape now, which is the real fix. This is the second lock:
+ * a value that is not a finite number never becomes text that looks like one.
+ */
+const numeric = (n: number): number | null => {
+  const v = typeof n === "number" ? n : Number(n);
+  return Number.isFinite(v) ? v : null;
+};
+
+const rupees = (n: number) => {
+  const v = numeric(n);
+  // An em dash, not 0 — a corrupt price is not a free one, and a bill must
+  // never quietly understate itself.
+  return v === null ? "Rs. —" : `Rs. ${v.toLocaleString("en-IN")}`;
+};
 
 export const SELLER = {
   name: "Green Basket",
@@ -171,7 +197,7 @@ export function buildInvoiceModel(order: Order): InvoiceModel {
     items: order.items.map((item, i) => ({
       index: i + 1,
       name: item.name,
-      qty: `${item.qty} ${item.unit}`,
+      qty: `${numeric(item.qty) ?? "—"} ${item.unit}`,
       unitPrice: rupees(item.price),
       amount: rupees(item.lineTotal),
     })),

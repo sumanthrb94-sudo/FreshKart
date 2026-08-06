@@ -25,6 +25,26 @@ function escapeHtml(text: string): string {
   return String(text ?? "").replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
+/**
+ * A number, rendered as one — and as nothing else.
+ *
+ * These are typed `number`, so they looked safe to interpolate raw. They are
+ * not: the quantities are summed out of `OrderItem.qty`, which comes off
+ * Firestore, and `0 + "<img …>"` in JavaScript is a string, not a sum. This
+ * document goes to `document.write` in a fresh, same-origin, UNSANDBOXED tab
+ * in the admin's own browser (PackingSlipPrinter.tsx), so anything that
+ * executes here executes with the admin's session.
+ *
+ * `firestore.rules` does reject a non-numeric `qty` today — it does arithmetic
+ * on it, and rules are strictly typed — which is why this was never live. That
+ * is a happy accident of a rule written for a different purpose, in a
+ * different file, and it is not what this document should be relying on.
+ */
+function num(n: number): string {
+  const v = typeof n === "number" ? n : Number(n);
+  return Number.isFinite(v) ? String(v) : "—";
+}
+
 function qtyLabel(kg: number, pieces: number): string {
   const parts: string[] = [];
   if (kg > 0) parts.push(`${kg} kg`);
@@ -39,8 +59,8 @@ function pickListRows(report: DailyPackingReport): string {
       (l) => `
     <tr>
       <td class="item">${escapeHtml(l.name)}</td>
-      <td class="qty">${l.totalQty} <span class="unit">${escapeHtml(l.unit)}</span></td>
-      <td class="mid">${l.orderCount}</td>
+      <td class="qty">${num(l.totalQty)} <span class="unit">${escapeHtml(l.unit)}</span></td>
+      <td class="mid">${num(l.orderCount)}</td>
       <td class="pack">${escapeHtml(l.packagingType)}</td>
       <td class="check">☐</td>
     </tr>`
@@ -55,7 +75,7 @@ function slipSheet(slip: PackSlip, report: DailyPackingReport, index: number): s
       <tr>
         <td class="check">☐</td>
         <td class="item">${escapeHtml(i.name)}</td>
-        <td class="qty">${i.qty} <span class="unit">${escapeHtml(i.unit)}</span></td>
+        <td class="qty">${num(i.qty)} <span class="unit">${escapeHtml(i.unit)}</span></td>
       </tr>`
     )
     .join("");
