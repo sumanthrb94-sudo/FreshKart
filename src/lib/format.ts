@@ -20,17 +20,26 @@ export function isValidOrderWeight(totalQty: number): boolean {
 }
 
 /**
- * Max distinct products in a single order. firestore.rules validates prices
- * against a single pre-fetched price-sheet document (one get() call, not one
- * per item), so this is no longer bounded by Firestore's get()-call budget —
- * it only mirrors how far getExpectedSubtotal() in firestore.rules has been
- * hand-unrolled (rules have no loop/reduce to sum an arbitrary-length
- * array). 50 is comfortably above the entire product catalog, so in
- * practice no buyer can ever hit this. Keep both in sync — raising one
- * without the other either re-blocks legitimate carts or lets the client
- * claim a cap the rules won't actually honor.
+ * Max DISTINCT products in a single order (quantity per product is unbounded —
+ * a buyer can still order 500 kg of one item).
+ *
+ * firestore.rules anchors the order subtotal to the catalogue with
+ * getExpectedSubtotal() — a single price-sheet get(), then a flat sum of
+ * `price × qty` across the lines — so the total a buyer pays cannot be
+ * understated. That sum is hand-unrolled (rules have no loop/reduce), and the
+ * rules engine caps one expression at 1000 sub-expressions; the money sum
+ * clears that up to ~43 lines, measured on the emulator against a real
+ * checkout transaction. 40 sits safely under that ceiling and above the whole
+ * product catalogue, so no real order hits it, while the earlier per-line
+ * price-validation ladders (which capped checkout at ~6) are avoided entirely.
+ *
+ * Keep this in lockstep with the `items.size() <= 40` check in firestore.rules:
+ * raising one without the other either re-blocks legitimate carts or lets the
+ * client claim a cap the rules won't honor. Lifting it further needs the
+ * per-line catalogue check to move to a trusted server (see the order-create
+ * comment in firestore.rules).
  */
-export const MAX_ORDER_ITEM_TYPES = 50;
+export const MAX_ORDER_ITEM_TYPES = 40;
 
 /** Indian mobile numbers are exactly 10 digits (matches the OTP login flow's
  *  own validation in OnboardingScreen). Free-text phone fields elsewhere

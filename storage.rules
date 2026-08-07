@@ -18,19 +18,14 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
-    match /returns/{uid}/{imageId=**} {
-      // Least privilege: a return's damage photos are visible only to the
-      // buyer who uploaded them and to admins — NOT to every signed-in user.
-      // (Previously `read: if request.auth != null` let any authenticated
-      // buyer read any other buyer's return photos by path, an IDOR /
-      // horizontal-access gap.)
-      allow read: if request.auth != null
-        && (request.auth.uid == uid || isAdmin());
-      allow create: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.size < 5 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
-      // No update/delete: evidence photos are immutable once submitted.
-    }
+    // The returns feature was removed from the app (fresh produce is settled at
+    // the door via delivery adjustments, not post-delivery returns), so nothing
+    // uploads to or reads from returns/ any more. The rule block is deleted
+    // rather than left orphaned: `contentType.matches('image/.*')` accepts a
+    // client-declared `image/svg+xml`, and Firebase serves stored bytes with
+    // their declared type — so a re-introduced returns path where an admin views
+    // photos inline would be a stored-XSS vector into an admin session. If
+    // returns ever come back, add the rule back WITHOUT admin inline rendering
+    // of buyer-uploaded files, or restrict contentType to raster images only.
   }
 }

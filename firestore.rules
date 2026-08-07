@@ -145,53 +145,75 @@ service cloud.firestore {
              0;
     }
 
-    // Total order weight (kg), summed the same chunked way as
-    // the subtotal used to be (and for the same reason — Firestore's
-    // rules parser rejects one large expression as "too complex to evaluate
-    // safely"). Mirrors MIN_ORDER_TOTAL_QTY / MAX_ORDER_TOTAL_QTY in
-    // src/lib/format.ts — the client's own check is not real enforcement on
-    // its own, since the browser talks to Firestore directly and a crafted
-    // write can skip the client entirely.
-    function partialSumQty(items, from, count) {
-      return count <= 0 ? 0 :
-             count == 1 ? items[from].qty :
-             count == 2 ? items[from].qty + items[from+1].qty :
-             count == 3 ? items[from].qty + items[from+1].qty + items[from+2].qty :
-             count == 4 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty :
-             count == 5 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty :
-             count == 6 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty :
-             count == 7 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty + items[from+6].qty :
-             count == 8 ? items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty + items[from+6].qty + items[from+7].qty :
-             items[from].qty + items[from+1].qty + items[from+2].qty + items[from+3].qty + items[from+4].qty + items[from+5].qty + items[from+6].qty + items[from+7].qty + items[from+8].qty;
-    }
-
-    function chunkSumQty(items, chunkStart) {
-      return items[chunkStart].qty + items[chunkStart+1].qty + items[chunkStart+2].qty + items[chunkStart+3].qty + items[chunkStart+4].qty + items[chunkStart+5].qty + items[chunkStart+6].qty + items[chunkStart+7].qty + items[chunkStart+8].qty + items[chunkStart+9].qty;
-    }
-
-    function getExpectedTotalQty(items) {
-      return items.size() <= 9 ? partialSumQty(items, 0, items.size()) :
-             items.size() <= 19 ? chunkSumQty(items, 0) + partialSumQty(items, 10, items.size() - 10) :
-             items.size() <= 29 ? chunkSumQty(items, 0) + chunkSumQty(items, 10) + partialSumQty(items, 20, items.size() - 20) :
-             items.size() <= 39 ? chunkSumQty(items, 0) + chunkSumQty(items, 10) + chunkSumQty(items, 20) + partialSumQty(items, 30, items.size() - 30) :
-             items.size() <= 49 ? chunkSumQty(items, 0) + chunkSumQty(items, 10) + chunkSumQty(items, 20) + chunkSumQty(items, 30) + partialSumQty(items, 40, items.size() - 40) :
-             chunkSumQty(items, 0) + chunkSumQty(items, 10) + chunkSumQty(items, 20) + chunkSumQty(items, 30) + chunkSumQty(items, 40);
-    }
-
-    // There is no whole-cart minimum any more — each product carries its own
-    // minimum order quantity (1kg leafy, 20kg onion/potato, 6pc cauliflower,
-    // …), so a single 1kg bunch of coriander is a legitimate order. Those
-    // per-product minimums are enforced by the app and, next, by the server
-    // order route — not here, since that needs a read per line; this keeps
-    // only the gross sanity
-    // bounds — a cart must carry something, and can't exceed the 500-unit
-    // ceiling (MAX_ORDER_TOTAL_QTY in src/lib/format.ts).
-    // ONE call, not two. This ladder is ~50 branches wide; evaluating it
-    // twice cost half the cart size the rules could handle (26 items became
-    // 47 by removing the second call alone). The "> 0" half is now covered by
-    // a constant-cost `subtotal > 0` check in the create rule.
-    function isOrderWeightValid(items) {
-      return getExpectedTotalQty(items) <= 500;
+    // Expected subtotal = Σ (catalogue price × qty), read from the ONE
+    // settings/priceSheet mirror — a SINGLE get(), independent of cart size.
+    //
+    // This is emphatically NOT the per-line price read that once blew the
+    // 20-read transaction budget and failed every checkout past ~4 items (the
+    // reason per-item price validation was pulled out before). That grew one
+    // get() per cart line; this reads one document, once, however big the cart.
+    // The mirror is kept COMPLETE for exactly this: publishDailyPrices rebuilds
+    // it from the whole catalogue, and createProduct adds each new product, so
+    // every orderable product is always present and this never wrongly denies.
+    //
+    // A FLAT 50-slot guarded sum, not a chunked size-branch ladder: the engine
+    // counts every branch of a ternary ladder toward its 1000-sub-expression
+    // cap, so the branched shape overflowed it; a flat sum of guarded slots is
+    // counted once and clears the cap up to the create rule's item ceiling.
+    // The old ≤500-unit weight ladder was dropped to make room — it was
+    // logistics, never security, and a large order is now CHARGED in full at
+    // catalogue prices rather than stolen (the client still soft-caps weight).
+    function getExpectedSubtotal(items, prices) {
+      return (0 < items.size() ? prices[items[0].productId] * items[0].qty : 0)
+           + (1 < items.size() ? prices[items[1].productId] * items[1].qty : 0)
+           + (2 < items.size() ? prices[items[2].productId] * items[2].qty : 0)
+           + (3 < items.size() ? prices[items[3].productId] * items[3].qty : 0)
+           + (4 < items.size() ? prices[items[4].productId] * items[4].qty : 0)
+           + (5 < items.size() ? prices[items[5].productId] * items[5].qty : 0)
+           + (6 < items.size() ? prices[items[6].productId] * items[6].qty : 0)
+           + (7 < items.size() ? prices[items[7].productId] * items[7].qty : 0)
+           + (8 < items.size() ? prices[items[8].productId] * items[8].qty : 0)
+           + (9 < items.size() ? prices[items[9].productId] * items[9].qty : 0)
+           + (10 < items.size() ? prices[items[10].productId] * items[10].qty : 0)
+           + (11 < items.size() ? prices[items[11].productId] * items[11].qty : 0)
+           + (12 < items.size() ? prices[items[12].productId] * items[12].qty : 0)
+           + (13 < items.size() ? prices[items[13].productId] * items[13].qty : 0)
+           + (14 < items.size() ? prices[items[14].productId] * items[14].qty : 0)
+           + (15 < items.size() ? prices[items[15].productId] * items[15].qty : 0)
+           + (16 < items.size() ? prices[items[16].productId] * items[16].qty : 0)
+           + (17 < items.size() ? prices[items[17].productId] * items[17].qty : 0)
+           + (18 < items.size() ? prices[items[18].productId] * items[18].qty : 0)
+           + (19 < items.size() ? prices[items[19].productId] * items[19].qty : 0)
+           + (20 < items.size() ? prices[items[20].productId] * items[20].qty : 0)
+           + (21 < items.size() ? prices[items[21].productId] * items[21].qty : 0)
+           + (22 < items.size() ? prices[items[22].productId] * items[22].qty : 0)
+           + (23 < items.size() ? prices[items[23].productId] * items[23].qty : 0)
+           + (24 < items.size() ? prices[items[24].productId] * items[24].qty : 0)
+           + (25 < items.size() ? prices[items[25].productId] * items[25].qty : 0)
+           + (26 < items.size() ? prices[items[26].productId] * items[26].qty : 0)
+           + (27 < items.size() ? prices[items[27].productId] * items[27].qty : 0)
+           + (28 < items.size() ? prices[items[28].productId] * items[28].qty : 0)
+           + (29 < items.size() ? prices[items[29].productId] * items[29].qty : 0)
+           + (30 < items.size() ? prices[items[30].productId] * items[30].qty : 0)
+           + (31 < items.size() ? prices[items[31].productId] * items[31].qty : 0)
+           + (32 < items.size() ? prices[items[32].productId] * items[32].qty : 0)
+           + (33 < items.size() ? prices[items[33].productId] * items[33].qty : 0)
+           + (34 < items.size() ? prices[items[34].productId] * items[34].qty : 0)
+           + (35 < items.size() ? prices[items[35].productId] * items[35].qty : 0)
+           + (36 < items.size() ? prices[items[36].productId] * items[36].qty : 0)
+           + (37 < items.size() ? prices[items[37].productId] * items[37].qty : 0)
+           + (38 < items.size() ? prices[items[38].productId] * items[38].qty : 0)
+           + (39 < items.size() ? prices[items[39].productId] * items[39].qty : 0)
+           + (40 < items.size() ? prices[items[40].productId] * items[40].qty : 0)
+           + (41 < items.size() ? prices[items[41].productId] * items[41].qty : 0)
+           + (42 < items.size() ? prices[items[42].productId] * items[42].qty : 0)
+           + (43 < items.size() ? prices[items[43].productId] * items[43].qty : 0)
+           + (44 < items.size() ? prices[items[44].productId] * items[44].qty : 0)
+           + (45 < items.size() ? prices[items[45].productId] * items[45].qty : 0)
+           + (46 < items.size() ? prices[items[46].productId] * items[46].qty : 0)
+           + (47 < items.size() ? prices[items[47].productId] * items[47].qty : 0)
+           + (48 < items.size() ? prices[items[48].productId] * items[48].qty : 0)
+           + (49 < items.size() ? prices[items[49].productId] * items[49].qty : 0);
     }
 
     // Allowed top-level fields on a new order document. Prevents buyers from
@@ -248,13 +270,27 @@ service cloud.firestore {
 
     // --- Users: a user reads/edits their own profile; admins read all.
     //     Self-signup may only create a BUYER and cannot self-promote. ---
+    // Only these fields may appear on a user document — blocks a buyer from
+    // injecting trust-looking keys (credit, wallet, disabled, isAdmin, …) onto
+    // their own profile, which nothing reads today but would be a latent
+    // privilege/credit footgun the moment any code did.
+    function hasOnlyUserFields() {
+      return request.resource.data.keys().hasOnly([
+        'name', 'email', 'phone', 'role', 'businessName', 'businessType',
+        'city', 'address', 'pincode', 'lat', 'lng', 'addressLabel', 'gstin',
+        'createdAt', 'cart', 'theme', 'lang', 'pinnedTiles', 'disabled'
+      ]);
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn()
                     && request.auth.uid == userId
+                    && hasOnlyUserFields()
                     && (request.resource.data.role == 'BUYER' || isAdminPhone());
       allow update: if isAdmin()
                     || (request.auth.uid == userId
+                        && hasOnlyUserFields()
                         && request.resource.data.role == resource.data.role);
       allow delete: if isAdmin();
     }
@@ -288,7 +324,10 @@ service cloud.firestore {
       return resource.data.buyerId == request.auth.uid
              && resource.data.status == 'OPEN'
              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['thread', 'updatedAt', 'needsHuman'])
-             && request.resource.data.thread.size() == resource.data.thread.size() + 1;
+             && request.resource.data.thread.size() == resource.data.thread.size() + 1
+             // The new message must be the buyer's own — stops a buyer forging
+             // a message tagged sender:'admin' into their own thread.
+             && request.resource.data.thread[resource.data.thread.size()].sender == 'buyer';
     }
 
     // Buyer ends their own open ticket — status flips to CLOSED and nothing
@@ -350,7 +389,20 @@ service cloud.firestore {
              && request.resource.data.status in ['CONFIRMED', 'PACKED', 'SHIPPED', 'DELIVERED']
              && request.resource.data.buyerId == resource.data.buyerId
              && request.resource.data.total == resource.data.total
-             && request.resource.data.items == resource.data.items;
+             && request.resource.data.items == resource.data.items
+             // A refund the driver WRITES must either escalate (PENDING, an
+             // admin settles it) or sit within the driver's own authority —
+             // max(₹500, 10% of the order). Without this a driver could write
+             // an AUTO_APPROVED full-value refund and hand over the goods for
+             // nothing. Only checked when this write actually changes the
+             // adjustment, so recording a delivery on an admin-approved order
+             // is unaffected. The *10 <= total+10 form avoids a float-rounding
+             // mismatch against the client's Math.round(total*0.1).
+             && (!('adjustment' in request.resource.data.diff(resource.data).affectedKeys())
+                 || request.resource.data.adjustment.status == 'PENDING'
+                 || (request.resource.data.adjustment.status == 'AUTO_APPROVED'
+                     && (request.resource.data.adjustment.totalRefund <= 500
+                         || request.resource.data.adjustment.totalRefund * 10 <= resource.data.total + 10)));
     }
 
     // A driver handing a stop back: shop shut, nobody there, gate locked. He
@@ -397,9 +449,9 @@ service cloud.firestore {
                         // goods without paying.
                         && request.resource.data.paymentStatus == 'UNPAID'
                         && request.resource.data.items.size() > 0
-                        && request.resource.data.items.size() <= 50
+                        && request.resource.data.items.size() <= 40
                         && request.resource.data.subtotal > 0
-                        && isOrderWeightValid(request.resource.data.items)
+                        && request.resource.data.subtotal == getExpectedSubtotal(request.resource.data.items, get(/databases/$(database)/documents/settings/priceSheet).data.prices)
                         && request.resource.data.deliveryFee == getExpectedDeliveryFee(request.resource.data.subtotal)
                         && request.resource.data.total == request.resource.data.subtotal + request.resource.data.deliveryFee)
                     || isAdmin();
