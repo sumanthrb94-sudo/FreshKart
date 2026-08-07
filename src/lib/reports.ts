@@ -1,73 +1,95 @@
-/** Green Basket Report Generators
- *  - Inventory Report (end-of-day, 10PM)
- *  - Purchase Report
- *  - Packaging Report
- *  - Invoice Report per Customer
+/** Green Basket report generators.
+ *
+ *  Pure functions: they are handed the orders and products to report on and
+ *  compute from those alone. They used to read `store.get()` — the in-memory
+ *  DEMO backend — directly, which meant the admin's Inventory, Purchase and
+ *  Invoices tabs showed fabricated figures in production, unconditionally,
+ *  regardless of whether Firebase was configured. Taking the data as arguments
+ *  is what makes them usable against the real backend, and it also keeps
+ *  `mock-data.ts` out of every bundle that imports this file.
+ *
+ *  Every generator reports on the orders it is given. Scoping to a date range
+ *  is the CALLER's job — see AdminReportsHub, which fetches a period through
+ *  `api.listOrdersByRange`.
  */
 
-import { store } from "./api/mock-store";
 import type { Order, Product } from "./types";
 
-// ─── Inventory Report ───────────────────────────────────────────
+/** Stock at or below this is an emergency; at or below LOW, order soon. */
+const STOCK_CRITICAL = 15;
+const STOCK_LOW = 30;
+
+export type StockStatus = "OK" | "LOW" | "CRITICAL";
+
+function classifyStock(stock: number): StockStatus {
+  if (stock <= STOCK_CRITICAL) return "CRITICAL";
+  if (stock <= STOCK_LOW) return "LOW";
+  return "OK";
+}
+
+/** Cancelled orders released their stock and were never charged for. */
+const isBillable = (o: Order) => o.status !== "CANCELLED";
+
+// ─── Inventory ──────────────────────────────────────────────────
+//
+// "What is on the shelf, and what should I reorder?"
 
 export interface InventoryReportLine {
   productId: string;
   productName: string;
   category: string;
   unit: string;
-  openingStock: number;
+  /** Stock on hand right now. Not scoped to the period — stock is a level. */
+  stockOnHand: number;
+  /** Sold within the reported period. */
   soldQty: number;
-  returnedQty: number;
-  closingStock: number;
   unitPrice: number;
   stockValue: number;
-  status: "OK" | "LOW" | "CRITICAL";
+  status: StockStatus;
 }
 
-export function generateInventoryReport(): {
+export interface InventoryReport {
   generatedAt: string;
   lines: InventoryReportLine[];
   totalStockValue: number;
   totalItems: number;
   lowStockCount: number;
   criticalStockCount: number;
-} {
-  const s = store.get();
-  const products = s.products;
-  const orders = s.orders;
+}
+
+export function generateInventoryReport(
+  orders: Order[],
+  products: Product[]
+): InventoryReport {
+  const billable = orders.filter(isBillable);
+
+  // One pass over every line, rather than re-scanning all orders per product.
+  // With a month of real orders the old nested filter was quadratic.
+  const soldByProduct = new Map<string, number>();
+  for (const order of billable) {
+    for (const item of order.items) {
+      soldByProduct.set(item.productId, (soldByProduct.get(item.productId) ?? 0) + item.qty);
+    }
+  }
 
   const lines: InventoryReportLine[] = products
     .filter((p) => p.active)
-    .map((product) => {
-      const soldQty = orders
-        .filter((o) => o.status !== "CANCELLED")
-        .flatMap((o) => o.items)
-        .filter((i) => i.productId === product.id)
-        .reduce((sum, i) => sum + i.qty, 0);
+    .map((product) => ({
+      productId: product.id,
+      productName: product.name,
+      category: product.category,
+      unit: product.unit,
+      stockOnHand: product.stock,
+      soldQty: soldByProduct.get(product.id) ?? 0,
+      unitPrice: product.price,
+      stockValue: product.stock * product.price,
+      status: classifyStock(product.stock),
+    }));
 
-      const returnedQty = 0; // TODO: link to returns
-      const closingStock = product.stock;
-      const openingStock = closingStock + soldQty - returnedQty;
-      const stockValue = closingStock * product.price;
-
-      let status: "OK" | "LOW" | "CRITICAL" = "OK";
-      if (closingStock <= 15) status = "CRITICAL";
-      else if (closingStock <= 30) status = "LOW";
-
-      return {
-        productId: product.id,
-        productName: product.name,
-        category: product.category,
-        unit: product.unit,
-        openingStock,
-        soldQty,
-        returnedQty,
-        closingStock,
-        unitPrice: product.price,
-        stockValue,
-        status,
-      };
-    });
+  // Urgent first — this list exists to drive a reorder decision, and the thing
+  // about to run out is the only row that needs acting on today.
+  const rank: Record<StockStatus, number> = { CRITICAL: 0, LOW: 1, OK: 2 };
+  lines.sort((a, b) => rank[a.status] - rank[b.status] || b.stockValue - a.stockValue);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -79,138 +101,95 @@ export function generateInventoryReport(): {
   };
 }
 
-// ─── Purchase Report ────────────────────────────────────────────
+// ─── Sales ──────────────────────────────────────────────────────
+//
+// "What sold, and what did it bring in?" Named `purchase` in the UI until it
+// became clear that read as "what we buy from suppliers" — which is the
+// supplier report, a different screen entirely.
 
-export interface PurchaseReportLine {
-  productId: string;
-  productName: string;
-  category: string;
-  totalSoldQty: number;
-  totalRevenue: number;
-  avgOrderQty: number;
-  orderCount: number;
-  trend: "UP" | "DOWN" | "STABLE";
-}
-
-export function generatePurchaseReport(): {
-  generatedAt: string;
-  lines: PurchaseReportLine[];
-  totalRevenue: number;
-  totalQtySold: number;
-  totalOrders: number;
-} {
-  const s = store.get();
-  const products = s.products.filter((p) => p.active);
-  const orders = s.orders.filter((o) => o.status !== "CANCELLED");
-
-  const lines: PurchaseReportLine[] = products.map((product) => {
-    const productOrders = orders.filter((o) =>
-      o.items.some((i) => i.productId === product.id)
-    );
-    const totalSoldQty = productOrders
-      .flatMap((o) => o.items)
-      .filter((i) => i.productId === product.id)
-      .reduce((sum, i) => sum + i.qty, 0);
-    const totalRevenue = totalSoldQty * product.price;
-    const orderCount = productOrders.length;
-    const avgOrderQty = orderCount > 0 ? Math.round(totalSoldQty / orderCount) : 0;
-
-    let trend: "UP" | "DOWN" | "STABLE" = "STABLE";
-    if (totalSoldQty > 100) trend = "UP";
-    else if (totalSoldQty < 20) trend = "DOWN";
-
-    return {
-      productId: product.id,
-      productName: product.name,
-      category: product.category,
-      totalSoldQty,
-      totalRevenue,
-      avgOrderQty,
-      orderCount,
-      trend,
-    };
-  });
-
-  // Sort by revenue desc
-  lines.sort((a, b) => b.totalRevenue - a.totalRevenue);
-
-  return {
-    generatedAt: new Date().toISOString(),
-    lines,
-    totalRevenue: lines.reduce((s, l) => s + l.totalRevenue, 0),
-    totalQtySold: lines.reduce((s, l) => s + l.totalSoldQty, 0),
-    totalOrders: orders.length,
-  };
-}
-
-// ─── Packaging Report ───────────────────────────────────────────
-
-export interface PackagingReportLine {
+export interface SalesReportLine {
   productId: string;
   productName: string;
   unit: string;
+  soldQty: number;
+  /** Actual money billed for this product. */
+  revenue: number;
   orderCount: number;
-  totalQty: number;
-  packagingType: string;
-  estPackagingCost: number;
 }
 
-export function generatePackagingReport(): {
+export interface SalesReport {
   generatedAt: string;
-  lines: PackagingReportLine[];
-  totalPackagingCost: number;
+  lines: SalesReportLine[];
+  totalRevenue: number;
+  totalQtySold: number;
   totalOrders: number;
-} {
-  const s = store.get();
-  const products = s.products.filter((p) => p.active);
-  const orders = s.orders.filter((o) => o.status !== "CANCELLED");
+}
 
-  const lines: PackagingReportLine[] = products.map((product) => {
-    const productOrders = orders.filter((o) =>
-      o.items.some((i) => i.productId === product.id)
-    );
-    const totalQty = productOrders
-      .flatMap((o) => o.items)
-      .filter((i) => i.productId === product.id)
-      .reduce((sum, i) => sum + i.qty, 0);
+export function generateSalesReport(orders: Order[], products: Product[]): SalesReport {
+  const billable = orders.filter(isBillable);
+  const nameOf = new Map(products.map((p) => [p.id, p.name]));
 
-    // Estimate packaging: Rs. 2 per kg for veggies, Rs. 5 per unit for special items
-    const costPerUnit = product.category === "leafy-greens" ? 3 : 2;
-    const estPackagingCost = totalQty * costPerUnit;
+  const acc = new Map<string, { name: string; unit: string; qty: number; revenue: number; orders: Set<string> }>();
+  for (const order of billable) {
+    for (const item of order.items) {
+      let line = acc.get(item.productId);
+      if (!line) {
+        // The catalogue name wins when the product still exists — it may have
+        // been corrected since the order was placed — but an order for a
+        // delisted product still has to appear, so fall back to what was billed.
+        line = {
+          name: nameOf.get(item.productId) ?? item.name,
+          unit: item.unit,
+          qty: 0,
+          revenue: 0,
+          orders: new Set(),
+        };
+        acc.set(item.productId, line);
+      }
+      line.qty += item.qty;
+      // `lineTotal` is what the buyer was actually charged. Multiplying the
+      // quantity by today's catalogue price — which is what this did before —
+      // reprices history every time the admin publishes a new rate, so the
+      // report disagreed with the invoices.
+      line.revenue += item.lineTotal;
+      line.orders.add(order.id);
+    }
+  }
 
-    return {
-      productId: product.id,
-      productName: product.name,
-      unit: product.unit,
-      orderCount: productOrders.length,
-      totalQty,
-      packagingType: product.category === "leafy-greens" ? "Breathable bag" : "Mesh crate",
-      estPackagingCost,
-    };
-  });
+  const lines: SalesReportLine[] = [...acc.entries()]
+    .map(([productId, l]) => ({
+      productId,
+      productName: l.name,
+      unit: l.unit,
+      soldQty: l.qty,
+      revenue: l.revenue,
+      orderCount: l.orders.size,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
 
   return {
     generatedAt: new Date().toISOString(),
     lines,
-    totalPackagingCost: lines.reduce((s, l) => s + l.estPackagingCost, 0),
-    totalOrders: orders.length,
+    totalRevenue: lines.reduce((s, l) => s + l.revenue, 0),
+    totalQtySold: lines.reduce((s, l) => s + l.soldQty, 0),
+    totalOrders: billable.length,
   };
 }
 
-// ─── Invoice Report per Customer ────────────────────────────────
+// ─── Invoices per customer ──────────────────────────────────────
+//
+// "Who bought what, and who still owes me?"
 
 export interface CustomerInvoiceLine {
   orderId: string;
   orderNumber: string;
   date: string;
-  items: { name: string; qty: number; price: number; total: number }[];
-  subtotal: number;
-  deliveryFee: number;
   total: number;
   paymentMethod: string;
   paymentStatus: string;
   status: string;
   invoiceNumber: string;
+  paid: boolean;
 }
 
 export interface CustomerInvoiceReport {
@@ -219,46 +198,44 @@ export interface CustomerInvoiceReport {
   customerPhone: string;
   customerCity: string;
   lines: CustomerInvoiceLine[];
-  totalSpent: number;
+  totalBilled: number;
+  /** The number this report exists for: what is still owed. */
+  totalUnpaid: number;
   totalOrders: number;
-  totalItems: number;
 }
 
 export function generateInvoiceReportPerCustomer(
+  orders: Order[],
   businessName?: string
 ): CustomerInvoiceReport[] {
-  const s = store.get();
-  const orders = s.orders.filter((o) => o.status !== "CANCELLED");
+  const billable = orders.filter(isBillable);
 
-  // Group orders by business
-  const byBusiness: Record<string, typeof orders> = {};
-  for (const order of orders) {
+  const byBusiness = new Map<string, Order[]>();
+  for (const order of billable) {
     const key = order.businessName;
-    if (!byBusiness[key]) byBusiness[key] = [];
-    byBusiness[key].push(order);
+    const list = byBusiness.get(key);
+    if (list) list.push(order);
+    else byBusiness.set(key, [order]);
   }
 
-  return Object.entries(byBusiness)
-    .filter(([name]) => !businessName || name.toLowerCase().includes(businessName.toLowerCase()))
+  const needle = businessName?.toLowerCase();
+
+  return [...byBusiness.entries()]
+    .filter(([name]) => !needle || name.toLowerCase().includes(needle))
     .map(([name, bizOrders]) => {
-      const lines: CustomerInvoiceLine[] = bizOrders.map((o) => ({
-        orderId: o.id,
-        orderNumber: o.orderNumber,
-        date: o.createdAt,
-        items: o.items.map((i) => ({
-          name: i.name,
-          qty: i.qty,
-          price: i.price,
-          total: i.lineTotal,
-        })),
-        subtotal: o.subtotal,
-        deliveryFee: o.deliveryFee,
-        total: o.total,
-        paymentMethod: o.paymentMethod,
-        paymentStatus: o.paymentStatus,
-        status: o.status,
-        invoiceNumber: `INV-${o.orderNumber.replace("ORD-", "")}`,
-      }));
+      const lines: CustomerInvoiceLine[] = bizOrders
+        .map((o) => ({
+          orderId: o.id,
+          orderNumber: o.orderNumber,
+          date: o.createdAt,
+          total: o.total,
+          paymentMethod: o.paymentMethod,
+          paymentStatus: o.paymentStatus,
+          status: o.status,
+          invoiceNumber: o.adjustedInvoiceNumber || `INV-${o.orderNumber.replace("ORD-", "")}`,
+          paid: o.paymentStatus === "PAID",
+        }))
+        .sort((a, b) => b.date.localeCompare(a.date));
 
       return {
         generatedAt: new Date().toISOString(),
@@ -266,15 +243,17 @@ export function generateInvoiceReportPerCustomer(
         customerPhone: bizOrders[0]?.delivery.phone || "",
         customerCity: bizOrders[0]?.delivery.city || "",
         lines,
-        totalSpent: lines.reduce((s, l) => s + l.total, 0),
+        totalBilled: lines.reduce((s, l) => s + l.total, 0),
+        totalUnpaid: lines.filter((l) => !l.paid).reduce((s, l) => s + l.total, 0),
         totalOrders: lines.length,
-        totalItems: lines.reduce((s, l) => s + l.items.reduce((is, i) => is + i.qty, 0), 0),
       };
-    });
+    })
+    // Whoever owes the most comes first.
+    .sort((a, b) => b.totalUnpaid - a.totalUnpaid || b.totalBilled - a.totalBilled);
 }
 
 // ─── CSV Export ─────────────────────────────────────────────────
 
-// Moved to ./csv so callers can serialise without pulling in this module's
-// mock-store import. Re-exported here to keep existing call sites working.
+// Lives in ./csv so callers can serialise without importing this module.
+// Re-exported to keep existing call sites working.
 export { reportToCSV } from "./csv";
