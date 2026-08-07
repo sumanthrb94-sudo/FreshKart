@@ -1,19 +1,24 @@
 import type { OrderStatus, PaymentMethod, Unit, CartLine } from "./types";
 
-/** Whole-order quantity backstop (in kg / units) for a buyer-placed order.
+/** Whole-order maximum quantity (in kg / units) for a buyer-placed order — a
+ *  delivery-capacity limit, not a security one.
  *
- *  There is effectively NO weight limit: firestore.rules no longer caps order
- *  weight at all (that ladder was dropped once the subtotal was anchored to the
- *  catalogue — a large order is now CHARGED in full at catalogue prices, so its
- *  weight is a logistics matter, not a security one). This constant is only a
- *  client-side sanity backstop against a fat-fingered or overflowed quantity;
- *  set far above any real wholesale order, so no genuine order is ever refused.
+ *  Enforced in the CLIENT (CheckoutSheet, and createOrder in mock.ts/firebase.ts)
+ *  rather than in firestore.rules. The rules can hold only one hand-unrolled
+ *  per-line ladder within their 1000-sub-expression budget, and that slot goes
+ *  to the anti-theft check that anchors the subtotal to the catalogue — the
+ *  thing a crafted request could actually steal with. Weight can't: an order
+ *  over this cap is still CHARGED in full at catalogue prices and still lands in
+ *  the admin console before anything is packed, so the worst case is an
+ *  oversized order the office catches and calls about, not a loss. Putting the
+ *  weight ladder back in the rules would roughly halve the distinct-product
+ *  ceiling (two ladders don't both fit) — not worth it for a logistics bound.
  *
- *  There is likewise NO whole-cart minimum: each product carries its own
+ *  There is deliberately NO whole-cart minimum: each product carries its own
  *  minOrderQty (1kg leafy greens, 20kg onion/potato/tomato/banana, 6pc
  *  cauliflower, 3kg for everything else), which the cart's quantity stepper
  *  enforces per line. A single 1kg bunch of coriander is a valid order. */
-export const MAX_ORDER_TOTAL_QTY = 1_000_000;
+export const MAX_ORDER_TOTAL_QTY = 500;
 
 /** True when a cart's total quantity is orderable: it must contain something
  *  and stay under the ceiling. Per-product minimums are handled per line, not
