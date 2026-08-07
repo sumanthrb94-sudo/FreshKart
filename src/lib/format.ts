@@ -1,16 +1,19 @@
 import type { OrderStatus, PaymentMethod, Unit, CartLine } from "./types";
 
-/** Whole-order maximum quantity (in kg / units) for a buyer-placed order —
- *  mirrored in firestore.rules' isOrderWeightValid() (real enforcement,
- *  since the browser talks to Firestore directly) and in mock.ts/firebase.ts
- *  createOrder (friendly client-side error before attempting the write).
- *  Admin/POS orders are exempt, same as every other buyer-only order rule.
+/** Whole-order quantity backstop (in kg / units) for a buyer-placed order.
  *
- *  There is deliberately NO whole-cart minimum: each product carries its own
+ *  There is effectively NO weight limit: firestore.rules no longer caps order
+ *  weight at all (that ladder was dropped once the subtotal was anchored to the
+ *  catalogue — a large order is now CHARGED in full at catalogue prices, so its
+ *  weight is a logistics matter, not a security one). This constant is only a
+ *  client-side sanity backstop against a fat-fingered or overflowed quantity;
+ *  set far above any real wholesale order, so no genuine order is ever refused.
+ *
+ *  There is likewise NO whole-cart minimum: each product carries its own
  *  minOrderQty (1kg leafy greens, 20kg onion/potato/tomato/banana, 6pc
  *  cauliflower, 3kg for everything else), which the cart's quantity stepper
  *  enforces per line. A single 1kg bunch of coriander is a valid order. */
-export const MAX_ORDER_TOTAL_QTY = 500;
+export const MAX_ORDER_TOTAL_QTY = 1_000_000;
 
 /** True when a cart's total quantity is orderable: it must contain something
  *  and stay under the ceiling. Per-product minimums are handled per line, not
@@ -33,13 +36,15 @@ export function isValidOrderWeight(totalQty: number): boolean {
  * product catalogue, so no real order hits it, while the earlier per-line
  * price-validation ladders (which capped checkout at ~6) are avoided entirely.
  *
- * Keep this in lockstep with the `items.size() <= 40` check in firestore.rules:
+ * Keep this in lockstep with the `items.size() <= 46` check in firestore.rules:
  * raising one without the other either re-blocks legitimate carts or lets the
- * client claim a cap the rules won't honor. Lifting it further needs the
- * per-line catalogue check to move to a trusted server (see the order-create
+ * client claim a cap the rules won't honor. 46 sits a safe margin under the ~49
+ * measured on a real checkout transaction, and above the whole product
+ * catalogue, so no real order hits it. Lifting it to literally unbounded needs
+ * the per-line catalogue check to move to a trusted server (see the order-create
  * comment in firestore.rules).
  */
-export const MAX_ORDER_ITEM_TYPES = 40;
+export const MAX_ORDER_ITEM_TYPES = 46;
 
 /** Indian mobile numbers are exactly 10 digits (matches the OTP login flow's
  *  own validation in OnboardingScreen). Free-text phone fields elsewhere

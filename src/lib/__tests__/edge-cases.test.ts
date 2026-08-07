@@ -88,10 +88,14 @@ describe("pincode validation", () => {
 describe("order weight bounds", () => {
   // There is no whole-cart minimum: per-product minOrderQty is the gate, so a
   // single 1kg bunch of leafy greens is a legitimate order.
-  it("accepts any non-empty cart up to MAX_ORDER_TOTAL_QTY", () => {
+  it("accepts any real order weight — a bulk B2B cart is not capped", () => {
     expect(isValidOrderWeight(1)).toBe(true);
+    // Weights that the old 500-unit cap wrongly refused are now fine: the bill
+    // is charged in full at catalogue prices, so weight is logistics, not
+    // security. A 10-tonne wholesale order is a legitimate order.
+    expect(isValidOrderWeight(500)).toBe(true);
+    expect(isValidOrderWeight(10_000)).toBe(true);
     expect(isValidOrderWeight(MAX_ORDER_TOTAL_QTY)).toBe(true);
-    expect(isValidOrderWeight(MAX_ORDER_TOTAL_QTY / 2)).toBe(true);
   });
 
   it("rejects an empty or negative cart", () => {
@@ -99,8 +103,9 @@ describe("order weight bounds", () => {
     expect(isValidOrderWeight(-1)).toBe(false);
   });
 
-  it("rejects above the maximum — an order can't silently exceed packing/delivery capacity", () => {
+  it("still backstops a fat-fingered / overflowed quantity", () => {
+    // The one thing the ceiling still catches: a garbage quantity far beyond
+    // any real order (a typo, an overflow), which should not reach checkout.
     expect(isValidOrderWeight(MAX_ORDER_TOTAL_QTY + 1)).toBe(false);
-    expect(isValidOrderWeight(10_000)).toBe(false);
   });
 });
