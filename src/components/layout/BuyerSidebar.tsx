@@ -6,7 +6,7 @@ import { LogOut, Sprout, ShoppingCart, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
 import { BUYER_TABS } from "@/components/buyer/BuyerBottomNav";
 
 /**
@@ -60,26 +60,48 @@ export function BuyerSidebar() {
       </nav>
 
       <div className="border-t border-line p-3">
-        {/* No whole-cart minimum — per-product minimums are enforced by the
-            quantity stepper, so any non-empty cart is checkout-ready. */}
-        {itemCount > 0 && (
-          <Link
-            href="/?cart=1"
-            className="mb-3 flex flex-col gap-2 rounded-xl bg-brand-500/10 p-3 text-brand-400 transition-colors hover:bg-brand-500 hover:text-white"
-          >
-            <span className="flex items-center justify-between text-xs font-bold">
-              <span className="flex items-center gap-1.5">
-                <ShoppingCart className="h-4 w-4" />
-                {totalQty} {totalQty === 1 ? "kg" : "kgs"}
+        {/* The cart must reach the whole-order minimum before it can be
+            reviewed — below the floor this is a disabled panel (not a link),
+            matching the mobile StickyCartBar, so the desktop path can't skip
+            the gate. This is on top of each product's own per-line minimum. */}
+        {itemCount > 0 &&
+          (totalQty < MIN_ORDER_TOTAL_QTY ? (
+            <div
+              aria-disabled="true"
+              className="mb-3 flex cursor-not-allowed flex-col gap-2 rounded-xl bg-raised p-3 text-fg-subtle opacity-70"
+            >
+              <span className="flex items-center justify-between text-xs font-bold">
+                <span className="flex items-center gap-1.5">
+                  <ShoppingCart className="h-4 w-4" />
+                  {totalQty} {totalQty === 1 ? "kg" : "kgs"}
+                </span>
+                <span>{formatCurrency(subtotal)}</span>
               </span>
-              <span>{formatCurrency(subtotal)}</span>
-            </span>
-            <span className="flex items-center justify-between text-sm font-extrabold">
-              Review &amp; Order
-              <ArrowRight className="h-4 w-4" />
-            </span>
-          </Link>
-        )}
+              <span className="text-2xs font-medium">
+                Minimum order {MIN_ORDER_TOTAL_QTY} kg — add {MIN_ORDER_TOTAL_QTY - totalQty} more
+              </span>
+              <span className="flex items-center justify-between text-sm font-extrabold">
+                Add {MIN_ORDER_TOTAL_QTY - totalQty} kg to order
+              </span>
+            </div>
+          ) : (
+            <Link
+              href="/?cart=1"
+              className="mb-3 flex flex-col gap-2 rounded-xl bg-brand-500/10 p-3 text-brand-400 transition-colors hover:bg-brand-500 hover:text-white"
+            >
+              <span className="flex items-center justify-between text-xs font-bold">
+                <span className="flex items-center gap-1.5">
+                  <ShoppingCart className="h-4 w-4" />
+                  {totalQty} {totalQty === 1 ? "kg" : "kgs"}
+                </span>
+                <span>{formatCurrency(subtotal)}</span>
+              </span>
+              <span className="flex items-center justify-between text-sm font-extrabold">
+                Review &amp; Order
+                <ArrowRight className="h-4 w-4" />
+              </span>
+            </Link>
+          ))}
         <button
           type="button"
           onClick={handleLogout}

@@ -276,11 +276,19 @@ export function CheckoutSheet({
 
       {/* Sticky CTA */}
       <div className="sticky bottom-0 border-t border-line/60 bg-canvas p-4">
-        <Button size="lg" fullWidth loading={busy} disabled={disabled} onClick={handleSubmit}>
+        <Button
+          size="lg"
+          fullWidth
+          loading={busy}
+          disabled={disabled || totalQty < MIN_ORDER_TOTAL_QTY}
+          onClick={handleSubmit}
+        >
           {busy
             ? "Placing order…"
             : disabled
             ? "Prices updating…"
+            : totalQty < MIN_ORDER_TOTAL_QTY
+            ? `Add ${MIN_ORDER_TOTAL_QTY - totalQty} kg — min ${MIN_ORDER_TOTAL_QTY} kg`
             : `Place B2B order · ${formatCurrency(total)}`}
         </Button>
       </div>
