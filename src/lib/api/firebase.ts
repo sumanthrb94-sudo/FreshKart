@@ -52,7 +52,7 @@ import type { Coupon } from "@/lib/coupons";
 import type { ServiceArea } from "@/lib/service-area";
 import { radiusOf } from "@/lib/service-area";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
-import { generateOrderNumber, MAX_ORDER_TOTAL_QTY, toLocalMobile } from "@/lib/format";
+import { generateOrderNumber, MAX_ORDER_TOTAL_QTY, MIN_ORDER_TOTAL_QTY, toLocalMobile } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { effectiveOverride, getStoreStatus, nextStoreClose } from "@/lib/store-hours";
@@ -566,6 +566,11 @@ export class FirebaseDataSource implements DataSource {
     const db = getDb();
     if (!input.items.length) throw new ApiError("Your cart is empty.");
     const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
+    if (totalQty < MIN_ORDER_TOTAL_QTY) {
+      throw new ApiError(
+        `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`
+      );
+    }
     if (totalQty > MAX_ORDER_TOTAL_QTY) {
       throw new ApiError(
         `Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`

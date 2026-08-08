@@ -20,6 +20,7 @@ import {
   isValidPincodeDigits,
   PINCODE_DIGIT_LENGTH,
   MAX_ORDER_TOTAL_QTY,
+  MIN_ORDER_TOTAL_QTY,
   isValidOrderWeight,
 } from "../format";
 
@@ -86,8 +87,6 @@ describe("pincode validation", () => {
 });
 
 describe("order weight bounds", () => {
-  // There is no whole-cart minimum: per-product minOrderQty is the gate, so a
-  // single 1kg bunch of leafy greens is a legitimate order.
   it("accepts any non-empty cart up to the 500 kg delivery-capacity cap", () => {
     expect(isValidOrderWeight(1)).toBe(true);
     expect(isValidOrderWeight(MAX_ORDER_TOTAL_QTY)).toBe(true);
@@ -102,5 +101,21 @@ describe("order weight bounds", () => {
   it("rejects a whole order over the 500 kg cap — one van's capacity", () => {
     expect(isValidOrderWeight(MAX_ORDER_TOTAL_QTY + 1)).toBe(false);
     expect(isValidOrderWeight(10_000)).toBe(false);
+  });
+
+  // A whole-order minimum of 10 kg qualifies an order for delivery. It was
+  // implemented, silently dropped when per-product minimums landed, and
+  // restored — this guards the constant so it can't quietly disappear again.
+  // Enforced (with surface-specific messages) in CheckoutSheet and in
+  // createOrder on both backends: totalQty < MIN_ORDER_TOTAL_QTY is refused.
+  it("keeps the whole-order minimum at 10 kg", () => {
+    expect(MIN_ORDER_TOTAL_QTY).toBe(10);
+  });
+
+  it("treats a sub-10 kg cart as below the order floor", () => {
+    // e.g. a single 3 kg bag of chilli clears its own per-product minimum but
+    // not the whole-order floor.
+    for (const belowFloor of [1, 3, 9]) expect(belowFloor < MIN_ORDER_TOTAL_QTY).toBe(true);
+    for (const qualifies of [10, 20, 200]) expect(qualifies >= MIN_ORDER_TOTAL_QTY).toBe(true);
   });
 });

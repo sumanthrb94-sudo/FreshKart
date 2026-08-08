@@ -14,11 +14,19 @@ import type { OrderStatus, PaymentMethod, Unit, CartLine } from "./types";
  *  weight ladder back in the rules would roughly halve the distinct-product
  *  ceiling (two ladders don't both fit) — not worth it for a logistics bound.
  *
- *  There is deliberately NO whole-cart minimum: each product carries its own
- *  minOrderQty (1kg leafy greens, 20kg onion/potato/tomato/banana, 6pc
- *  cauliflower, 3kg for everything else), which the cart's quantity stepper
- *  enforces per line. A single 1kg bunch of coriander is a valid order. */
+ *  Each product ALSO carries its own minOrderQty (20kg onion/potato/tomato,
+ *  3kg chilli/ginger, …) enforced per line by the cart's quantity stepper —
+ *  that is separate from, and on top of, the whole-order floor below. */
 export const MAX_ORDER_TOTAL_QTY = 500;
+
+/** Whole-order MINIMUM quantity (in kg / units) — an order must carry at least
+ *  this much across all lines to qualify for delivery. A single 3 kg bag of
+ *  chilli clears its own per-product minimum but not this floor, so the cart
+ *  asks for more before checkout. Enforced client-side in the same three places
+ *  as the maximum (CheckoutSheet + createOrder in mock.ts/firebase.ts); like the
+ *  maximum it is a logistics/business rule, not a security one, so it does not
+ *  live in firestore.rules. */
+export const MIN_ORDER_TOTAL_QTY = 10;
 
 /** True when a cart's total quantity is orderable: it must contain something
  *  and stay under the ceiling. Per-product minimums are handled per line, not

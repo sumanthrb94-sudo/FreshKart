@@ -7,6 +7,7 @@ import {
   formatCurrency,
   pricePerUnit,
   MAX_ORDER_TOTAL_QTY,
+  MIN_ORDER_TOTAL_QTY,
   MAX_ORDER_ITEM_TYPES,
   PAYMENT_LABELS,
   sanitizePhoneDigits,
@@ -96,6 +97,10 @@ export function CheckoutSheet({
     }
     if (!isValidPhoneDigits(delivery.phone)) {
       setLocalError("Enter a valid 10-digit phone number for delivery updates.");
+      return;
+    }
+    if (totalQty < MIN_ORDER_TOTAL_QTY) {
+      setLocalError(`Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. Add ${MIN_ORDER_TOTAL_QTY - totalQty} more kg to continue.`);
       return;
     }
     if (totalQty > MAX_ORDER_TOTAL_QTY) {

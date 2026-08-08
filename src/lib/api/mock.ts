@@ -20,7 +20,7 @@ import type { Coupon } from "@/lib/coupons";
 import type { ServiceArea } from "@/lib/service-area";
 import { radiusOf } from "@/lib/service-area";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
-import { generateOrderNumber, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
+import { generateOrderNumber, MAX_ORDER_TOTAL_QTY, MIN_ORDER_TOTAL_QTY } from "@/lib/format";
 import { calculateDeliveryFee } from "@/lib/delivery";
 import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
 import { effectiveOverride, getStoreStatus, nextStoreClose } from "@/lib/store-hours";
@@ -209,6 +209,10 @@ export class MockDataSource implements DataSource {
         return;
       }
       const totalQty = input.items.reduce((sum, i) => sum + i.qty, 0);
+      if (totalQty < MIN_ORDER_TOTAL_QTY) {
+        error = `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
+        return;
+      }
       if (totalQty > MAX_ORDER_TOTAL_QTY) {
         error = `Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
         return;
