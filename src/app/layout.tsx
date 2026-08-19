@@ -64,6 +64,36 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
+        {/* Browser page-translation (Chrome "Translate", Google Translate)
+            rewrites text nodes underneath React. When React later moves or
+            removes a node, the node Translate relocated is no longer where
+            React expects, and native insertBefore/removeChild throw a
+            NotFoundError that crashes the whole app — most visibly during
+            signup, which mounts/unmounts the most dynamic UI. This guard
+            makes those two calls fail soft ONLY in that mismatched-parent
+            case (a genuine no-op for every non-translated session, where the
+            parent always matches), so a translated page degrades instead of
+            white-screening. Installed before hydration so it covers the very
+            first render. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                if (typeof Node !== "function" || !Node.prototype) return;
+                var removeChild = Node.prototype.removeChild;
+                Node.prototype.removeChild = function(child) {
+                  if (child && child.parentNode !== this) return child;
+                  return removeChild.apply(this, arguments);
+                };
+                var insertBefore = Node.prototype.insertBefore;
+                Node.prototype.insertBefore = function(newNode, referenceNode) {
+                  if (referenceNode && referenceNode.parentNode !== this) return newNode;
+                  return insertBefore.apply(this, arguments);
+                };
+              })();
+            `,
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `
