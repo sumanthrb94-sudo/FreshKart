@@ -68,8 +68,18 @@ const nextConfig = {
   // Don't advertise the framework/version in responses.
   poweredByHeader: false,
   images: {
-    // Allow remote produce imagery (Unsplash) used by the seed catalog and
-    // Firebase Storage product photos uploaded by admins.
+    // Serve images as-is instead of through Vercel's on-demand optimizer.
+    // The optimizer (/_next/image) is a metered, paid resource, and this app
+    // barely benefits from it: seed produce photos are local, pre-cropped
+    // JPGs in public/produce/ and the icons are SVGs (never optimized). Only
+    // admin-uploaded Firebase Storage photos are remote, and they show at
+    // ~96px thumbnails in two places — not worth a per-image transform bill.
+    // With this on, image-optimization usage stays at zero forever; the
+    // width/height/sizes props still control layout, just with no server
+    // resize/reformat. Remove this line to turn paid optimization back on.
+    unoptimized: true,
+    // Kept for when optimization is re-enabled (ignored while unoptimized):
+    // allow remote produce imagery and Firebase Storage product photos.
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "**.googleusercontent.com" },
