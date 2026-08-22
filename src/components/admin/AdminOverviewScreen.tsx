@@ -224,6 +224,11 @@ export function AdminOverviewScreen() {
   // Day totals — scoped to one IST business day, fetched with a date-range
   // query rather than the all-time scan the stats below still do.
   const [day, setDay] = useState(() => getIstToday());
+  // Let the admin dismiss the publish-prices gate to reach the rest of the
+  // dashboard. Kept in component state (not persisted), so a fresh load or
+  // refresh brings the reminder back until today's prices are actually
+  // published — the nudge stays, it just no longer traps the admin.
+  const [gateDismissed, setGateDismissed] = useState(false);
   const { startIso, endIso } = useMemo(() => getIstBusinessDayRange(day), [day]);
   const {
     data: dayOrders,
@@ -302,14 +307,22 @@ export function AdminOverviewScreen() {
     router.push("/admin/prices");
   }
 
-  const needsPublishGate = !settingsLoading && !settingsError && !publishedToday;
+  const needsPublishGate = !settingsLoading && !settingsError && !publishedToday && !gateDismissed;
 
   return (
     <AdminShell>
       {/* Publish gate: block the admin dashboard until today's prices are published */}
       {needsPublishGate && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 px-6">
-          <div className="w-full max-w-sm rounded-2xl bg-surface p-6 text-center shadow-2xl">
+          <div className="relative w-full max-w-sm rounded-2xl bg-surface p-6 text-center shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setGateDismissed(true)}
+              aria-label="Close and browse the dashboard"
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-fg-subtle transition-colors hover:bg-raised hover:text-fg"
+            >
+              <X className="h-5 w-5" aria-hidden />
+            </button>
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-500/10">
               <Sparkles className="h-8 w-8 text-brand-500" aria-hidden />
             </div>
