@@ -85,7 +85,8 @@ async function requireStaff(
 
 interface OrderDoc {
   fields?: {
-    userId?: { stringValue?: string };
+    // The buyer field is `buyerId` on Order (src/lib/types.ts) — not `userId`.
+    buyerId?: { stringValue?: string };
     orderNumber?: { stringValue?: string };
   };
 }
@@ -117,9 +118,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Order not found." }, { status: 404 });
     }
     const order = (await orderRes.json()) as OrderDoc;
-    const buyerId = order.fields?.userId?.stringValue;
+    const buyerId = order.fields?.buyerId?.stringValue;
     const orderNumber = order.fields?.orderNumber?.stringValue ?? "Your order";
-    if (!buyerId) return NextResponse.json({ sent: 0, skipped: true });
+    if (!buyerId) {
+      return NextResponse.json(
+        { error: "That order has no buyer on it." },
+        { status: 422 }
+      );
+    }
 
     const buyerRes = await fetch(firestoreUrl(sa, `/users/${buyerId}`), {
       headers: { Authorization: `Bearer ${bearer}` },

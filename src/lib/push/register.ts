@@ -17,7 +17,8 @@
  * is deliberate — a client that could would be a client that could spam every
  * customer.
  */
-import { arrayUnion, doc, getFirestore, updateDoc } from "firebase/firestore";
+import { arrayUnion, doc, updateDoc } from "firebase/firestore";
+import { getDb } from "../firebase/client";
 import { IS_MOBILE_BUILD } from "../order-route";
 
 /** Guards against double-registering when the auth state re-settles. */
@@ -70,20 +71,30 @@ export async function registerForPush(userId: string): Promise<void> {
     });
 
     await PushNotifications.register();
-  } catch {
+  } catch (e) {
     // A device without Play Services, or a build without google-services.json,
-    // simply gets no push. It must never block signing in.
+    // simply gets no push. It must never block signing in — but say so, so the
+    // difference between "refused" and "broken" is visible in the logs.
+    // eslint-disable-next-line no-console
+    console.error("[push] registration failed:", e);
     registeredFor = null;
   }
 }
 
 async function saveToken(userId: string, token: string): Promise<void> {
   try {
-    await updateDoc(doc(getFirestore(), "users", userId), {
+    // `getDb()`, not a bare `getFirestore()` — the app configures Firestore
+    // with long-polling auto-detection, and going around that accessor risks
+    // starting a second, differently-configured instance.
+    await updateDoc(doc(getDb(), "users", userId), {
       fcmTokens: arrayUnion(token),
     });
-  } catch {
-    /* A failed token write costs this device its pushes, nothing more. */
+  } catch (e) {
+    // A failed write costs this device its pushes and nothing else, so it must
+    // not throw — but it should be findable over `chrome://inspect` rather
+    // than vanishing.
+    // eslint-disable-next-line no-console
+    console.error("[push] could not save the device token:", e);
   }
 }
 
