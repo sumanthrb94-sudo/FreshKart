@@ -1,22 +1,30 @@
 import type { OrderStatus, PaymentMethod, Unit, CartLine } from "./types";
 
+/** Whole-order minimum quantity (in kg / units) for a buyer-placed order.
+ *  This is a wholesale business — a delivery run only pays for itself above a
+ *  certain size — so a cart must reach this before it can be ordered.
+ *
+ *  It sits alongside, not instead of, each product's own `minOrderQty`: the
+ *  stepper still enforces per-line minimums (1kg leafy greens, 20kg onion, 6pc
+ *  cauliflower, 3kg most things), and this is the floor for the basket as a
+ *  whole. A single 1kg bunch of coriander is therefore not an order on its own;
+ *  it needs company. */
+export const MIN_ORDER_TOTAL_QTY = 10;
+
 /** Whole-order maximum quantity (in kg / units) for a buyer-placed order —
  *  mirrored in firestore.rules' isOrderWeightValid() (real enforcement,
  *  since the browser talks to Firestore directly) and in mock.ts/firebase.ts
  *  createOrder (friendly client-side error before attempting the write).
- *  Admin/POS orders are exempt, same as every other buyer-only order rule.
- *
- *  There is deliberately NO whole-cart minimum: each product carries its own
- *  minOrderQty (1kg leafy greens, 20kg onion/potato/tomato/banana, 6pc
- *  cauliflower, 3kg for everything else), which the cart's quantity stepper
- *  enforces per line. A single 1kg bunch of coriander is a valid order. */
+ *  Admin/POS orders are exempt, same as every other buyer-only order rule. */
 export const MAX_ORDER_TOTAL_QTY = 500;
 
-/** True when a cart's total quantity is orderable: it must contain something
- *  and stay under the ceiling. Per-product minimums are handled per line, not
- *  here. Single source of truth for checkout/mock.ts/firebase.ts. */
+/** True when a cart's total quantity is orderable: at or above the wholesale
+ *  floor and under the ceiling. Both bounds are mirrored in
+ *  firestore.rules' isOrderWeightValid(); changing one without the other
+ *  either blocks legitimate carts or lets the client claim a bound the rules
+ *  won't honor. Single source of truth for checkout/mock.ts/firebase.ts. */
 export function isValidOrderWeight(totalQty: number): boolean {
-  return totalQty > 0 && totalQty <= MAX_ORDER_TOTAL_QTY;
+  return totalQty >= MIN_ORDER_TOTAL_QTY && totalQty <= MAX_ORDER_TOTAL_QTY;
 }
 
 /**

@@ -6,6 +6,7 @@ import type { DeliveryDetails, PaymentMethod } from "@/lib/types";
 import {
   formatCurrency,
   pricePerUnit,
+  MIN_ORDER_TOTAL_QTY,
   MAX_ORDER_TOTAL_QTY,
   MAX_ORDER_ITEM_TYPES,
   PAYMENT_LABELS,
@@ -96,6 +97,12 @@ export function CheckoutSheet({
     }
     if (!isValidPhoneDigits(delivery.phone)) {
       setLocalError("Enter a valid 10-digit phone number for delivery updates.");
+      return;
+    }
+    if (totalQty < MIN_ORDER_TOTAL_QTY) {
+      setLocalError(
+        `Minimum order is ${MIN_ORDER_TOTAL_QTY} kgs — you have ${totalQty} kg. Add ${MIN_ORDER_TOTAL_QTY - totalQty} kg more to continue.`
+      );
       return;
     }
     if (totalQty > MAX_ORDER_TOTAL_QTY) {

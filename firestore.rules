@@ -191,7 +191,9 @@ service cloud.firestore {
     // 47 by removing the second call alone). The "> 0" half is now covered by
     // a constant-cost `subtotal > 0` check in the create rule.
     function isOrderWeightValid(items) {
-      return getExpectedTotalQty(items) <= 500;
+      // Mirrors MIN_ORDER_TOTAL_QTY / MAX_ORDER_TOTAL_QTY in src/lib/format.ts.
+      // This is the real enforcement — the browser writes orders directly.
+      return getExpectedTotalQty(items) >= 10 && getExpectedTotalQty(items) <= 500;
     }
 
     // Allowed top-level fields on a new order document. Prevents buyers from

@@ -12,6 +12,8 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   sanitizePhoneDigits,
   isValidPhoneDigits,
@@ -20,6 +22,7 @@ import {
   isValidPincodeDigits,
   PINCODE_DIGIT_LENGTH,
   MAX_ORDER_TOTAL_QTY,
+  MIN_ORDER_TOTAL_QTY,
   isValidOrderWeight,
 } from "../format";
 
@@ -86,17 +89,46 @@ describe("pincode validation", () => {
 });
 
 describe("order weight bounds", () => {
-  // There is no whole-cart minimum: per-product minOrderQty is the gate, so a
-  // single 1kg bunch of leafy greens is a legitimate order.
-  it("accepts any non-empty cart up to MAX_ORDER_TOTAL_QTY", () => {
-    expect(isValidOrderWeight(1)).toBe(true);
+  // This is a wholesale business: a cart must reach the whole-order floor as
+  // well as each product's own minOrderQty. A single 1kg bunch of leafy greens
+  // clears its per-product minimum but is not an order on its own.
+  it("accepts a cart between the floor and the ceiling", () => {
+    expect(isValidOrderWeight(MIN_ORDER_TOTAL_QTY)).toBe(true);
     expect(isValidOrderWeight(MAX_ORDER_TOTAL_QTY)).toBe(true);
     expect(isValidOrderWeight(MAX_ORDER_TOTAL_QTY / 2)).toBe(true);
+  });
+
+  it("rejects below the minimum — a wholesale run has to be worth making", () => {
+    expect(isValidOrderWeight(MIN_ORDER_TOTAL_QTY - 1)).toBe(false);
+    expect(isValidOrderWeight(1)).toBe(false);
   });
 
   it("rejects an empty or negative cart", () => {
     expect(isValidOrderWeight(0)).toBe(false);
     expect(isValidOrderWeight(-1)).toBe(false);
+  });
+
+  // The browser writes orders straight to Firestore, so isOrderWeightValid()
+  // in firestore.rules is the real gate — a client-side bound the rules don't
+  // share is advisory only, and rules stricter than the client surface as a
+  // bare "Missing or insufficient permissions" at checkout. Parse the live
+  // rules file so a one-sided edit fails here rather than in production.
+  it("agrees with the bounds enforced in firestore.rules", () => {
+    const rules = readFileSync(
+      join(process.cwd(), "firestore.rules"),
+      "utf8"
+    );
+    const fn = rules.match(
+      /function isOrderWeightValid\(items\)\s*\{([\s\S]*?)\}/
+    );
+    expect(fn, "isOrderWeightValid() not found in firestore.rules").toBeTruthy();
+
+    const bounds = [...(fn?.[1] ?? "").matchAll(/getExpectedTotalQty\(items\)\s*(>=|<=)\s*(\d+)/g)];
+    const min = bounds.find(([, op]) => op === ">=")?.[2];
+    const max = bounds.find(([, op]) => op === "<=")?.[2];
+
+    expect(Number(min)).toBe(MIN_ORDER_TOTAL_QTY);
+    expect(Number(max)).toBe(MAX_ORDER_TOTAL_QTY);
   });
 
   it("rejects above the maximum — an order can't silently exceed packing/delivery capacity", () => {
