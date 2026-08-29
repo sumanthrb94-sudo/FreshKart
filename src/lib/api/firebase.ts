@@ -64,6 +64,7 @@ import { authReady, getDb, getFirebaseAuth } from "@/lib/firebase/client";
 // firestore.rules.
 import { isAdminPhone } from "@/lib/admin-phones";
 import { DataSource, ApiError, type WipeResult } from "./datasource";
+import { notifyBuyerOfStatus } from "@/lib/api/order-push";
 
 const COL = {
   users: "users",
@@ -838,6 +839,10 @@ export class FirebaseDataSource implements DataSource {
       updated = { ...order, ...(patch as Partial<Order>) };
     }));
 
+    // The buyer's own app raises this alert too, but only while it is open —
+    // a push is what reaches a phone in a pocket.
+    notifyBuyerOfStatus(id, status);
+
     return updated!;
   }
 
@@ -884,6 +889,10 @@ export class FirebaseDataSource implements DataSource {
     }
 
     await batch.commit();
+
+    // Morning batches move many orders at once; each buyer still gets their own.
+    for (const order of updated) notifyBuyerOfStatus(order.id, status);
+
     return updated;
   }
 

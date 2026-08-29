@@ -1,5 +1,10 @@
 import type { MetadataRoute } from "next";
 
+// Fully static output (no request-time data), which also lets the mobile
+// static export render it at build time.
+export const dynamic = "force-static";
+
+
 /**
  * Web App Manifest — makes Green Basket installable as a standalone app
  * ("Add to Home screen" / "Install app") in Chrome and Android. Next serves

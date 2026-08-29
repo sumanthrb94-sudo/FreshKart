@@ -5,6 +5,7 @@
  *  kind. Separate from email/SMS (in notifications.ts).
  */
 import { api } from "@/lib/api";
+import { orderHref } from "@/lib/order-route";
 
 export type InAppNotificationType =
   | "order_confirmed"
@@ -124,7 +125,7 @@ export function notifyOrderConfirmed(orderNumber: string, total: number, orderId
     "order_confirmed",
     "Order Confirmed",
     `Your order ${orderNumber} for Rs. ${total} has been confirmed. We'll pack it for tomorrow's morning delivery.`,
-    { actionUrl: `/orders/${orderId}`, orderId }
+    { actionUrl: orderHref(orderId), orderId }
   );
 }
 
@@ -133,7 +134,7 @@ export function notifyOrderPacked(orderNumber: string, orderId: string) {
     "order_packed",
     "Order Packed",
     `Your order ${orderNumber} has been packed and is ready for tomorrow's morning delivery before 7 AM.`,
-    { actionUrl: `/orders/${orderId}`, orderId }
+    { actionUrl: orderHref(orderId), orderId }
   );
 }
 
@@ -142,7 +143,7 @@ export function notifyOrderShipped(orderNumber: string, orderId: string) {
     "order_shipped",
     "Out for Delivery",
     `Your order ${orderNumber} is out for delivery and will arrive soon.`,
-    { actionUrl: `/orders/${orderId}`, orderId }
+    { actionUrl: orderHref(orderId), orderId }
   );
 }
 
@@ -151,7 +152,7 @@ export function notifyOrderDelivered(orderNumber: string, orderId: string) {
     "order_delivered",
     "Delivered",
     `Your order ${orderNumber} has been delivered. Enjoy your fresh produce!`,
-    { actionUrl: `/orders/${orderId}`, orderId }
+    { actionUrl: orderHref(orderId), orderId }
   );
 }
 
@@ -178,6 +179,6 @@ export function notifyPaymentReminder(orderNumber: string, amount: number, order
     "payment_reminder",
     "Payment Pending",
     `Please pay Rs. ${amount} for order ${orderNumber} before delivery.`,
-    { actionUrl: `/orders/${orderId}`, orderId }
+    { actionUrl: orderHref(orderId), orderId }
   );
 }

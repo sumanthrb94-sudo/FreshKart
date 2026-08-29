@@ -2,17 +2,17 @@ import { ImageResponse } from "next/og";
 
 const GREEN = "#059669"; // Royal emerald green (brand-500)
 
-// Lucide "Sprout" — the same mark used in the app header, drawn as plain SVG
-// paths so the icon renders without needing any embedded font.
-const SPROUT_PATHS = [
-  "M7 20h10",
-  "M10 20c5.5-2.5.8-6.4 3-10",
-  "M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z",
-  "M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z",
+// Lucide "ShoppingCart" — the same mark used for the Android launcher icon,
+// drawn as plain SVG paths so the icon renders without needing any embedded
+// font. The two leading paths are the wheels.
+const CART_PATHS = [
+  "M9 21a1 1 0 1 1-2 0 1 1 0 0 1 2 0z",
+  "M20 21a1 1 0 1 1-2 0 1 1 0 0 1 2 0z",
+  "M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12",
 ];
 
 /**
- * Render the Green Basket app icon (white sprout on royal green) as a PNG via
+ * Render the Green Basket app icon (white cart on royal green) as a PNG via
  * Satori/resvg — no external image tooling required. Used by the favicon,
  * apple-touch icon and the PWA manifest icons.
  */
@@ -44,7 +44,7 @@ export function brandIcon(
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          {SPROUT_PATHS.map((d, i) => (
+          {CART_PATHS.map((d, i) => (
             <path key={i} d={d} />
           ))}
         </svg>

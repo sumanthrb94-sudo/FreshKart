@@ -11,6 +11,7 @@ import {
   Users,
   BadgePercent,
   MessageCircle,
+  Megaphone,
   Settings,
   Truck,
   Undo2,
@@ -36,6 +37,7 @@ export const ADMIN_TABS: AdminTab[] = [
   { href: "/admin/reports", label: "Reports", icon: FileText, isActive: (p) => p.startsWith("/admin/reports") },
   { href: "/admin/coupons", label: "Coupons", icon: BadgePercent, isActive: (p) => p.startsWith("/admin/coupons") },
   { href: "/admin/customers", label: "Buyers", icon: Users, isActive: (p) => p.startsWith("/admin/customers") },
+  { href: "/admin/notifications", label: "Notify", icon: Megaphone, isActive: (p) => p.startsWith("/admin/notifications") },
   { href: "/admin/settings", label: "Settings", icon: Settings, isActive: (p) => p.startsWith("/admin/settings") },
 ];
 

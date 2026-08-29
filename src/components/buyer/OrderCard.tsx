@@ -6,6 +6,7 @@ import type { Order } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { ProductThumb } from "@/components/ui/ProductThumb";
 import { OrderStatusBadge } from "@/components/ui/Badge";
+import { orderHref } from "@/lib/order-route";
 
 export function OrderCard({ order }: { order: Order }) {
   const shown = order.items.slice(0, 4);
@@ -14,7 +15,7 @@ export function OrderCard({ order }: { order: Order }) {
 
   return (
     <Link
-      href={`/orders/${order.id}`}
+      href={orderHref(order.id)}
       className="block rounded-xl border border-line bg-surface p-4 shadow-card transition-shadow hover:shadow-card-hover"
     >
       <div className="flex items-center justify-between gap-2">

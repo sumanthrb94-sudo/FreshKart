@@ -16,6 +16,7 @@ import { useOrderTracker } from "@/components/providers/OrderTrackerProvider";
 import type { Order } from "@/lib/types";
 import type { Coupon } from "@/lib/coupons";
 import { api } from "@/lib/api";
+import { orderHref } from "@/lib/order-route";
 
 export function OrderSuccessAdScreen({
   orderId,
@@ -115,7 +116,7 @@ export function OrderSuccessAdScreen({
       <div className="relative z-10 -mt-6 flex flex-col gap-3 rounded-t-[26px] bg-canvas p-4">
         {/* Order Actions */}
         <div className="flex flex-col gap-2">
-          <Button fullWidth onClick={() => router.push(`/orders/${orderId}`)}>
+          <Button fullWidth onClick={() => router.push(orderHref(orderId))}>
             Track Order
           </Button>
           <Button variant="outline" fullWidth onClick={() => router.push("/orders")}>

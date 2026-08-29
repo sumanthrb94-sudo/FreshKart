@@ -56,8 +56,11 @@ const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "on" },
 ];
 
+const isMobileBuild = process.env.MOBILE_BUILD === "1";
+
 const nextConfig = {
   reactStrictMode: true,
+  ...(isMobileBuild ? { output: "export" } : {}),
 
   experimental: {
     // Icons are imported by name in ~70 files. Without this hint the whole
@@ -68,6 +71,7 @@ const nextConfig = {
   // Don't advertise the framework/version in responses.
   poweredByHeader: false,
   images: {
+    unoptimized: isMobileBuild,
     // Allow remote produce imagery (Unsplash) used by the seed catalog and
     // Firebase Storage product photos uploaded by admins.
     remotePatterns: [

@@ -1,9 +1,12 @@
 import {
+  PhoneAuthProvider,
   RecaptchaVerifier,
+  signInWithCredential,
   signInWithPhoneNumber,
   type ConfirmationResult,
 } from "firebase/auth";
 import { getFirebaseAuth } from "./client";
+import { IS_MOBILE_BUILD } from "../order-route";
 
 /**
  * Firebase Phone Authentication helpers (browser only).
@@ -16,6 +19,20 @@ import { getFirebaseAuth } from "./client";
  * For local/test sign-in without real SMS, add a test phone number in
  * Firebase console → Authentication → Sign-in method → Phone → "Phone numbers
  * for testing" (e.g. +91 98765 43210 → 123456).
+ *
+ * ── Android ──────────────────────────────────────────────────────────────
+ * reCAPTCHA verifies the *origin*, and a Capacitor WebView serves the app from
+ * `https://localhost`, which it cannot issue a valid token for — Firebase
+ * rejects the attempt as `auth/invalid-app-credential`. So the mobile build
+ * takes a different route: the native Firebase SDK sends the SMS (verifying the
+ * app with Play Integrity, no reCAPTCHA at all) and hands back a verification
+ * id, which is then exchanged for a session on the JS SDK — the JS SDK is what
+ * holds the auth state every Firestore read runs under, so sign-in has to land
+ * there either way.
+ *
+ * That native path needs `android/app/google-services.json` and the signing
+ * key's SHA-1 registered on the Firebase Android app; without them the SMS
+ * never sends.
  */
 
 function getContainer(containerId: string): HTMLElement {
@@ -111,6 +128,84 @@ function normalizeFirebaseError(e: unknown): PhoneAuthError {
   }
 }
 
+
+// ── Native (Capacitor) OTP ──────────────────────────────────────────────────
+// Loaded lazily so the plugin never enters the web bundle: IS_MOBILE_BUILD is a
+// build-time constant, so on web these branches are dropped entirely.
+
+/** Listener handles for one in-flight native verification. */
+let nativeListeners: { remove: () => Promise<void> }[] = [];
+
+async function clearNativeListeners(): Promise<void> {
+  const handles = nativeListeners;
+  nativeListeners = [];
+  await Promise.all(handles.map((h) => h.remove().catch(() => {})));
+}
+
+/**
+ * Send the OTP through the native Firebase SDK and return the same
+ * `ConfirmationResult` shape the web path yields, so callers stay unchanged.
+ */
+async function sendOtpNative(phoneE164: string): Promise<ConfirmationResult> {
+  const { FirebaseAuthentication } = await import(
+    "@capacitor-firebase/authentication"
+  );
+  await clearNativeListeners();
+
+  const verificationId = await new Promise<string>((resolve, reject) => {
+    // Firebase gives up on an SMS well before this; the timer only stops the
+    // promise hanging forever if no callback ever arrives.
+    const timer = setTimeout(() => {
+      reject(
+        new PhoneAuthError(
+          "OTP_SEND_TIMEOUT",
+          "The code is taking too long to send. Please check your signal and try again."
+        )
+      );
+    }, 90_000);
+
+    const settle = (fn: () => void) => {
+      clearTimeout(timer);
+      fn();
+    };
+
+    FirebaseAuthentication.addListener("phoneCodeSent", (event) => {
+      settle(() => resolve(event.verificationId));
+    }).then(
+      (handle) => nativeListeners.push(handle),
+      () => {}
+    );
+
+    FirebaseAuthentication.addListener("phoneVerificationFailed", (event) => {
+      settle(() => reject(normalizeFirebaseError(event)));
+    }).then(
+      (handle) => nativeListeners.push(handle),
+      () => {}
+    );
+
+    // `skipNativeAuth` keeps the plugin from consuming the code itself — an OTP
+    // is single-use, and it has to be spent on the JS SDK below.
+    FirebaseAuthentication.signInWithPhoneNumber({
+      phoneNumber: phoneE164,
+      skipNativeAuth: true,
+    }).catch((e) => settle(() => reject(normalizeFirebaseError(e))));
+  }).finally(() => clearNativeListeners());
+
+  return {
+    verificationId,
+    confirm: async (verificationCode: string) => {
+      try {
+        return await signInWithCredential(
+          getFirebaseAuth(),
+          PhoneAuthProvider.credential(verificationId, verificationCode)
+        );
+      } catch (e) {
+        throw normalizeFirebaseError(e);
+      }
+    },
+  };
+}
+
 let verifier: RecaptchaVerifier | null = null;
 
 /** Normalize a 10-digit Indian number (or any input) to E.164 (+91…). */
@@ -131,6 +226,13 @@ export async function renderRecaptcha(
   onVerified: () => void,
   onExpired: () => void
 ): Promise<void> {
+  // Native builds verify the app with Play Integrity, so there is no widget to
+  // render — report ready immediately and let sendOtp take the native path.
+  if (IS_MOBILE_BUILD) {
+    onVerified();
+    return;
+  }
+
   resetRecaptcha();
   const container = getContainer(containerId);
 
@@ -161,6 +263,10 @@ export async function sendOtp(
   phoneE164: string,
   _recaptchaContainerId: string
 ): Promise<ConfirmationResult> {
+  if (IS_MOBILE_BUILD) {
+    return sendOtpNative(phoneE164);
+  }
+
   try {
     const auth = getFirebaseAuth();
     if (!verifier) {
@@ -178,6 +284,11 @@ export async function sendOtp(
 
 /** Tear down the reCAPTCHA so it can be recreated. */
 export function resetRecaptcha(): void {
+  if (IS_MOBILE_BUILD) {
+    void clearNativeListeners();
+    return;
+  }
+
   try {
     verifier?.clear();
   } catch {

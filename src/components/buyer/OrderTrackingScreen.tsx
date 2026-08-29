@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { PackageX } from "lucide-react";
+import { orderHref } from "@/lib/order-route";
 
 /** Live order-by-id for the buyer: subscribes so status changes, refunds,
  *  and invoice adjustments (e.g. once a return is refunded) show up
@@ -85,7 +86,7 @@ function useLiveOrder(id: string, buyerId: string | undefined) {
 }
 
 export function OrderTrackingScreen({ id }: { id: string }) {
-  const { ready, user } = useRequireAuth({ callbackUrl: `/orders/${id}` });
+  const { ready, user } = useRequireAuth({ callbackUrl: orderHref(id) });
   const params = useSearchParams();
   const justPlaced = params.get("placed") === "1";
   const { order, loading } = useLiveOrder(id, user?.id);

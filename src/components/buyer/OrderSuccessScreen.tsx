@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FullScreenLoader } from "@/components/ui/Spinner";
 import { CountUp } from "@/components/ui/CountUp";
 import { PackageX } from "lucide-react";
+import { orderHref } from "@/lib/order-route";
 
 export function OrderSuccessScreen({ id }: { id: string }) {
   const { ready } = useRequireAuth({ callbackUrl: `/order-success/${id}` });
@@ -143,7 +144,7 @@ export function OrderSuccessScreen({ id }: { id: string }) {
         </Card>
 
         <div className="flex flex-col gap-2 pb-2">
-          <Link href={`/orders/${order.id}`}>
+          <Link href={orderHref(order.id)}>
             <Button size="lg" fullWidth className="bg-brand-600 hover:bg-brand-700">
               Track order
             </Button>

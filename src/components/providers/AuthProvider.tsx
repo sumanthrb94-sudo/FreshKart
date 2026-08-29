@@ -12,6 +12,7 @@ import {
 import type { User } from "@/lib/types";
 import { api } from "@/lib/api";
 import { shouldHoldLoaderOnSignIn } from "@/lib/auth-gate";
+import { registerForPush, resetPushRegistration } from "@/lib/push/register";
 
 interface AuthContextValue {
   user: User | null;
@@ -197,6 +198,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return user;
     }
   }, [persist, user]);
+
+  // Register this device for push once a buyer is signed in. The helper is a
+  // no-op on web and refuses to run twice for the same person, so this can sit
+  // on the plain user state without guarding the re-renders. Buyers only: the
+  // Android app is the buyer app, and admin/driver sign in on the web.
+  useEffect(() => {
+    if (user?.role === "BUYER") {
+      void registerForPush(user.id);
+    } else if (!user) {
+      resetPushRegistration();
+    }
+  }, [user]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
