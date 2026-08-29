@@ -224,6 +224,13 @@ export function AdminOverviewScreen() {
   // Day totals — scoped to one IST business day, fetched with a date-range
   // query rather than the all-time scan the stats below still do.
   const [day, setDay] = useState(() => getIstToday());
+
+  // Dismissing the publish gate is deliberately per-page-load state, not
+  // anything persisted: the prices genuinely do need publishing, so the
+  // reminder returns on the next refresh. This only stops it trapping an
+  // admin who came here to do something else first. Declared above the
+  // loading/error early returns below, so the hook order never changes.
+  const [gateDismissed, setGateDismissed] = useState(false);
   const { startIso, endIso } = useMemo(() => getIstBusinessDayRange(day), [day]);
   const {
     data: dayOrders,
@@ -302,46 +309,18 @@ export function AdminOverviewScreen() {
     router.push("/admin/prices");
   }
 
-  const needsPublishGate = !settingsLoading && !settingsError && !publishedToday;
+  const needsPublishGate =
+    !settingsLoading && !settingsError && !publishedToday && !gateDismissed;
 
   return (
     <AdminShell>
       {/* Publish gate: block the admin dashboard until today's prices are published */}
       {needsPublishGate && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 px-6">
-          <div className="w-full max-w-sm rounded-2xl bg-surface p-6 text-center shadow-2xl">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-500/10">
-              <Sparkles className="h-8 w-8 text-brand-500" aria-hidden />
-            </div>
-            <h2 className="mt-4 text-xl font-extrabold text-fg">Publish today&apos;s prices</h2>
-            <p className="mt-1 text-sm text-fg-subtle">
-              The store can&apos;t go live until today&apos;s prices are published.
-            </p>
-            <p className="mt-1 text-xs text-fg-muted">
-              Buyers will see &quot;Gathering best prices across Hyderabad&quot; until you publish.
-            </p>
-
-            <div className="mt-5 flex flex-col gap-3">
-              <Button
-                size="lg"
-                onClick={goToPriceUpdate}
-                disabled={!user}
-                fullWidth
-              >
-                Review &amp; publish today&apos;s prices
-              </Button>
-            </div>
-
-            <div className="mt-4 rounded-lg bg-raised p-3">
-              <p className="text-xs text-fg-subtle">
-                <strong className="text-fg">Store opens at 8:00 AM IST</strong>
-              </p>
-              <p className="mt-1 text-xs text-fg-muted">
-                Daily price update window: 7:00 AM IST
-              </p>
-            </div>
-          </div>
-        </div>
+        <PublishGate
+          canPublish={!!user}
+          onPublish={goToPriceUpdate}
+          onDismiss={() => setGateDismissed(true)}
+        />
       )}
 
       <div className="flex flex-col gap-3 p-4">
@@ -786,5 +765,88 @@ function NavTile({
       </span>
       <span className="text-xs font-bold leading-tight text-fg">{label}</span>
     </Link>
+  );
+}
+
+
+/**
+ * The "publish today's prices" gate.
+ *
+ * It covers the dashboard because an unpublished day means the store is shut
+ * to buyers — that is worth interrupting for. But it is dismissible: an admin
+ * who came in to check an order should not be held hostage by it. The dismissal
+ * is not remembered anywhere, so the reminder is back on the next refresh,
+ * which is the point.
+ *
+ * Its own component so the Escape listener is mounted only while the gate is
+ * actually on screen.
+ */
+function PublishGate({
+  canPublish,
+  onPublish,
+  onDismiss,
+}: {
+  canPublish: boolean;
+  onPublish: () => void;
+  onDismiss: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onDismiss();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onDismiss]);
+
+  return (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 px-6">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="publish-gate-title"
+            className="relative w-full max-w-sm rounded-2xl bg-surface p-6 text-center shadow-2xl"
+          >
+            <button
+              type="button"
+              onClick={onDismiss}
+              aria-label="Close and publish later"
+              className="absolute right-3 top-3 rounded-full p-1.5 text-fg-muted transition-colors hover:bg-raised hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            >
+              <X className="h-5 w-5" aria-hidden />
+            </button>
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-500/10">
+              <Sparkles className="h-8 w-8 text-brand-500" aria-hidden />
+            </div>
+            <h2 id="publish-gate-title" className="mt-4 text-xl font-extrabold text-fg">
+              Publish today&apos;s prices
+            </h2>
+            <p className="mt-1 text-sm text-fg-subtle">
+              The store can&apos;t go live until today&apos;s prices are published.
+            </p>
+            <p className="mt-1 text-xs text-fg-muted">
+              Buyers will see &quot;Gathering best prices across Hyderabad&quot; until you publish.
+            </p>
+
+            <div className="mt-5 flex flex-col gap-3">
+              <Button
+                size="lg"
+                onClick={onPublish}
+                disabled={!canPublish}
+                fullWidth
+              >
+                Review &amp; publish today&apos;s prices
+              </Button>
+            </div>
+
+            <div className="mt-4 rounded-lg bg-raised p-3">
+              <p className="text-xs text-fg-subtle">
+                <strong className="text-fg">Store opens at 8:00 AM IST</strong>
+              </p>
+              <p className="mt-1 text-xs text-fg-muted">
+                Daily price update window: 7:00 AM IST
+              </p>
+            </div>
+          </div>
+        </div>
   );
 }
