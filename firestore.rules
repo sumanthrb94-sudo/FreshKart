@@ -22,7 +22,9 @@ service cloud.firestore {
              && 'email' in request.auth.token
              && request.auth.token.email in [
                'admin@green-basket.in',
+               'sumanthrb94@gmail.com',
                'sumanthbolla97@gmail.com',
+               'sumanthshadeslayer@gmail.com',
                'sivakishore43@gmail.com'
              ];
     }
