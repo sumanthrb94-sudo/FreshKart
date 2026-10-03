@@ -10,7 +10,7 @@
  * sign-in path to take. A number added here but not in the deployed rules
  * will fail admin sign-in with a permissions error.
  */
-export const ADMIN_PHONES = ["+919700144003"];
+export const ADMIN_PHONES = ["+919700144003", "+919700144002"];
 
 export function isAdminPhone(phone?: string | null): boolean {
   return !!phone && ADMIN_PHONES.includes(phone.trim());

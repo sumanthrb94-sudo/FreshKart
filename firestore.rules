@@ -17,12 +17,20 @@ service cloud.firestore {
     //
     // A phone-auth token always carries `phone_number`, but guard with `in`
     // anyway (safe presence check, never errors) — the same defensive
-    // pattern as userRole() below, in case a future auth method's token ever
-    // lacks it.
+    function isAdminEmail() {
+      return isSignedIn()
+             && 'email' in request.auth.token
+             && request.auth.token.email in [
+               'admin@green-basket.in',
+               'sumanthbolla97@gmail.com',
+               'sivakishore43@gmail.com'
+             ];
+    }
+
     function isAdminPhone() {
       return isSignedIn()
              && 'phone_number' in request.auth.token
-             && request.auth.token.phone_number in ['+919700144003'];
+             && request.auth.token.phone_number in ['+919700144003', '+919700144002'];
     }
 
     // Reading `.data` off a get() for a document that doesn't exist throws —
@@ -41,7 +49,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAdminPhone() || (isSignedIn() && userRole() == 'ADMIN');
+      return isAdminEmail()
+             || isAdminPhone()
+             || (isSignedIn() && 'role' in request.auth.token && request.auth.token.role == 'ADMIN')
+             || (isSignedIn() && 'admin' in request.auth.token && request.auth.token.admin == true)
+             || (isSignedIn() && userRole() == 'ADMIN');
     }
 
     // Delivery executives. They see and touch ONLY the orders assigned to
