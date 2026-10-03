@@ -19,10 +19,10 @@ import type {
   CreateSupportTicketInput,
   SupportTicket,
   TicketSender,
-} from "@/lib/support-tickets";
-import type { Coupon } from "@/lib/coupons";
-import type { ServiceArea } from "@/lib/service-area";
-import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
+} from "../support-tickets";
+import type { Coupon } from "../coupons";
+import type { ServiceArea } from "../service-area";
+import type { InAppNotification, InAppNotificationType } from "../in-app-notifications";
 
 /**
  * The contract every backend must satisfy. The UI depends ONLY on this

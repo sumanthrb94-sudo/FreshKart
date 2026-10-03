@@ -1,11 +1,11 @@
-import type { Category, DailyPricesSettings, Order, Product, StoreSettings, User } from "@/lib/types";
-import { CATEGORIES, ORDERS, PRODUCTS, USERS, DEMO_PASSWORD } from "@/lib/mock-data";
-import type { SupportTicket } from "@/lib/support-tickets";
-import type { Coupon } from "@/lib/coupons";
-import { DEMO_COUPONS } from "@/lib/coupons";
-import type { InAppNotification } from "@/lib/in-app-notifications";
-import type { ServiceArea } from "@/lib/service-area";
-import { DEFAULT_SERVICE_AREA } from "@/lib/service-area";
+import type { Category, DailyPricesSettings, Order, Product, StoreSettings, User } from "../types";
+import { CATEGORIES, ORDERS, PRODUCTS, USERS, DEMO_PASSWORD } from "../mock-data";
+import type { SupportTicket } from "../support-tickets";
+import type { Coupon } from "../coupons";
+import { DEMO_COUPONS } from "../coupons";
+import type { InAppNotification } from "../in-app-notifications";
+import type { ServiceArea } from "../service-area";
+import { DEFAULT_SERVICE_AREA } from "../service-area";
 
 interface MockStore {
   categories: Category[];

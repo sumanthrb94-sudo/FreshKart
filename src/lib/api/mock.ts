@@ -15,20 +15,20 @@ import type {
   StoreOverride,
   StoreSettings,
   User,
-} from "@/lib/types";
-import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
-import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
-import type { Coupon } from "@/lib/coupons";
-import { CATEGORIES } from "@/lib/mock-data";
-import type { ServiceArea } from "@/lib/service-area";
-import { radiusOf } from "@/lib/service-area";
-import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
-import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "@/lib/format";
-import { calculateDeliveryFee } from "@/lib/delivery";
-import { filterOrdersByRange, isDailyPriceUpdatePublished } from "@/lib/time";
-import { effectiveOverride, getStoreStatus, nextStoreClose } from "@/lib/store-hours";
-import { isWithinDriverAuthority, totalRefundOf } from "@/lib/delivery-adjustment";
-import { deliveryDateOf, nextDeliveryDate } from "@/lib/delivery-run";
+} from "../types";
+import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "../support-tickets";
+import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "../support-tickets";
+import type { Coupon } from "../coupons";
+import { CATEGORIES } from "../mock-data";
+import type { ServiceArea } from "../service-area";
+import { radiusOf } from "../service-area";
+import type { InAppNotification, InAppNotificationType } from "../in-app-notifications";
+import { generateOrderNumber, MIN_ORDER_TOTAL_QTY, MAX_ORDER_TOTAL_QTY } from "../format";
+import { calculateDeliveryFee } from "../delivery";
+import { filterOrdersByRange, isDailyPriceUpdatePublished } from "../time";
+import { effectiveOverride, getStoreStatus, nextStoreClose } from "../store-hours";
+import { isWithinDriverAuthority, totalRefundOf } from "../delivery-adjustment";
+import { deliveryDateOf, nextDeliveryDate } from "../delivery-run";
 import { DataSource, ApiError, type WipeResult } from "./datasource";
 import { store } from "./mock-store";
 
