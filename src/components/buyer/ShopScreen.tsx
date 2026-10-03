@@ -43,6 +43,11 @@ export function ShopScreen() {
     () => api.getDailyPricesSettings(),
     []
   );
+  const { data: categoriesData } = useAsync(() => api.listCategories(), []);
+  const categories = useMemo(
+    () => (categoriesData && categoriesData.length > 0 ? categoriesData : CATEGORIES),
+    [categoriesData]
+  );
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
@@ -240,7 +245,7 @@ export function ShopScreen() {
             <Chip active={category === "all"} onClick={() => setCategory("all")}>
               {t("all")}
             </Chip>
-            {CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <Chip key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
                 {tCategory(c.name)}
               </Chip>

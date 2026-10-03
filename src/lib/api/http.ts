@@ -2,6 +2,8 @@ import type {
   AdminStats,
   CreateOrderInput,
   Customer,
+  Category,
+  CreateCategoryInput,
   DailyPricesSettings,
   Order,
   OrderStatus,
@@ -93,6 +95,25 @@ export class HttpDataSource implements DataSource {
     return this.request<Product[]>("/products/prices", {
       method: "PATCH",
       body: JSON.stringify({ updates }),
+    });
+  }
+
+  listCategories() {
+    return this.request<Category[]>("/categories");
+  }
+
+  createCategory(input: CreateCategoryInput | string) {
+    const payload = typeof input === "string" ? { name: input } : input;
+    return this.request<Category>("/categories", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  deleteCategory(id: string, reassignToCategoryId?: string) {
+    const qs = reassignToCategoryId ? `?reassignTo=${encodeURIComponent(reassignToCategoryId)}` : "";
+    return this.request<void>(`/categories/${id}${qs}`, {
+      method: "DELETE",
     });
   }
 

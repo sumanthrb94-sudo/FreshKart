@@ -6,8 +6,8 @@ import type { Category, Order, Product, User } from "./types";
  */
 
 export const CATEGORIES: Category[] = [
-  { id: "vegetables", name: "Vegetables" },
-  { id: "leafy-greens", name: "Leafy Greens" },
+  { id: "vegetables", name: "Vegetables", isDefault: true },
+  { id: "leafy-greens", name: "Leafy Greens", isDefault: true },
 ];
 
 type SeedProduct = Omit<Product, "id" | "active"> & {

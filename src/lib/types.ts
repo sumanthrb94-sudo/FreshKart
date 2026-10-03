@@ -57,6 +57,14 @@ export interface Category {
   id: string;
   /** display label, e.g. "Vegetables" */
   name: string;
+  /** whether this is a default/system category (e.g. Vegetables, Leafy Greens) */
+  isDefault?: boolean;
+}
+
+export interface CreateCategoryInput {
+  name: string;
+  /** Optional existing product IDs to assign to this category */
+  productIds?: string[];
 }
 
 export interface Product {

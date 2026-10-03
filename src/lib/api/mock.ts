@@ -4,6 +4,8 @@ import type {
   DeliveryAdjustment,
   CreateOrderInput,
   Customer,
+  Category,
+  CreateCategoryInput,
   DailyPricesSettings,
   Order,
   OrderStatus,
@@ -17,6 +19,7 @@ import type {
 import { openNewTicket, buildTicketMessage, ESCALATION_NOTICE } from "@/lib/support-tickets";
 import type { CreateSupportTicketInput, SupportTicket, TicketSender } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
+import { CATEGORIES } from "@/lib/mock-data";
 import type { ServiceArea } from "@/lib/service-area";
 import { radiusOf } from "@/lib/service-area";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
@@ -187,6 +190,61 @@ export class MockDataSource implements DataSource {
       }
     });
     return delay(structuredClone(result));
+  }
+
+  async listCategories(): Promise<Category[]> {
+    const cats = store.get().categories;
+    if (!cats || cats.length === 0) {
+      store.mutate((s) => {
+        s.categories = structuredClone(CATEGORIES);
+      });
+      return delay(structuredClone(CATEGORIES));
+    }
+    return delay(structuredClone(cats));
+  }
+
+  async createCategory(input: CreateCategoryInput | string): Promise<Category> {
+    const name = typeof input === "string" ? input.trim() : input.name.trim();
+    const productIds = typeof input === "string" ? [] : (input.productIds ?? []);
+    if (!name) throw new ApiError("Category name is required.");
+
+    let created: Category | null = null;
+    store.mutate((s) => {
+      if (!s.categories) s.categories = structuredClone(CATEGORIES);
+      let baseId = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+      if (!baseId) baseId = `cat-${Date.now()}`;
+      let id = baseId;
+      let counter = 1;
+      while (s.categories.some((c) => c.id === id)) {
+        id = `${baseId}-${counter++}`;
+      }
+      const newCat: Category = { id, name };
+      s.categories.push(newCat);
+      created = newCat;
+
+      if (productIds.length > 0) {
+        for (const p of s.products) {
+          if (productIds.includes(p.id)) {
+            p.category = id;
+          }
+        }
+      }
+    });
+    return delay(structuredClone(created!), 100);
+  }
+
+  async deleteCategory(id: string, reassignToCategoryId?: string): Promise<void> {
+    store.mutate((s) => {
+      if (!s.categories) s.categories = structuredClone(CATEGORIES);
+      s.categories = s.categories.filter((c) => c.id !== id);
+      const targetCat = reassignToCategoryId || s.categories[0]?.id || "vegetables";
+      for (const p of s.products) {
+        if (p.category === id) {
+          p.category = targetCat;
+        }
+      }
+    });
+    return delay(undefined, 100);
   }
 
   // --- Orders -------------------------------------------------------------

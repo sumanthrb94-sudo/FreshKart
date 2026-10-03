@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Clock, ImageIcon, Minus, Package, Pencil, Plus, Search, Sparkles, Upload, X } from "lucide-react";
-import type { Product, ProductInput, Unit } from "@/lib/types";
+import { CheckCircle2, Clock, FolderPlus, ImageIcon, Minus, Package, Pencil, Plus, Search, Sparkles, Trash2, Upload, X } from "lucide-react";
+import type { Category, Product, ProductInput, Unit } from "@/lib/types";
 import { api, ApiError, backendKind } from "@/lib/api";
 import { formatCurrency, unitLabel } from "@/lib/format";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
@@ -46,8 +46,9 @@ function isLowStock(p: Product): boolean {
   return p.stock <= p.minOrderQty * 2;
 }
 
-function categoryLabel(slug: string): string {
-  return CATEGORIES.find((c) => c.id === slug)?.name ?? slug;
+function categoryLabel(slug: string, categoriesList?: Category[]): string {
+  const list = categoriesList && categoriesList.length > 0 ? categoriesList : CATEGORIES;
+  return list.find((c) => c.id === slug)?.name ?? slug;
 }
 
 function errorMessage(e: unknown): string {
@@ -75,10 +76,11 @@ interface FormState {
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
-function emptyForm(): FormState {
+function emptyForm(categoriesList?: Category[]): FormState {
+  const list = categoriesList && categoriesList.length > 0 ? categoriesList : CATEGORIES;
   return {
     name: "",
-    category: CATEGORIES[0]?.id ?? "",
+    category: list[0]?.id ?? "vegetables",
     unit: "kg",
     price: "",
     minOrderQty: "1",
@@ -150,6 +152,7 @@ function ProductForm({
   title,
   open,
   initial,
+  categories,
   productId,
   submitLabel,
   onClose,
@@ -158,6 +161,7 @@ function ProductForm({
   title: string;
   open: boolean;
   initial: FormState;
+  categories: Category[];
   productId?: string;
   submitLabel: string;
   onClose: () => void;
@@ -258,7 +262,7 @@ function ProductForm({
               value={form.category}
               onChange={(e) => set("category", e.target.value)}
             >
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -423,10 +427,12 @@ function ProductForm({
 
 function ProductRow({
   product,
+  categories,
   onPatched,
   onEdit,
 }: {
   product: Product;
+  categories: Category[];
   onPatched: (p: Product) => void;
   onEdit: (p: Product) => void;
 }) {
@@ -467,7 +473,7 @@ function ProductRow({
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-fg">{product.name}</p>
               <p className="truncate text-xs text-fg-subtle">
-                {categoryLabel(product.category)} · {product.origin}
+                {categoryLabel(product.category, categories)} · {product.origin}
               </p>
               <p className="mt-0.5 text-xs font-semibold text-fg-muted">
                 {formatCurrency(product.price)} / {u}
@@ -547,10 +553,12 @@ function ProductRow({
 
 function ProductTableRow({
   product,
+  categories,
   onPatched,
   onEdit,
 }: {
   product: Product;
+  categories: Category[];
   onPatched: (p: Product) => void;
   onEdit: (p: Product) => void;
 }) {
@@ -589,7 +597,7 @@ function ProductTableRow({
         <p className="font-semibold text-fg">{product.name}</p>
         <p className="text-xs text-fg-subtle">{product.origin}</p>
       </td>
-      <td className="px-4 py-3 text-sm text-fg-muted">{categoryLabel(product.category)}</td>
+      <td className="px-4 py-3 text-sm text-fg-muted">{categoryLabel(product.category, categories)}</td>
       <td className="px-4 py-3 text-sm font-semibold text-fg">
         {formatCurrency(product.price)} / {u}
       </td>
@@ -659,10 +667,12 @@ function ProductTableRow({
 
 function ProductTable({
   products,
+  categories,
   onPatched,
   onEdit,
 }: {
   products: Product[];
+  categories: Category[];
   onPatched: (p: Product) => void;
   onEdit: (p: Product) => void;
 }) {
@@ -684,12 +694,348 @@ function ProductTable({
           </thead>
           <tbody className="divide-y divide-line">
             {products.map((p) => (
-              <ProductTableRow key={p.id} product={p} onPatched={onPatched} onEdit={onEdit} />
+              <ProductTableRow
+                key={p.id}
+                product={p}
+                categories={categories}
+                onPatched={onPatched}
+                onEdit={onEdit}
+              />
             ))}
           </tbody>
         </table>
       </div>
     </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Category creation & deletion sheets
+// ---------------------------------------------------------------------------
+
+interface CreateCategorySheetProps {
+  open: boolean;
+  onClose: () => void;
+  categories: Category[];
+  products: Product[];
+  onCreated: (newCat: Category, selectedProductIds: string[]) => Promise<void>;
+}
+
+function CreateCategorySheet({
+  open,
+  onClose,
+  categories,
+  products,
+  onCreated,
+}: CreateCategorySheetProps) {
+  const [name, setName] = useState("");
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const slug = useMemo(
+    () => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+    [name]
+  );
+
+  const filteredProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) => p.name.toLowerCase().includes(q) || p.origin.toLowerCase().includes(q));
+  }, [products, productSearch]);
+
+  function toggleProduct(id: string) {
+    setSelectedProductIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  function toggleAll() {
+    if (selectedProductIds.length === filteredProducts.length && filteredProducts.length > 0) {
+      setSelectedProductIds([]);
+    } else {
+      setSelectedProductIds(filteredProducts.map((p) => p.id));
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError("Category name is required.");
+      return;
+    }
+    if (categories.some((c) => c.name.toLowerCase() === trimmed.toLowerCase() || c.id === slug)) {
+      setError("A category with this name or identifier already exists.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const created = await api.createCategory({ name: trimmed, productIds: selectedProductIds });
+      await onCreated(created, selectedProductIds);
+      onClose();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Create category">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-5">
+        {error && <Alert variant="error">{error}</Alert>}
+
+        <Field label="Category Name" htmlFor="category-name">
+          <Input
+            id="category-name"
+            flavor="field"
+            placeholder="e.g. Fruits, Exotic Vegetables, Herbs..."
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (error) setError(null);
+            }}
+            autoFocus
+          />
+          {slug && (
+            <p className="mt-1 text-xs text-fg-subtle">
+              Identifier: <code className="rounded bg-raised px-1 py-0.5 font-mono text-fg">{slug}</code>
+            </p>
+          )}
+        </Field>
+
+        <div className="flex flex-col gap-2 rounded-xl border border-line bg-surface/50 p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-fg">Assign existing products</p>
+              <p className="text-xs text-fg-subtle">
+                Selected products will be added to this category filter ({selectedProductIds.length} selected)
+              </p>
+            </div>
+            {filteredProducts.length > 0 && (
+              <Button type="button" size="sm" variant="ghost" onClick={toggleAll}>
+                {selectedProductIds.length === filteredProducts.length && filteredProducts.length > 0
+                  ? "Deselect all"
+                  : "Select all"}
+              </Button>
+            )}
+          </div>
+
+          <div className="relative mt-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-subtle" />
+            <Input
+              flavor="field"
+              className="h-9 pl-8 text-xs"
+              placeholder="Search products to add..."
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="fc-scroll max-h-52 overflow-y-auto divide-y divide-line rounded-lg border border-line bg-surface">
+            {filteredProducts.length === 0 ? (
+              <p className="p-3 text-center text-xs text-fg-subtle">No products found</p>
+            ) : (
+              filteredProducts.map((p) => {
+                const selected = selectedProductIds.includes(p.id);
+                return (
+                  <label
+                    key={p.id}
+                    className="flex cursor-pointer items-center justify-between gap-3 p-2.5 transition-colors hover:bg-raised"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleProduct(p.id)}
+                        className="h-4 w-4 rounded border-line text-brand-600 focus:ring-brand-500"
+                      />
+                      <ProductThumb name={p.name} imageUrl={p.imageUrl} size={32} />
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-fg">{p.name}</p>
+                        <p className="text-2xs text-fg-subtle">
+                          Currently: {categoryLabel(p.category, categories)} · {p.stock} in stock
+                        </p>
+                      </div>
+                    </div>
+                    {selected && (
+                      <span className="shrink-0 rounded-full bg-brand-500/15 px-2 py-0.5 text-2xs font-bold text-brand-400">
+                        Will be moved
+                      </span>
+                    )}
+                  </label>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        <div className="mt-2 flex items-center justify-end gap-2 border-t border-line pt-4">
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={saving} disabled={!name.trim()}>
+            {selectedProductIds.length > 0
+              ? `Create category & add ${selectedProductIds.length} product${selectedProductIds.length === 1 ? "" : "s"}`
+              : "Create category"}
+          </Button>
+        </div>
+      </form>
+    </Sheet>
+  );
+}
+
+interface DeleteCategorySheetProps {
+  open: boolean;
+  onClose: () => void;
+  categories: Category[];
+  products: Product[];
+  onDeleted: (deletedId: string) => Promise<void>;
+}
+
+function DeleteCategorySheet({
+  open,
+  onClose,
+  categories,
+  products,
+  onDeleted,
+}: DeleteCategorySheetProps) {
+  const deletableCategories = useMemo(
+    () => categories.filter((c) => !c.isDefault && c.id !== "vegetables" && c.id !== "leafy-greens"),
+    [categories]
+  );
+
+  const [selectedId, setSelectedId] = useState<string>(deletableCategories[0]?.id ?? "");
+  const [reassignTo, setReassignTo] = useState<string>(categories[0]?.id ?? "vegetables");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (deletableCategories.length > 0 && (!selectedId || !deletableCategories.some((c) => c.id === selectedId))) {
+      setSelectedId(deletableCategories[0].id);
+    }
+  }, [deletableCategories, selectedId]);
+
+  const targetCategories = useMemo(
+    () => categories.filter((c) => c.id !== selectedId),
+    [categories, selectedId]
+  );
+
+  useEffect(() => {
+    if (targetCategories.length > 0 && (!reassignTo || reassignTo === selectedId)) {
+      const fallback = targetCategories.find((c) => c.id === "vegetables") ?? targetCategories[0];
+      if (fallback) setReassignTo(fallback.id);
+    }
+  }, [targetCategories, selectedId, reassignTo]);
+
+  const affectedProducts = useMemo(
+    () => products.filter((p) => p.category === selectedId),
+    [products, selectedId]
+  );
+
+  const selectedCategory = categories.find((c) => c.id === selectedId);
+
+  async function handleDelete(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedId) return;
+
+    setDeleting(true);
+    setError(null);
+    try {
+      await api.deleteCategory(selectedId, reassignTo);
+      await onDeleted(selectedId);
+      onClose();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Delete category">
+      <form onSubmit={handleDelete} className="flex flex-col gap-4 p-5">
+        {error && <Alert variant="error">{error}</Alert>}
+
+        {deletableCategories.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-raised text-fg-subtle">
+              <Package className="h-6 w-6" />
+            </span>
+            <div>
+              <p className="text-sm font-bold text-fg">No custom categories to delete</p>
+              <p className="mt-1 text-xs text-fg-subtle">
+                Default system categories (Vegetables and Leafy Greens) are required by the catalog and cannot be deleted. You can create new categories anytime using &quot;Add category&quot;.
+              </p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={onClose} className="mt-2">
+              Close
+            </Button>
+          </div>
+        ) : (
+          <>
+            <Field label="Choose category to delete" htmlFor="delete-cat-select">
+              <Select
+                id="delete-cat-select"
+                flavor="field"
+                value={selectedId}
+                onChange={(e) => setSelectedId(e.target.value)}
+              >
+                {deletableCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            {affectedProducts.length > 0 ? (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3.5">
+                <p className="text-xs font-bold text-amber-400">
+                  {affectedProducts.length} product{affectedProducts.length === 1 ? "" : "s"} in &quot;{selectedCategory?.name}&quot;
+                </p>
+                <p className="mt-1 text-xs text-fg-muted">
+                  These products will not be deleted. Select where to move them:
+                </p>
+                <div className="mt-3">
+                  <Field label="Move products to" htmlFor="reassign-select">
+                    <Select
+                      id="reassign-select"
+                      flavor="field"
+                      value={reassignTo}
+                      onChange={(e) => setReassignTo(e.target.value)}
+                    >
+                      {targetCategories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-fg-subtle">
+                There are currently no products in this category. It will be safely removed.
+              </p>
+            )}
+
+            <div className="mt-2 flex items-center justify-end gap-2 border-t border-line pt-4">
+              <Button type="button" variant="outline" onClick={onClose} disabled={deleting}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="danger" loading={deleting} disabled={!selectedId}>
+                Delete category
+              </Button>
+            </div>
+          </>
+        )}
+      </form>
+    </Sheet>
   );
 }
 
@@ -703,12 +1049,20 @@ export function AdminProductsScreen() {
   const params = useSearchParams();
   const { data, loading, error, refetch } = useAsync(() => api.listProducts(), []);
   const {
+    data: categoriesData,
+    refetch: refetchCategories,
+  } = useAsync(() => api.listCategories(), []);
+  const {
     data: settings,
     loading: settingsLoading,
     error: settingsError,
     refetch: refetchSettings,
   } = useAsync(() => api.getDailyPricesSettings(), []);
   const [publishing, setPublishing] = useState(false);
+
+  const categories = useMemo<Category[]>(() => {
+    return categoriesData && categoriesData.length > 0 ? categoriesData : CATEGORIES;
+  }, [categoriesData]);
 
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>(ALL);
@@ -717,6 +1071,8 @@ export function AdminProductsScreen() {
 
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState(false);
 
   // Local mirror so optimistic edits show instantly; refetch() reconciles it.
   const [overrides, setOverrides] = useState<Record<string, Product>>({});
@@ -785,6 +1141,20 @@ export function AdminProductsScreen() {
     refetch();
   }
 
+  async function handleCategoryCreated(newCat: Category) {
+    await refetchCategories();
+    await refetch();
+    setCategory(newCat.id);
+  }
+
+  async function handleCategoryDeleted(deletedId: string) {
+    await refetchCategories();
+    await refetch();
+    if (category === deletedId) {
+      setCategory(ALL);
+    }
+  }
+
   const publishedToday = isDailyPriceUpdatePublished(settings?.publishedAt);
 
   async function publishToday() {
@@ -834,7 +1204,7 @@ export function AdminProductsScreen() {
           </Card>
         )}
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-extrabold text-fg">Inventory</h1>
             <p className="text-xs text-fg-subtle">
@@ -842,9 +1212,27 @@ export function AdminProductsScreen() {
               {lowCount > 0 && <span className="text-red-300"> · {lowCount} low on stock</span>}
             </p>
           </div>
-          <Button leadingIcon={<Plus className="h-4 w-4" />} onClick={() => setAdding(true)}>
-            Add product
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              leadingIcon={<FolderPlus className="h-4 w-4 text-brand-500" />}
+              onClick={() => setCreatingCategory(true)}
+            >
+              Add category
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              leadingIcon={<Trash2 className="h-4 w-4 text-red-400" />}
+              onClick={() => setDeletingCategory(true)}
+            >
+              Delete category
+            </Button>
+            <Button size="sm" leadingIcon={<Plus className="h-4 w-4" />} onClick={() => setAdding(true)}>
+              Add product
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -861,13 +1249,16 @@ export function AdminProductsScreen() {
 
           <div className="flex flex-wrap gap-2">
             <Chip active={category === ALL} onClick={() => setCategory(ALL)}>
-              All
+              All ({products.length})
             </Chip>
-            {CATEGORIES.map((c) => (
-              <Chip key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
-                {c.name}
-              </Chip>
-            ))}
+            {categories.map((c) => {
+              const count = products.filter((p) => p.category === c.id).length;
+              return (
+                <Chip key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
+                  {c.name} {count > 0 && `(${count})`}
+                </Chip>
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -905,11 +1296,22 @@ export function AdminProductsScreen() {
           <>
             <div className="flex flex-col gap-3 lg:hidden">
               {filtered.map((p) => (
-                <ProductRow key={p.id} product={p} onPatched={applyOverride} onEdit={setEditing} />
+                <ProductRow
+                  key={p.id}
+                  product={p}
+                  categories={categories}
+                  onPatched={applyOverride}
+                  onEdit={setEditing}
+                />
               ))}
             </div>
             <div className="hidden lg:block">
-              <ProductTable products={filtered} onPatched={applyOverride} onEdit={setEditing} />
+              <ProductTable
+                products={filtered}
+                categories={categories}
+                onPatched={applyOverride}
+                onEdit={setEditing}
+              />
             </div>
           </>
         )}
@@ -920,7 +1322,8 @@ export function AdminProductsScreen() {
           key="add"
           title="Add product"
           open={adding}
-          initial={emptyForm()}
+          initial={emptyForm(categories)}
+          categories={categories}
           submitLabel="Add product"
           onClose={() => setAdding(false)}
           onSubmit={handleCreate}
@@ -933,10 +1336,31 @@ export function AdminProductsScreen() {
           title="Edit product"
           open={editing !== null}
           initial={formFromProduct(editing)}
+          categories={categories}
           productId={editing.id}
           submitLabel="Save changes"
           onClose={() => setEditing(null)}
           onSubmit={handleUpdate}
+        />
+      )}
+
+      {creatingCategory && (
+        <CreateCategorySheet
+          open={creatingCategory}
+          onClose={() => setCreatingCategory(false)}
+          categories={categories}
+          products={products}
+          onCreated={handleCategoryCreated}
+        />
+      )}
+
+      {deletingCategory && (
+        <DeleteCategorySheet
+          open={deletingCategory}
+          onClose={() => setDeletingCategory(false)}
+          categories={categories}
+          products={products}
+          onDeleted={handleCategoryDeleted}
         />
       )}
     </AdminShell>

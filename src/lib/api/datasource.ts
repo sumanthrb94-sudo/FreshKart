@@ -3,6 +3,8 @@ import type {
   AdminStats,
   CreateOrderInput,
   Customer,
+  Category,
+  CreateCategoryInput,
   DailyPricesSettings,
   Order,
   OrderStatus,
@@ -12,7 +14,7 @@ import type {
   StoreOverride,
   StoreSettings,
   User,
-} from "@/lib/types";
+} from "../types";
 import type {
   CreateSupportTicketInput,
   SupportTicket,
@@ -95,6 +97,12 @@ export interface DataSource {
   createProduct(input: ProductInput): Promise<Product>;
   /** Admin: bulk update prices for the daily price sheet. */
   updateProductPrices(updates: { id: string; price: number }[]): Promise<Product[]>;
+  /** List all product categories (system defaults + admin created). */
+  listCategories(): Promise<Category[]>;
+  /** Admin: create a new product category and optionally assign existing products. */
+  createCategory(input: CreateCategoryInput | string): Promise<Category>;
+  /** Admin: delete a category and reassign its products. */
+  deleteCategory(id: string, reassignToCategoryId?: string): Promise<void>;
 
   // --- Orders -------------------------------------------------------------
   createOrder(buyerId: string, input: CreateOrderInput): Promise<Order>;

@@ -32,6 +32,8 @@ import type {
   Customer,
   DailyPricesSettings,
   Order,
+  Category,
+  CreateCategoryInput,
   OrderItem,
   OrderStatus,
   ProfileSetupInput,
@@ -49,6 +51,7 @@ import type {
   TicketMessage,
 } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
+import { CATEGORIES } from "@/lib/mock-data";
 import type { ServiceArea } from "@/lib/service-area";
 import { radiusOf } from "@/lib/service-area";
 import type { InAppNotification, InAppNotificationType } from "@/lib/in-app-notifications";
@@ -68,6 +71,7 @@ import { notifyBuyerOfStatus } from "@/lib/api/order-push";
 
 const COL = {
   users: "users",
+  categories: "categories",
   products: "products",
   orders: "orders",
   supportTickets: "supportTickets",
@@ -559,6 +563,77 @@ export class FirebaseDataSource implements DataSource {
     return snaps
       .filter((s) => s.exists())
       .map((s) => ({ ...(s.data() as Omit<Product, "id">), id: s.id }));
+  }
+
+  async listCategories(): Promise<Category[]> {
+    await this.ready();
+    const db = getDb();
+    const snap = await getDocs(query(collection(db, COL.categories), orderBy("name")));
+    const custom = snap.docs.map((d) => ({ ...(d.data() as Omit<Category, "id">), id: d.id }));
+    const map = new Map<string, Category>();
+    for (const c of CATEGORIES) {
+      map.set(c.id, c);
+    }
+    for (const c of custom) {
+      map.set(c.id, c);
+    }
+    return Array.from(map.values());
+  }
+
+  async createCategory(input: CreateCategoryInput | string): Promise<Category> {
+    await this.ready();
+    const name = typeof input === "string" ? input.trim() : input.name.trim();
+    const productIds = typeof input === "string" ? [] : (input.productIds ?? []);
+    if (!name) throw new ApiError("Category name is required.");
+
+    const db = getDb();
+    let baseId = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    if (!baseId) baseId = `cat-${Date.now()}`;
+    let id = baseId;
+
+    const existing = await getDoc(doc(db, COL.categories, id));
+    if (existing.exists()) {
+      id = `${baseId}-${Date.now()}`;
+    }
+
+    const newCategory: Category = {
+      id,
+      name,
+      isDefault: false,
+    };
+
+    await setDoc(doc(db, COL.categories, id), {
+      name,
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+    });
+
+    if (productIds.length > 0) {
+      const batch = writeBatch(db);
+      for (const pid of productIds) {
+        batch.update(doc(db, COL.products, pid), { category: id });
+      }
+      await batch.commit();
+    }
+
+    return newCategory;
+  }
+
+  async deleteCategory(id: string, reassignToCategoryId?: string): Promise<void> {
+    await this.ready();
+    const db = getDb();
+    const targetCat = reassignToCategoryId || "vegetables";
+
+    const snap = await getDocs(query(collection(db, COL.products), where("category", "==", id)));
+    if (!snap.empty) {
+      const batch = writeBatch(db);
+      for (const d of snap.docs) {
+        batch.update(d.ref, { category: targetCat });
+      }
+      await batch.commit();
+    }
+
+    await deleteDoc(doc(db, COL.categories, id));
   }
 
   // --- Orders -------------------------------------------------------------

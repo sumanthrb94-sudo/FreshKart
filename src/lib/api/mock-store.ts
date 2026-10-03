@@ -1,5 +1,5 @@
-import type { DailyPricesSettings, Order, Product, StoreSettings, User } from "@/lib/types";
-import { ORDERS, PRODUCTS, USERS, DEMO_PASSWORD } from "@/lib/mock-data";
+import type { Category, DailyPricesSettings, Order, Product, StoreSettings, User } from "@/lib/types";
+import { CATEGORIES, ORDERS, PRODUCTS, USERS, DEMO_PASSWORD } from "@/lib/mock-data";
 import type { SupportTicket } from "@/lib/support-tickets";
 import type { Coupon } from "@/lib/coupons";
 import { DEMO_COUPONS } from "@/lib/coupons";
@@ -8,6 +8,7 @@ import type { ServiceArea } from "@/lib/service-area";
 import { DEFAULT_SERVICE_AREA } from "@/lib/service-area";
 
 interface MockStore {
+  categories: Category[];
   products: Product[];
   users: User[];
   orders: Order[];
@@ -22,6 +23,7 @@ interface MockStore {
 
 function seed(): MockStore {
   return {
+    categories: structuredClone(CATEGORIES),
     products: structuredClone(PRODUCTS),
     users: structuredClone(USERS),
     orders: structuredClone(ORDERS),
