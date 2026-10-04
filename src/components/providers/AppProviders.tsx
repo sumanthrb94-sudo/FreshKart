@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { LazyMotion, domMax } from "motion/react";
 import { initAnalytics } from "@/lib/firebase/client";
+import { installDomTranslateShield } from "@/lib/dom-translate-shield";
 import { LanguageProvider } from "@/lib/i18n";
 import { AuthProvider } from "./AuthProvider";
 import { CartProvider } from "./CartProvider";
@@ -12,8 +13,14 @@ import { NotificationProvider } from "./NotificationProvider";
 import { ToastContainer } from "@/components/ToastContainer";
 import { OrderTracker } from "@/components/OrderTracker";
 
+// Ensure DOM translation shield is installed on client side
+if (typeof window !== "undefined") {
+  installDomTranslateShield();
+}
+
 export function AppProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
+    installDomTranslateShield();
     initAnalytics();
   }, []);
 

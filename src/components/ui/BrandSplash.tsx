@@ -92,11 +92,11 @@ export function BrandSplash({
         {/* Rotating tagline */}
         {showRetry ? (
           <p className="text-lg font-medium leading-snug text-gray-500">
-            <span className="font-bold text-gray-100">Still loading your account.</span> Your
-            connection looks slow.
+            <span className="font-bold text-gray-100">Still loading your account. </span>
+            <span>Your connection looks slow.</span>
           </p>
         ) : (
-          <p ref={lineRef} className="text-lg font-medium leading-snug text-gray-500">
+          <p key={i} ref={lineRef} className="text-lg font-medium leading-snug text-gray-500">
             {TAGLINES[i].map((s, idx) => (
               <span key={idx} className={s.em ? "font-bold text-gray-100" : undefined}>
                 {s.t}

@@ -73,6 +73,54 @@ export default function RootLayout({
                     document.documentElement.classList.add("light");
                   }
                 } catch (e) {}
+
+                // Browser Translation Resilience Shield:
+                // Prevents Google Translate / Chrome on Android from crashing React with
+                // "Failed to execute 'insertBefore' on 'Node': The node before which the new node is to be inserted is not a child of this node."
+                try {
+                  if (typeof Node !== "undefined" && Node.prototype) {
+                    var originalInsertBefore = Node.prototype.insertBefore;
+                    Node.prototype.insertBefore = function(newNode, referenceNode) {
+                      if (referenceNode && referenceNode.parentNode !== this) {
+                        var ancestor = referenceNode.parentNode;
+                        while (ancestor && ancestor.parentNode !== this) {
+                          ancestor = ancestor.parentNode;
+                        }
+                        if (ancestor && ancestor.parentNode === this) {
+                          return originalInsertBefore.call(this, newNode, ancestor);
+                        }
+                        return this.appendChild(newNode);
+                      }
+                      return originalInsertBefore.call(this, newNode, referenceNode);
+                    };
+
+                    var originalRemoveChild = Node.prototype.removeChild;
+                    Node.prototype.removeChild = function(child) {
+                      if (child && child.parentNode !== this) {
+                        if (child.parentNode) {
+                          return child.parentNode.removeChild(child);
+                        }
+                        return child;
+                      }
+                      return originalRemoveChild.call(this, child);
+                    };
+
+                    var originalReplaceChild = Node.prototype.replaceChild;
+                    Node.prototype.replaceChild = function(newChild, oldChild) {
+                      if (oldChild && oldChild.parentNode !== this) {
+                        var ancestor = oldChild.parentNode;
+                        while (ancestor && ancestor.parentNode !== this) {
+                          ancestor = ancestor.parentNode;
+                        }
+                        if (ancestor && ancestor.parentNode === this) {
+                          return originalReplaceChild.call(this, newChild, ancestor);
+                        }
+                        return this.appendChild(newChild);
+                      }
+                      return originalReplaceChild.call(this, newChild, oldChild);
+                    };
+                  }
+                } catch (e) {}
               })();
             `,
           }}

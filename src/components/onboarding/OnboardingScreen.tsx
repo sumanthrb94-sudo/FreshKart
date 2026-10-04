@@ -317,7 +317,7 @@ export function OnboardingScreen() {
   // ---- Done: full-bleed brand celebration ----
   if (step === "done") {
     return (
-      <div className="flex min-h-[100dvh] justify-center bg-canvas lg:items-center lg:p-6">
+      <div key="step-done" className="flex min-h-[100dvh] justify-center bg-canvas lg:items-center lg:p-6">
         <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-gradient-to-b from-brand-600 via-brand-700 to-brand-800 px-7 text-white shadow-xl lg:h-auto lg:max-h-[90vh] lg:max-w-2xl lg:rounded-3xl">
           <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10" />
           <div className="pointer-events-none absolute bottom-40 -left-20 h-48 w-48 rounded-full bg-brand-400/30 blur-2xl" />
@@ -354,16 +354,17 @@ export function OnboardingScreen() {
   // ---- Sign in (landing): branded animated hero + auth card ----
   if (step === "mobile") {
     return (
-      <BrandAuthScreen
-        tagline="Wholesale B2B · fresh produce, per kg"
-        subline="Order in bulk · live rates · next day delivery"
-      >
-        <>
-          {/* pt-3 above and mb-2.5 below sit the heading in even space: the
-              line box adds 1.5px under the glyphs, so 12 above ≈ 11.5 below. */}
-          <h2 className="mb-5 text-center text-2xl font-extrabold leading-tight text-fg">
-            Sign in to continue
-          </h2>
+      <div key="step-mobile">
+        <BrandAuthScreen
+          tagline="Wholesale B2B · fresh produce, per kg"
+          subline="Order in bulk · live rates · next day delivery"
+        >
+          <>
+            {/* pt-3 above and mb-2.5 below sit the heading in even space: the
+                line box adds 1.5px under the glyphs, so 12 above ≈ 11.5 below. */}
+            <h2 className="mb-5 text-center text-2xl font-extrabold leading-tight text-fg">
+              Sign in to continue
+            </h2>
 
             {/* Demo login buttons (mock mode only) */}
             {usingMockBackend && (
@@ -376,7 +377,7 @@ export function OnboardingScreen() {
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-amber-600 disabled:opacity-50"
                   >
                     <ShieldCheck className="h-4 w-4" />
-                    {demoBusy ? "Logging in…" : "Demo: Admin"}
+                    <span>{demoBusy ? "Logging in…" : "Demo: Admin"}</span>
                   </button>
                   <button
                     type="button"
@@ -385,7 +386,7 @@ export function OnboardingScreen() {
                     className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold text-fg-muted shadow-sm transition-colors hover:bg-raised disabled:opacity-50"
                   >
                     <Store className="h-4 w-4" />
-                    {demoBusy ? "Logging in…" : "Demo: Buyer"}
+                    <span>{demoBusy ? "Logging in…" : "Demo: Buyer"}</span>
                   </button>
                 </div>
 
@@ -423,7 +424,7 @@ export function OnboardingScreen() {
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              {busy ? "Sending code…" : "Continue with mobile"}
+              <span>{busy ? "Sending code…" : "Continue with mobile"}</span>
             </button>
 
             {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}
@@ -431,14 +432,15 @@ export function OnboardingScreen() {
             <p className="mt-5 text-center text-2xs leading-relaxed text-fg-subtle">
               By continuing you agree to Green Basket&apos;s Terms &amp; Privacy Policy.
             </p>
-        </>
-      </BrandAuthScreen>
+          </>
+        </BrandAuthScreen>
+      </div>
     );
   }
 
   // ---- Form steps (verify / shop): light background ----
   return (
-    <div className="flex min-h-[100dvh] justify-center bg-canvas lg:items-center lg:p-6">
+    <div key={step === "verify" ? "step-verify" : "step-shop"} className="flex min-h-[100dvh] justify-center bg-canvas lg:items-center lg:p-6">
       <div className="relative flex h-[100dvh] w-full max-w-app flex-col overflow-hidden bg-canvas px-7 pt-14 shadow-xl lg:h-auto lg:max-h-[90vh] lg:max-w-2xl lg:rounded-3xl lg:pt-7">
         <Progress />
 
@@ -446,8 +448,9 @@ export function OnboardingScreen() {
           <div className="flex flex-1 flex-col">
             <h1 className="text-2xl font-extrabold text-fg">Enter the code</h1>
             <p className="mt-2 text-sm text-fg-subtle">
-              Sent to +91 {phone} ·{" "}
+              <span>Sent to +91 {phone} · </span>
               <button
+                type="button"
                 onClick={() => {
                   resetRecaptcha();
                   setError(null);
@@ -505,11 +508,12 @@ export function OnboardingScreen() {
                 fires the SMS again, no bounce back to the sign-in screen. */}
             <div id={RECAPTCHA_ID} className="hidden" />
             <div className="mt-5 text-center text-sm text-fg-subtle">
-              Didn&apos;t get the code?{" "}
+              <span>Didn&apos;t get the code? </span>
               {resendIn > 0 ? (
-                <span className="text-fg-subtle">Resend in {resendIn}s</span>
+                <span key="resend-countdown" className="text-fg-subtle">Resend in {resendIn}s</span>
               ) : (
                 <button
+                  key="resend-btn"
                   type="button"
                   onClick={handleResend}
                   disabled={busy}
@@ -531,7 +535,7 @@ export function OnboardingScreen() {
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
               >
                 {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                {busy ? "Verifying…" : "Verify & continue"}
+                <span>{busy ? "Verifying…" : "Verify & continue"}</span>
               </button>
             </div>
           </div>
@@ -541,8 +545,7 @@ export function OnboardingScreen() {
           <div className="flex flex-1 flex-col overflow-y-auto pb-8">
             <h1 className="text-2xl font-extrabold text-fg">Tell us about your shop</h1>
             <p className="mt-2 text-sm text-fg-subtle">
-              This is what we call you by on orders, invoices and at the door.
-              {" · "}
+              <span>This is what we call you by on orders, invoices and at the door. · </span>
               {/* The only way off this step. It is the last one, and somebody
                   resuming an abandoned sign-up arrives here directly — with
                   the wrong number verified, they would otherwise be stuck on

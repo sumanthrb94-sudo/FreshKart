@@ -20,12 +20,12 @@ export function HomeGate() {
   // pending one, and must reach onboarding rather than a splash.
   switch (authGateView({ loading, profileStalled, hasProfile: !!user })) {
     case "loading":
-      return <BrandSplash />;
+      return <BrandSplash key="gate-loading" />;
     case "stalled":
-      return <BrandSplash stalled onRetry={retryProfile} />;
+      return <BrandSplash key="gate-stalled" stalled onRetry={retryProfile} />;
     case "onboarding":
-      return <OnboardingScreen />;
+      return <OnboardingScreen key="gate-onboarding" />;
     case "app":
-      return <ShopScreen />;
+      return <ShopScreen key="gate-app" />;
   }
 }
