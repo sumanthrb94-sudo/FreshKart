@@ -70,8 +70,8 @@ describe("which van an order rides on", () => {
     expect(nextDeliveryDate()).toBe("2026-08-02");
   });
 
-  it("puts an order assigned after the 9 PM close on tomorrow's run", () => {
-    atIst("2026-08-01T22:15:00");
+  it("puts an order assigned after the 10:30 PM close on tomorrow's run", () => {
+    atIst("2026-08-01T22:45:00");
     expect(nextDeliveryDate()).toBe("2026-08-02");
   });
 

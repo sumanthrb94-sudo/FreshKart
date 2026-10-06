@@ -11,7 +11,10 @@ import {
   getStoreStatus,
   effectiveOverride,
   STORE_OPEN_HOUR,
+  STORE_OPEN_MINUTE,
   STORE_CLOSE_HOUR,
+  STORE_CLOSE_MINUTE,
+  formatTime12h,
 } from "@/lib/store-hours";
 import { isDailyPriceUpdatePublished } from "@/lib/time";
 import { AdminShell } from "./AdminShell";
@@ -154,7 +157,7 @@ export function AdminSettingsScreen() {
  * Day-to-day operating controls.
  *
  * The normal cycle is: prices are published after 7 AM IST, the shop trades
- * 8 AM – 9 PM, and closes itself at 9 PM. These controls exist for the two
+ * 8 AM – 10:30 PM, and closes itself at 10:30 PM. These controls exist for the two
  * cases that cycle can't express on its own — going live outside the window
  * (a demo, a late run), and taking a bad price sheet back down.
  */
@@ -208,9 +211,12 @@ function StoreControls() {
     }
   }
 
+  const openTimeLabel = formatTime12h(STORE_OPEN_HOUR, STORE_OPEN_MINUTE);
+  const closeTimeLabel = formatTime12h(STORE_CLOSE_HOUR, STORE_CLOSE_MINUTE);
+
   const OPTIONS: { value: StoreOverride; label: string; hint: string }[] = [
-    { value: "AUTO", label: "Auto", hint: `Follow ${STORE_OPEN_HOUR} AM – ${STORE_CLOSE_HOUR - 12} PM` },
-    { value: "OPEN", label: "Force open", hint: "Live now, until 9 PM" },
+    { value: "AUTO", label: "Auto", hint: `Follow ${openTimeLabel} – ${closeTimeLabel}` },
+    { value: "OPEN", label: "Force open", hint: `Live now, until ${closeTimeLabel}` },
     { value: "CLOSED", label: "Force closed", hint: "Shut regardless of time" },
   ];
 
@@ -247,7 +253,7 @@ function StoreControls() {
           <p className="text-sm font-semibold text-fg">Shop open</p>
           <p className="mt-1 text-xs text-fg-subtle">
             The schedule says <strong className="text-fg">{status.isOnSchedule ? "open" : "closed"}</strong> right now.
-            Forcing a state lapses automatically at the next 9 PM, so a test can&apos;t leave the shop trading overnight.
+            Forcing a state lapses automatically at the next {closeTimeLabel}, so a test can&apos;t leave the shop trading overnight.
           </p>
           <div className="mt-2.5 grid grid-cols-3 gap-2">
             {OPTIONS.map((o) => (

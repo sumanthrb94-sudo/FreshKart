@@ -275,7 +275,7 @@ export class MockDataSource implements DataSource {
         error = `Maximum order is ${MAX_ORDER_TOTAL_QTY} kgs. You have ${totalQty} kgs.`;
         return;
       }
-      // The shop is shut outside 8 AM – 9 PM IST unless an admin has forced
+      // The shop is shut outside 8 AM – 10:30 PM IST unless an admin has forced
       // it live. The cart screen already knows this, but a tab left open past
       // the close would otherwise still be able to place an order — and that
       // order would join a load that was packed hours earlier.
@@ -977,7 +977,7 @@ export class MockDataSource implements DataSource {
   }
 
   async setStoreOverride(userId: string, override: StoreOverride): Promise<StoreSettings> {
-    // A forced state lapses at the next 9 PM IST, so the shop returns to its
+    // A forced state lapses at the next 10:30 PM IST, so the shop returns to its
     // schedule on its own even if nobody remembers to undo a test.
     const settings: StoreSettings = {
       override,

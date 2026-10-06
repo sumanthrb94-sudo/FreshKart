@@ -8,7 +8,7 @@ import type { DeliveryDetails, Order, PaymentMethod } from "@/lib/types";
 import { api } from "@/lib/api";
 import { CATEGORIES } from "@/lib/mock-data";
 import { formatLastPublished, isDailyPriceUpdatePublished } from "@/lib/time";
-import { getStoreStatus, effectiveOverride, STORE_CLOSE_HOUR } from "@/lib/store-hours";
+import { getStoreStatus, effectiveOverride, STORE_CLOSE_HOUR, STORE_CLOSE_MINUTE } from "@/lib/store-hours";
 import { useAsync } from "@/lib/hooks";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useCart } from "@/components/providers/CartProvider";
@@ -74,8 +74,8 @@ export function ShopScreen() {
     const timer = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(timer);
   }, []);
-  // An admin can force the shop live (or shut) outside the 8 AM - 9 PM
-  // window; the override lapses at the next 9 PM on its own.
+  // An admin can force the shop live (or shut) outside the 8 AM - 10:30 PM
+  // window; the override lapses at the next 10:30 PM on its own.
   const { data: storeSettings } = useAsync(
     () => (api.getStoreSettings ? api.getStoreSettings() : Promise.resolve(null)),
     []
@@ -85,18 +85,19 @@ export function ShopScreen() {
     [now, storeSettings]
   );
   const canOrder = pricesPublished && storeStatus.isOpen;
-  // Between the 9 PM close and midnight the shop shut *today*; before 8 AM it
+  // Between the 10:30 PM close and midnight the shop shut *today*; before 8 AM it
   // simply hasn't opened yet. Same closed state, very different message.
   const justClosedForToday = useMemo(() => {
     if (storeStatus.isOpen) return false;
-    const istHour = Number(
-      new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Asia/Kolkata",
-        hour: "2-digit",
-        hour12: false,
-      }).format(now)
-    );
-    return istHour >= STORE_CLOSE_HOUR;
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(now);
+    const h = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+    const m = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+    return h * 60 + m >= STORE_CLOSE_HOUR * 60 + STORE_CLOSE_MINUTE;
   }, [storeStatus.isOpen, now]);
 
   const visible = useMemo(() => {
@@ -222,7 +223,7 @@ export function ShopScreen() {
           </div>
         )}
 
-        {/* Closed banner. After the 9 PM cart close a shopkeeper needs to know
+        {/* Closed banner. After the 10:30 PM cart close a shopkeeper needs to know
             their order missed today's van, not a generic "come back later" —
             so the evening and the small hours say different things. */}
         {!storeStatus.isOpen && (
@@ -264,7 +265,7 @@ export function ShopScreen() {
               title={justClosedForToday ? "Cart closed for today" : "Gathering best prices across Hyderabad"}
               subtitle={
                 justClosedForToday
-                  ? "The 9 PM cut-off has passed and today's van is loaded. Orders reopen at 8 AM for tomorrow's delivery."
+                  ? "The 10:30 PM cut-off has passed and today's van is loaded. Orders reopen at 8 AM for tomorrow's delivery."
                   : "Will be online at 8 AM everyday. Come back tomorrow!"
               }
             />

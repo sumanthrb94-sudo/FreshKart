@@ -7,8 +7,8 @@ import { getIstDateString, shiftIstDate } from "./time";
  * The business runs on a fixed daily cycle:
  *
  *   07:00–08:00  admin back from the mandi publishes the day's rates
- *   08:00–21:00  the shop takes orders
- *   21:00        the cart closes; the day's orders are final
+ *   08:00–22:30  the shop takes orders
+ *   22:30        the cart closes; the day's orders are final
  *   overnight    packed, assigned, loaded
  *   08:00–09:00  next morning, delivered
  *
@@ -42,7 +42,7 @@ function istHour(date: Date): number {
  * Before the van leaves, an assignment still catches this morning's run — the
  * admin loading crates at 07:30 is loading them for today. Once it has gone,
  * everything assigned is for tomorrow. Anchoring on the departure hour rather
- * than on the 21:00 cart close matters because packing happens across
+ * than on the 22:30 cart close matters because packing happens across
  * midnight: an order assigned at 23:00 Monday and one assigned at 01:00
  * Tuesday are the same van, and a date-only rule would split them.
  */

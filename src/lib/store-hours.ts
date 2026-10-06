@@ -6,21 +6,21 @@ import type { StoreOverride, StoreSettings } from "@/lib/types";
 
 export const STORE_OPEN_HOUR = 8; // 8:00 AM IST
 export const STORE_OPEN_MINUTE = 0;
-/** The cart closes at 9:00 PM IST — orders placed after this go to the next
+/** The cart closes at 10:30 PM IST — orders placed after this go to the next
  *  day's delivery run, so ordering is shut off until the store reopens. */
-export const STORE_CLOSE_HOUR = 21; // 9:00 PM IST
-export const STORE_CLOSE_MINUTE = 0;
+export const STORE_CLOSE_HOUR = 22; // 10:30 PM IST
+export const STORE_CLOSE_MINUTE = 30;
 export const PRICE_UPDATE_HOUR = 7; // 7:00 AM IST
 
 const OPEN_MINUTES = STORE_OPEN_HOUR * 60 + STORE_OPEN_MINUTE; // 480
-const CLOSE_MINUTES = STORE_CLOSE_HOUR * 60 + STORE_CLOSE_MINUTE; // 1260
+const CLOSE_MINUTES = STORE_CLOSE_HOUR * 60 + STORE_CLOSE_MINUTE; // 1350
 
 /**
  * Store status at a given time (defaults to now, IST).
  *
  * `override` lets an admin force the shop open or shut regardless of the
  * clock — for a demo, a late delivery run, or a day with no stock. "AUTO"
- * (the default) follows the 8 AM – 9 PM schedule. `isOnSchedule` always
+ * (the default) follows the 8 AM – 10:30 PM schedule. `isOnSchedule` always
  * reports what the clock alone would say, so the admin UI can show both
  * "the schedule says closed" and "you have forced it open".
  */
@@ -79,10 +79,10 @@ export function getStoreStatus(now = new Date(), override: StoreOverride = "AUTO
 }
 
 /**
- * The next 9:00 PM IST strictly after `from` — when an admin override lapses
+ * The next 10:30 PM IST strictly after `from` — when an admin override lapses
  * and the shop goes back to following the schedule. Matches the operating
- * rule "it auto-offs at 9 PM that day": open the shop at 10 AM and it shuts
- * itself at 9 PM the same evening, so a forgotten override can't leave the
+ * rule "it auto-offs at 10:30 PM that day": open the shop at 10 AM and it shuts
+ * itself at 10:30 PM the same evening, so a forgotten override can't leave the
  * store trading overnight.
  */
 export function nextStoreClose(from = new Date()): Date {
@@ -125,4 +125,11 @@ export function formatRemainingMinutes(minutes: number): string {
   if (h > 0 && m > 0) return `${h}h ${m}m`;
   if (h > 0) return `${h}h`;
   return `${m}m`;
+}
+
+/** Format hour and minute as 12-hour time string, e.g. "8 AM" or "10:30 PM". */
+export function formatTime12h(hour: number, minute: number): string {
+  const period = hour >= 12 ? "PM" : "AM";
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  return minute === 0 ? `${h12} ${period}` : `${h12}:${minute.toString().padStart(2, "0")} ${period}`;
 }

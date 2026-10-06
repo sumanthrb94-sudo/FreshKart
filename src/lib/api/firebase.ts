@@ -662,7 +662,7 @@ export class FirebaseDataSource implements DataSource {
       );
     }
 
-    // The shop is shut outside 8 AM – 9 PM IST unless an admin has forced it
+    // The shop is shut outside 8 AM – 10:30 PM IST unless an admin has forced it
     // live. The cart screen already knows this; enforcing it here as well
     // stops a tab left open past the close from adding an order to a load
     // that was packed hours ago.
@@ -1651,7 +1651,7 @@ export class FirebaseDataSource implements DataSource {
 
   async setStoreOverride(userId: string, override: StoreOverride): Promise<StoreSettings> {
     await this.ready();
-    // A forced state lapses at the next 9 PM IST, so the shop returns to its
+    // A forced state lapses at the next 10:30 PM IST, so the shop returns to its
     // schedule on its own even if nobody remembers to undo a test.
     const settings: StoreSettings = {
       override,

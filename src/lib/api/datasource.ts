@@ -273,7 +273,7 @@ export interface DataSource {
    */
   getStoreSettings?(): Promise<StoreSettings | null>;
   /** Optional — admin: force the shop open/closed, or hand control back to
-   *  the 8 AM – 9 PM schedule. */
+   *  the 8 AM – 10:30 PM schedule. */
   setStoreOverride?(userId: string, override: StoreOverride): Promise<StoreSettings>;
   /**
    * Optional: the hub the van leaves from and the pincodes we deliver to.

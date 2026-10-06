@@ -28,7 +28,7 @@ const TEMPLATES: { label: string; title: string; message: string; link: string }
   {
     label: "Order cut-off reminder",
     title: "Last call for tomorrow",
-    message: "Orders close at 9 PM for delivery before 7 AM tomorrow. Get your list in now.",
+    message: "Orders close at 10:30 PM for delivery before 7 AM tomorrow. Get your list in now.",
     link: "/",
   },
   {
