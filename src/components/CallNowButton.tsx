@@ -10,7 +10,7 @@ interface CallNowButtonProps {
   className?: string;
 }
 
-const DEFAULT_PHONE = "74166 20691";
+const DEFAULT_PHONE = "92812 17025";
 
 /** Click-to-call customer service button.
  *  Works on mobile (opens dialer) and desktop (opens calling app).
