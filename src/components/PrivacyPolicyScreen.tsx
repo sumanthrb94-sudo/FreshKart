@@ -137,7 +137,7 @@ export function PrivacyPolicyScreen() {
                 </p>
                 <div className="mt-2 space-y-1 text-xs text-fg">
                   <p>Email: privacy@green-basket.in</p>
-                  <p>Phone: +91 74166 20691</p>
+                  <p>Phone: +91 92812 17025</p>
                   <p>
                     Address: Green Basket, near Venkateswara Temple, Yerraboda, Upperpally,
                     Hyderabad, Telangana 500048

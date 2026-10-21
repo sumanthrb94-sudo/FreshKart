@@ -86,7 +86,7 @@ export const SELLER = {
   name: "Green Basket",
   tagline: "Wholesale B2B — Fresh Produce, Per Kg",
   address: "Near Venkateswara Temple, Yerraboda, Upperpally, Hyderabad, Telangana — 500048",
-  phone: "Phone: +91 74166 20691",
+  phone: "Phone: +91 92812 17025",
 } as const;
 
 export function buildInvoiceModel(order: Order): InvoiceModel {
